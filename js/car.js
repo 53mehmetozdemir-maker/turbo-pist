@@ -157,6 +157,10 @@ function buildFerrari(color){
   sh.rotation.x=-Math.PI/2; sh.position.y=0.012; sh.renderOrder=2; unsprung.add(sh);
   const flameMat=new THREE.MeshBasicMaterial({color:0x66b3ff,transparent:true,opacity:0.85,blending:THREE.AdditiveBlending,depthWrite:false});
   const flames=[-0.13,0,0.13].map(z=>{ const f=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.6,10).rotateZ(Math.PI/2),flameMat); f.position.set(-2.45,0.42,z); f.visible=false; body.add(f); return f; });
+  // glowing elements inside the round tail lamps (the model only has a chrome reflector there)
+  for(const s of [-1,1]){ const n=new THREE.Vector3(-0.94,-0.24,s*0.23).normalize(); const d=new THREE.Mesh(new THREE.CircleGeometry(0.052,24),brakeMat);
+    d.position.set(-1.843,0.884,s*0.78).addScaledVector(n,0.009); d.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n); body.add(d);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(0.055,0.068,24),new THREE.MeshStandardMaterial({color:0x2a0505,emissive:0xff2020,emissiveIntensity:0.25,roughness:0.3})); ring.position.copy(d.position).addScaledVector(n,-0.002); ring.quaternion.copy(d.quaternion); body.add(ring); }
   // live rev counter over the model's yellow tachometer face
   const gC=document.createElement('canvas'); gC.width=gC.height=256; const gT=new THREE.CanvasTexture(gC); gT.colorSpace=THREE.SRGBColorSpace; gT.anisotropy=4;
   const dial=new THREE.Mesh(new THREE.CircleGeometry(0.057,40),new THREE.MeshBasicMaterial({map:gT,toneMapped:false,color:0xd8d8d8}));

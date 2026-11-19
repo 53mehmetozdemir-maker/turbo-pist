@@ -132,7 +132,8 @@ export function buildTrack(scene,quality){
     const beam=new THREE.Mesh(new THREE.BoxGeometry(0.8,1.2,ROAD_HALF*2+4),metal); beam.position.set(0,7.2,0); beam.castShadow=true; gant.add(beam);
     const sign=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.9,ROAD_HALF*2+3.6),[0,0,0,0,0,0].map((_,k)=>k===1?new THREE.MeshStandardMaterial({map:gantryTex(),roughness:.5}):new THREE.MeshStandardMaterial({color:0x111111}))); sign.position.set(-0.45,7.2,0); gant.add(sign);
     for(let k=0;k<5;k++){ const mat=new THREE.MeshStandardMaterial({color:0x220000,emissive:0xff1010,emissiveIntensity:0});
-      const l=new THREE.Mesh(new THREE.SphereGeometry(0.28,16,10),mat); l.position.set(-0.6,7.2,(k-2)*1.1); gant.add(l); lights.push(mat); }
+      const l=new THREE.Mesh(new THREE.SphereGeometry(0.26,16,10),mat); l.position.set(-0.45,6.25,(k-2)*1.0); gant.add(l); lights.push(mat); }
+    const pod=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.75,5.6),metal); pod.position.set(-0.2,6.25,0); gant.add(pod);
   }
   // grandstands along the start straight: concrete tiers, seats, spectators, steel roof on trusses
   const standMat=new THREE.MeshStandardMaterial({color:0x9a9ea6,roughness:.9});

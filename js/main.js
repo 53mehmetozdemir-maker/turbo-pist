@@ -171,6 +171,7 @@ function drawDrops(dt,on){
   const sp=phys.speed||0; const rate=(40+sp*1.2)*dt; for(let i=0;i<rate;i++) if(drops.length<260) drops.push({x:Math.random(),y:Math.random()*0.72,r:0.6+Math.random()*2.2,v:0,life:1});
   wiperT+=dt; const period=sp>15?1.1:2.0, ph=(wiperT%period)/period, sweep=ph<0.5?ph*2:2-ph*2, wa=-Math.PI*0.08-sweep*Math.PI*0.84;
   const pivX=0.38*W, pivY=0.98*H, L=0.78*H;
+  g.save(); if(camMode===1){ g.beginPath(); g.moveTo(0.36*W,0.31*H); g.lineTo(1.0*W,0.26*H); g.lineTo(1.0*W,0.6*H); g.lineTo(0.34*W,0.6*H); g.closePath(); g.clip(); }
   for(let i=drops.length-1;i>=0;i--){ const d=drops[i];
     d.y+=(sp>12? -sp*0.0009 : 0.004+d.r*0.002)*dt*10; d.x+=(d.x-0.5)*sp*0.0004*dt*10;
     const px=d.x*W, py=d.y*H; const dx=px-pivX, dy=py-pivY, da=Math.atan2(dy,dx); const dist=Math.hypot(dx,dy);
@@ -181,6 +182,7 @@ function drawDrops(dt,on){
     g.fillStyle=gr; g.beginPath(); g.arc(px,py,r,0,Math.PI*2); g.fill(); }
   // wiper blade
   if(camMode===1){ g.strokeStyle='rgba(8,8,10,.92)'; g.lineWidth=Math.max(2,H*0.012); g.lineCap='round'; g.beginPath(); g.moveTo(pivX,pivY); g.lineTo(pivX+Math.cos(wa)*L,pivY+Math.sin(wa)*L); g.stroke(); }
+  g.restore();
 }
 function applyWeather(wx){
   settings.weather=wx; wet=wx==='rain'; PHYS.wet=wet; rain.m.visible=wet; streaks.visible=wet; audio.wet=wet;
@@ -460,7 +462,7 @@ function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=he
   m.body.rotation.set(-roll,0,-pitch); m.body.position.y=(m.setPose?0:0.02)+bump;
   if(m.setPose) m.setPose(steer,wheelAng);
   else { for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; } m.steer.rotation.x=steer*12; }
-  m.brakeMat.emissiveIntensity=brake?6:(lights?1.6:0.35); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
+  m.brakeMat.emissiveIntensity=brake?6:(lights?2.2:0.35); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
   if(m.headMat) m.headMat.emissiveIntensity=lights?3.5:0.15;
   for(const f of m.flames){ f.visible=nitro; if(nitro){ const s=0.8+Math.random()*0.5; f.scale.set(s,1,1); } }
 }
