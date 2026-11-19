@@ -34,7 +34,7 @@ export function broadleafGeos(det = 1, variant = 0) {
   tr.push(prep(t));
   for (let k = 0; k < 4; k++) { const a = k * 1.6 + rnd(), len = 1.2 + rnd() * 0.6; const b = new THREE.CylinderGeometry(0.04, 0.09, len, 5); b.translate(0, len / 2, 0); b.rotateZ(0.65 + rnd() * 0.3); b.rotateY(a); b.translate(0, trunkH - 0.2 + rnd() * 0.5, 0); tr.push(prep(b)); }
   const trunk = stripUV(mergeGeometries(tr.map(stripUV)));
-  const cr = []; const lobes = 7 + Math.floor(rnd() * 3);
+  const cr = []; const lobes = 6 + Math.floor(rnd() * 2);
   for (let k = 0; k < lobes; k++) {
     const a = rnd() * Math.PI * 2, r = k === 0 ? 0 : 0.7 + rnd() * 0.9, y = 4.1 + (k === 0 ? 0.3 : (rnd() - 0.35) * 1.6), s = k === 0 ? 1.7 : 1.0 + rnd() * 0.6;
     const g = new THREE.IcosahedronGeometry(s, det >= 2 ? 2 : 1); g.scale(1, 0.85, 1); g.translate(Math.cos(a) * r, y, Math.sin(a) * r); cr.push(prep(g)); }
@@ -108,12 +108,12 @@ export function spectatorGeo() {
 // ---- street lamp: plinth, tapered pole, curved arm, luminaire ----
 export function lampGeos() {
   const parts = [];
-  const base = new THREE.CylinderGeometry(0.2, 0.24, 0.6, 10); base.translate(0, 0.3, 0); parts.push(base);
-  const ring = new THREE.CylinderGeometry(0.15, 0.2, 0.12, 10); ring.translate(0, 0.66, 0); parts.push(ring);
-  const pole = new THREE.CylinderGeometry(0.065, 0.12, 7.4, 10); pole.translate(0, 0.6 + 3.7, 0); parts.push(pole);
+  const base = new THREE.CylinderGeometry(0.2, 0.24, 0.6, 8, 1, true); base.translate(0, 0.3, 0); parts.push(base);
+  const ring = new THREE.CylinderGeometry(0.15, 0.2, 0.12, 8, 1, true); ring.translate(0, 0.66, 0); parts.push(ring);
+  const pole = new THREE.CylinderGeometry(0.065, 0.12, 7.4, 7, 1, true); pole.translate(0, 0.6 + 3.7, 0); parts.push(pole);
   const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, 7.8, 0), new THREE.Vector3(0, 8.45, 0.25), new THREE.Vector3(0, 8.25, 1.85));
-  parts.push(new THREE.TubeGeometry(curve, 10, 0.05, 6, false));
-  const head = new THREE.CylinderGeometry(0.22, 0.3, 0.14, 12); head.scale(1, 1, 2.1); head.translate(0, 8.2, 2.05); parts.push(head);
+  parts.push(new THREE.TubeGeometry(curve, 7, 0.05, 5, false));
+  const head = new THREE.CylinderGeometry(0.22, 0.3, 0.14, 10); head.scale(1, 1, 2.1); head.translate(0, 8.2, 2.05); parts.push(head);
   const metal = mergeGeometries(parts.map(g => stripUV(prep(g))));
   const glass = new THREE.CylinderGeometry(0.24, 0.24, 0.03, 12); glass.scale(1, 1, 2.0); glass.translate(0, 8.12, 2.05);
   return { metal, glass: stripUV(prep(glass)) };

@@ -309,7 +309,14 @@ export function buildCity(scene, quality, fleet) {
   for (const k of [...styles, 'shop0', 'shop1', 'shop2', 'shop3', 'roof']) { const m = addM(bufs[k], mats[k], true, quality !== 'low'); }
   addM(bufs.cornice, new THREE.MeshStandardMaterial({ color: 0xd9d4c8, roughness: 0.8 }), true, quality !== 'low');
   const D0 = new THREE.Object3D();
-  const instList = (geo, mat, list, f, cast = false) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)); list.forEach((it, i) => { f(D0, it, i, m); D0.updateMatrix(); m.setMatrixAt(i, D0.matrix); }); m.count = list.length; m.castShadow = cast; m.receiveShadow = true; group.add(m); return m; };
+  const CH = 200, xzOf = it => Array.isArray(it) ? [it[0], it[1]] : [it.x, it.z];
+  const chunkInst = (geo, mat, list, f, cast = false, xz = xzOf, recv = true) => { const groups = new Map();
+    for (const it of list) { const [x, z] = xz(it); const k = Math.floor(x / CH) + ',' + Math.floor(z / CH); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); }
+    const out = []; for (const items of groups.values()) { const m = new THREE.InstancedMesh(geo, mat, items.length); items.forEach((it, i) => { f(D0, it, i, m); D0.updateMatrix(); m.setMatrixAt(i, D0.matrix); });
+      m.castShadow = cast; m.receiveShadow = recv; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); group.add(m); out.push(m); }
+    return out; };
+  const xz02 = it => [it[0], it[2]];
+  const instList = (geo, mat, list, f, cast = false) => chunkInst(geo, mat, list, f, cast, xz02);
   const place = (D, [x, y, z, r]) => { D.position.set(x, y, z); D.rotation.set(0, r, 0); D.scale.set(1, 1, 1); };
   const slabG = new THREE.BoxGeometry(2.4, 0.14, 1.1); slabG.translate(0, 0, 0);
   const railG = new THREE.BoxGeometry(2.4, 1.0, 0.05); railG.translate(0, 0.55, 0.53);
@@ -322,8 +329,7 @@ export function buildCity(scene, quality, fleet) {
   instList(acG, new THREE.MeshStandardMaterial({ color: 0xe4e4e0, roughness: 0.6 }), acs2, place);
   const awG = new THREE.BoxGeometry(4.6, 0.06, 1.5); awG.rotateX(0.32); awG.translate(0, 3.85, 0);
   const awColors = [0xb03a2e, 0x1f618d, 0x196f3d, 0x9a7d0a, 0x6c3483, 0x2e4053].map(c => new THREE.Color(c));
-  const awM = instList(awG, new THREE.MeshStandardMaterial({ roughness: 0.85 }), awn, (D, [x, z, r, c], i, m) => { D.position.set(x, CURB, z); D.rotation.set(0, r, 0); D.scale.set(1, 1, 1); m.setColorAt(i, awColors[c]); });
-  if (awM.instanceColor) awM.instanceColor.needsUpdate = true;
+  chunkInst(awG, new THREE.MeshStandardMaterial({ roughness: 0.85 }), awn, (D, [x, z, r, c], i, m) => { D.position.set(x, CURB, z); D.rotation.set(0, r, 0); D.scale.set(1, 1, 1); m.setColorAt(i, awColors[c]); });
   // roof props (AC units, water tanks) + antenna on the tallest tower
   const acGeo = new THREE.BoxGeometry(2.2, 1.4, 1.6); acGeo.translate(0, 0.7 + 0.9, 0);
   const tankGeo = new THREE.CylinderGeometry(1.2, 1.2, 2.4, 10); tankGeo.translate(0, 2.1, 0);
@@ -359,16 +365,15 @@ export function buildCity(scene, quality, fleet) {
   const LG = lampGeos();
   const metal = new THREE.MeshStandardMaterial({ color: 0x3b3f45, metalness: 0.75, roughness: 0.38 });
   const headMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e2, emissive: 0xfff0d8, emissiveIntensity: 0.0, roughness: 0.25 });
-  const inst = (geo, mat, list, f, cast = false) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)); list.forEach((it, i) => { f(D, it, i); D.updateMatrix(); m.setMatrixAt(i, D.matrix); }); m.count = list.length; m.castShadow = cast; group.add(m); return m; };
+  const inst = (geo, mat, list, f, cast = false) => chunkInst(geo, mat, list, f, cast, xzOf, false);
   const lampF = (D, [x, z, a]) => { D.position.set(x, CURB, z); D.rotation.set(0, -a, 0); D.scale.set(1, 1, 1); };
-  inst(LG.metal, metal, lamps, lampF, quality === 'high'); inst(LG.glass, headMat, lamps, lampF);
+  inst(LG.metal, metal, lamps, lampF, false); inst(LG.glass, headMat, lamps, lampF);
   const TM = treeMaterials(); const TV = [0, 1, 2].map(v => broadleafGeos(quality === 'low' ? 0 : 1, v));
   const treeF = (D, [x, z, s]) => { D.position.set(x, CURB, z); D.rotation.set(0, x * 13.1 % 6.28, 0); D.scale.set(s, s * (0.9 + (z % 1) * 0.3), s); };
   const tint = [0x9fbf7a, 0xb5c97e, 0x8fb06c, 0xc2c98a, 0xa5b872].map(c => new THREE.Color(c));
   TV.forEach((G, v) => { const list = trees.filter((t, i) => i % 3 === v);
     inst(G.trunk, TM.bark, list, treeF);
-    const cm = inst(G.crown, TM.leaf, list, (D, t, i) => treeF(D, t), quality === 'high');
-    list.forEach((t, i) => cm.setColorAt(i, tint[(i * 7 + v) % tint.length])); if (cm.instanceColor) cm.instanceColor.needsUpdate = true; cm.receiveShadow = true; });
+    for (const cm of inst(G.crown, TM.leaf, list, (D, t, i, m) => { treeF(D, t); m.setColorAt(i, tint[(Math.round(t[0] * 7 + t[1] * 3) + v) % tint.length]); }, quality === 'high')) cm.receiveShadow = true; });
   const hyd = new THREE.CylinderGeometry(0.16, 0.2, 0.75, 8); hyd.translate(0, 0.38, 0);
   inst(hyd, new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.5 }), hydrants, (D, [x, z]) => { D.position.set(x, CURB, z); D.rotation.set(0, 0, 0); D.scale.set(1, 1, 1); });
   const binG = new THREE.CylinderGeometry(0.3, 0.26, 0.95, 10); binG.translate(0, 0.48, 0);
@@ -392,7 +397,7 @@ export function buildCity(scene, quality, fleet) {
   // local frame: +x = travel direction, +z = drivers' right, so the arm reaches over the lanes along -z
   const tlF = (D, t) => { D.position.set(t.x, CURB, t.z); D.rotation.set(0, -t.a, 0); D.scale.set(1, 1, 1); };
   const tlMat = new THREE.MeshStandardMaterial({ color: 0x24262a, metalness: 0.55, roughness: 0.45 });
-  inst(signalGeos(), tlMat, tl, tlF, quality === 'high');
+  inst(signalGeos(), tlMat, tl, tlF, false);
   const bulb = new THREE.SphereGeometry(0.115, 10, 6); bulb.scale(0.5, 1, 1);
   const bulbs = [0, 1, 2].map(k => { const g = bulb.clone(); g.translate(-0.15, 5.65 - k * 0.33, -5.2); const m = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), tl.length); tl.forEach((t, i) => { tlF(D, t); D.updateMatrix(); m.setMatrixAt(i, D.matrix); m.setColorAt(i, new THREE.Color(0, 0, 0)); }); group.add(m); return m; });
   const ON = [new THREE.Color(3, 0.2, 0.15), new THREE.Color(3, 1.8, 0.1), new THREE.Color(0.2, 3, 0.6)], OFF = [new THREE.Color(0.25, 0.03, 0.03), new THREE.Color(0.25, 0.18, 0.02), new THREE.Color(0.02, 0.2, 0.06)];

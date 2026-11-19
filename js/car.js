@@ -157,9 +157,12 @@ function buildFerrari(color){
   sh.rotation.x=-Math.PI/2; sh.position.y=0.012; sh.renderOrder=2; unsprung.add(sh);
   const flameMat=new THREE.MeshBasicMaterial({color:0x66b3ff,transparent:true,opacity:0.85,blending:THREE.AdditiveBlending,depthWrite:false});
   const flames=[-0.13,0,0.13].map(z=>{ const f=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.6,10).rotateZ(Math.PI/2),flameMat); f.position.set(-2.45,0.42,z); f.visible=false; body.add(f); return f; });
-  const gC=document.createElement('canvas'); gC.width=256; gC.height=128;
+  // live rev counter over the model's yellow tachometer face
+  const gC=document.createElement('canvas'); gC.width=gC.height=256; const gT=new THREE.CanvasTexture(gC); gT.colorSpace=THREE.SRGBColorSpace; gT.anisotropy=4;
+  const dial=new THREE.Mesh(new THREE.CircleGeometry(0.057,40),new THREE.MeshBasicMaterial({map:gT,toneMapped:false,color:0xd8d8d8}));
+  dial.geometry.rotateY(-Math.PI/2); dial.position.set(0.861,0.8225,-0.35); dial.rotation.z=-0.17; body.add(dial);
   return { root, body, paint, brakeMat, headMat, brake3Mat, shiftMat, wheels:[], pivots:[], steer:new THREE.Object3D(), interior:new THREE.Group(), flames, lowerMesh:null, origPos:null, color,
-    gauge:{canvas:gC,tex:{needsUpdate:false},ctx:gC.getContext('2d')},
+    gauge:{canvas:gC,tex:gT,ctx:gC.getContext('2d'),round:true},
     setEnvMap(t){ for(const m of [paint,glass,chromeMat]){ m.envMap=t; m.needsUpdate=true; } },
     cockpit:[-0.02,1.03,-0.35], cockpitLook:[6,0.86,-0.35], hood:[0.7,1.22,0], mirror:[0.45,1.1,0],
     setPose(steer,ang){ if(W[0]){ W[0].rotation.y=-steer; W[1].rotation.y=-steer; } for(let i=0;i<4;i++) if(W[i]) W[i].rotation.x=-ang[i];
@@ -256,11 +259,11 @@ function plateTex(){ const c=document.createElement('canvas'); c.width=256; c.he
   g.fillStyle='#111'; g.font='bold 34px "DejaVu Sans Mono",monospace'; g.fillText('34 TP 358',146,40); g.strokeStyle='#222'; g.lineWidth=3; g.strokeRect(1.5,1.5,253,53);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t; }
 export function makeFleet(scene,max,quality){
-  mats(); const det=quality==='low'?0.4:quality==='med'?0.55:0.72;
+  mats(); const det=quality==='low'?0.4:quality==='med'?0.5:0.62;
   const kinds=['sedan','suv','hatch','van'];
-  const bodyMat=quality==='high'?new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,metalness:0.3,roughness:0.36,clearcoat:1,clearcoatRoughness:0.05,envMapIntensity:1.0}):new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.3,roughness:0.34,envMapIntensity:1.0});
+  const bodyMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.3,roughness:0.34,envMapIntensity:1.0});
   const lampMat=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
-  const fleetGlass=new THREE.MeshPhysicalMaterial({color:0x0a0f15,metalness:0.0,roughness:0.03,clearcoat:1,envMapIntensity:1.6});
+  const fleetGlass=new THREE.MeshStandardMaterial({color:0x0a0f15,metalness:0.2,roughness:0.04,envMapIntensity:1.6});
   const tireMat=new THREE.MeshStandardMaterial({color:0x151515,roughness:0.92});
   const rimMat=new THREE.MeshStandardMaterial({color:0xb9bec4,metalness:0.95,roughness:0.3});
   const plateMat=new THREE.MeshStandardMaterial({map:plateTex(),roughness:0.5});
@@ -313,6 +316,17 @@ export function dentCar(car,lx,lz,strength){
 export function repairCar(car){ if(!car.lowerMesh) return; const pos=car.lowerMesh.geometry.attributes.position; pos.array.set(car.origPos); pos.needsUpdate=true; car.lowerMesh.geometry.computeVertexNormals(); }
 export function drawGauges(car,rpm,kmh,gear,nitro,redline=7600){
   if(!car.gauge.tex.isTexture) return;
+  if(car.gauge.round){ const g=car.gauge.ctx, S=256, c=S/2; const a0=Math.PI*0.72, a1=Math.PI*2.28, A=r=>a0+(a1-a0)*Math.min(1,r/10000);
+    const bg=g.createRadialGradient(c,c*0.8,10,c,c,c); bg.addColorStop(0,'#ffe23a'); bg.addColorStop(1,'#e7b800'); g.fillStyle=bg; g.fillRect(0,0,S,S);
+    g.strokeStyle='#d01515'; g.lineWidth=14; g.beginPath(); g.arc(c,c,c-16,A(8000),a1); g.stroke();
+    for(let r=0;r<=10000;r+=500){ const a=A(r), big=r%1000===0, r0=c-(big?30:22), r1=c-10; g.strokeStyle='#111'; g.lineWidth=big?5:2.5; g.beginPath(); g.moveTo(c+Math.cos(a)*r0,c+Math.sin(a)*r0); g.lineTo(c+Math.cos(a)*r1,c+Math.sin(a)*r1); g.stroke();
+      if(big){ g.fillStyle='#111'; g.font='bold 26px Inter,sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(String(r/1000),c+Math.cos(a)*(c-50),c+Math.sin(a)*(c-50)); } }
+    g.fillStyle='#111'; g.font='bold 14px Inter,sans-serif'; g.fillText('RPM x1000',c,c+42);
+    g.fillStyle='#111'; g.font='bold 30px Inter,sans-serif'; g.fillText(String(kmh),c,c+74); g.font='bold 12px Inter,sans-serif'; g.fillText('km/sa',c,c+96);
+    g.fillStyle='#111'; g.beginPath(); g.roundRect(c+30,c-18,34,34,6); g.fill(); g.fillStyle='#ffd400'; g.font='bold 26px Inter,sans-serif'; g.fillText(gear,c+47,c);
+    const na=A(rpm); g.save(); g.translate(c,c); g.rotate(na); g.fillStyle='#c00'; g.beginPath(); g.moveTo(-14,-4); g.lineTo(c-22,-1.5); g.lineTo(c-22,1.5); g.lineTo(-14,4); g.closePath(); g.fill(); g.restore();
+    g.fillStyle='#111'; g.beginPath(); g.arc(c,c,13,0,Math.PI*2); g.fill(); g.strokeStyle='#666'; g.lineWidth=2; g.stroke();
+    car.gauge.tex.needsUpdate=true; return; }
   const g=car.gauge.ctx, w=256, h=128; g.fillStyle='#07080a'; g.fillRect(0,0,w,h);
   const cx=78, cy=72, R=52, a0=Math.PI*0.8, a1=Math.PI*2.2;
   g.lineWidth=7; g.strokeStyle='#22262c'; g.beginPath(); g.arc(cx,cy,R,a0,a1); g.stroke();
