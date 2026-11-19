@@ -29,7 +29,7 @@ export class Particles {
       this.life[i]-=dt; const k=this.life[i]/this.maxLife[i];
       this.vel[i*3+1]-=this.grav[i]*dt; const drag=Math.exp(-dt*1.5);
       for(let j=0;j<3;j++){ this.vel[i*3+j]*= j===1&&this.grav[i]>0?1:drag; this.pos[i*3+j]+=this.vel[i*3+j]*dt; }
-      if(this.pos[i*3+1]<0.05){ this.pos[i*3+1]=0.05; this.vel[i*3+1]*=-0.3; }
+      const fl=this.grav[i]>0?0.05:Math.max(0.05,this.size[i]*0.32); if(this.pos[i*3+1]<fl){ this.pos[i*3+1]=fl; this.vel[i*3+1]*=-0.3; }
       this.size[i]+=this.grow[i]*dt; this.alpha[i]=this.a0[i]*Math.max(0,k)*(k>0.85?(1-k)/0.15:1); }
     const g=this.points.geometry; g.attributes.position.needsUpdate=true; g.attributes.size.needsUpdate=true; g.attributes.alpha.needsUpdate=true; g.attributes.color.needsUpdate=true;
   }

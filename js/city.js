@@ -416,7 +416,7 @@ export function buildCity(scene, quality, fleet) {
   const hedge = new THREE.MeshStandardMaterial({ color: 0x2f5a24, roughness: 1 });
   for (const [x, z, w, d] of [[SIZE / 2, BOUND.min - 1, SIZE + 130, 2], [SIZE / 2, BOUND.max + 1, SIZE + 130, 2], [BOUND.min - 1, SIZE / 2, 2, SIZE + 130], [BOUND.max + 1, SIZE / 2, 2, SIZE + 130]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 2.2, d), hedge); m.position.set(x, 1.1, z); group.add(m); }
   const hillGeo = new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-  const hillMats = [0x56724a, 0x4d6a44, 0x617d50, 0x6b7f5a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  const hillBase = [0x56724a, 0x4d6a44, 0x617d50, 0x6b7f5a].map(c => new THREE.Color(c)); const hillMats = hillBase.map(c => new THREE.MeshBasicMaterial({ color: c.clone(), fog: false }));
   for (let ring = 0; ring < 2; ring++) for (let k = 0; k < 22; k++) { const a = (k + ring * 0.5) / 22 * Math.PI * 2 + rnd() * 0.1, r = 1200 + ring * 380 + rnd() * 200;
     const h = new THREE.Mesh(hillGeo, hillMats[Math.floor(rnd() * 4)]); const w = 220 + rnd() * 260; h.scale.set(w, (60 + rnd() * 110) * (1 + ring * 0.8), w * (0.6 + rnd() * 0.5)); h.rotation.y = rnd() * 3;
     h.position.set(SIZE / 2 + Math.cos(a) * r, -2, SIZE / 2 + Math.sin(a) * r); group.add(h); }
@@ -433,7 +433,11 @@ export function buildCity(scene, quality, fleet) {
     for (const m of [...windowMats, curbMat]) { m.roughness = w ? Math.min(m.roughness, 0.4) : m.userData.r0 ?? m.roughness; }
   }
   for (const m of [...windowMats, curbMat]) m.userData.r0 = m.roughness;
-  return { group, lamps, updateLights, setNight, setWet, parked };
+  // distant hills: unlit silhouettes tinted towards the sky haze for the time of day
+  function setHaze(t, rainy) { const haze = new THREE.Color(rainy ? (t === 'night' ? 0x0a0d13 : t === 'dusk' ? 0x5d5862 : 0x8e98a2) : (t === 'night' ? 0x070a12 : t === 'dusk' ? 0x8a6a62 : 0xa9bfd2));
+    const k = t === 'night' ? 0.85 : rainy ? 0.7 : t === 'dusk' ? 0.55 : 0.42, dim = t === 'night' ? 0.12 : t === 'dusk' ? 0.42 : rainy ? 0.6 : 0.85;
+    hillMats.forEach((m, i) => m.color.copy(hillBase[i]).multiplyScalar(dim).lerp(haze, k + i * 0.03)); }
+  return { group, lamps, updateLights, setNight, setWet, setHaze, parked };
 }
 export const CAR_COLORS = ['#f2f2f2', '#f2f2f2', '#1b1c1f', '#1b1c1f', '#9ea3a8', '#9ea3a8', '#5b6066', '#1f3a5f', '#7a1f1f', '#d7c9a7', '#2f4f3a', '#f0c419'];
 

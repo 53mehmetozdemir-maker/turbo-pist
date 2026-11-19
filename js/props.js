@@ -1,6 +1,6 @@
 // Shared procedural props: trees, people, street lamps.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ---- small value noise ----
 function hash(x, y, z) { let h = x * 374761393 + y * 668265263 + z * 2147483647; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
@@ -12,6 +12,7 @@ const fbm = (x, y, z) => vnoise(x, y, z) * 0.6 + vnoise(x * 2.1, y * 2.1, z * 2.
 let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 const prep = g => { const n = g.index ? g.toNonIndexed() : g; return n; };
 function setColor(g, f) { const p = g.attributes.position, c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const col = f(p.getX(i), p.getY(i), p.getZ(i)); c.set(col, i * 3); } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; }
+function sphUV(g, yc) { const p = g.attributes.position, uv = new Float32Array(p.count * 2); for (let i = 0; i < p.count; i++) { uv[i * 2] = (Math.atan2(p.getZ(i), p.getX(i)) / (Math.PI * 2) + 0.5) * 3; uv[i * 2 + 1] = (p.getY(i) - yc) / 1.5; } g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); return g; }
 function stripUV(g) { if (g.attributes.uv) g.deleteAttribute('uv'); return g; }
 
 // leafy canvas texture used on crowns (gives clumps of leaves instead of flat plastic)
@@ -36,12 +37,12 @@ export function broadleafGeos(det = 1, variant = 0) {
   const cr = []; const lobes = 7 + Math.floor(rnd() * 3);
   for (let k = 0; k < lobes; k++) {
     const a = rnd() * Math.PI * 2, r = k === 0 ? 0 : 0.7 + rnd() * 0.9, y = 4.1 + (k === 0 ? 0.3 : (rnd() - 0.35) * 1.6), s = k === 0 ? 1.7 : 1.0 + rnd() * 0.6;
-    const g = new THREE.IcosahedronGeometry(s, det >= 1 ? 2 : 1); g.scale(1, 0.85, 1); g.translate(Math.cos(a) * r, y, Math.sin(a) * r); cr.push(prep(g)); }
-  const crown = mergeGeometries(cr);
+    const g = new THREE.IcosahedronGeometry(s, det >= 2 ? 2 : 1); g.scale(1, 0.85, 1); g.translate(Math.cos(a) * r, y, Math.sin(a) * r); cr.push(prep(g)); }
+  let crown = mergeGeometries(cr.map(g => { g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g; })); crown = mergeVertices(crown, 1e-4);
   const p = crown.attributes.position;
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const dx = x, dy = y - 4.2, dz = z; const l = Math.hypot(dx, dy, dz) || 1;
     const n = (fbm(x * 1.3 + variant * 5, y * 1.3, z * 1.3) - 0.5) * 0.7; p.setXYZ(i, x + dx / l * n, y + dy / l * n, z + dz / l * n); }
-  crown.computeVertexNormals();
+  crown.computeVertexNormals(); sphUV(crown, 4.2);
   setColor(crown, (x, y, z) => { const r = Math.hypot(x, z), h = (y - 2.6) / 3.6; const ao = Math.max(0.35, Math.min(1, 0.45 + h * 0.55 + r * 0.12)); const v = 0.85 + fbm(x * 2, y * 2, z * 2) * 0.3; return [ao * v * 0.92, ao * v, ao * v * 0.82]; });
   return { trunk, crown };
 }
@@ -51,11 +52,11 @@ export function coniferGeos(det = 1, variant = 0) {
   const t = new THREE.CylinderGeometry(0.1, 0.22, 3.2, 6); t.translate(0, 1.6, 0); const trunk = stripUV(prep(t));
   const tiers = []; const n = 6;
   for (let k = 0; k < n; k++) { const f = k / (n - 1); const r = 2.3 * (1 - f * 0.82), h = 2.2 - f * 0.9, y = 1.6 + f * 5.6;
-    const c = new THREE.ConeGeometry(r, h, det >= 1 ? 12 : 8, 2, true); c.translate(0, y + h / 2, 0);
+    const c = new THREE.ConeGeometry(r, h, det >= 1 ? 10 : 7, 2, true); c.translate(0, y + h / 2, 0);
     const p = c.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), yy = p.getY(i), z = p.getZ(i); const rr = Math.hypot(x, z); const droop = rr / r; const nn = (vnoise(x * 2 + k, yy * 2, z * 2 + variant) - 0.5) * 0.35 * r;
       p.setXYZ(i, x + x / (rr || 1) * nn, yy - droop * droop * 0.35, z + z / (rr || 1) * nn); }
     tiers.push(prep(c)); }
-  const crown = mergeGeometries(tiers); crown.computeVertexNormals();
+  let crown = mergeGeometries(tiers.map(g => { g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g; })); crown = mergeVertices(crown, 1e-4); crown.computeVertexNormals(); sphUV(crown, 4);
   setColor(crown, (x, y, z) => { const rr = Math.hypot(x, z); const ao = Math.max(0.35, Math.min(1, 0.5 + rr * 0.22 + (y - 2) * 0.05)); return [ao * 0.7, ao * 0.9, ao * 0.72]; });
   return { trunk, crown };
 }
@@ -69,7 +70,7 @@ export function treeMaterials() {
 // ---- people ----
 // returns geometries in a standing pose; origin at the feet. Colour channels: white = tintable (instance colour)
 export function personGeos(det = 1) {
-  const seg = det >= 1 ? 10 : 7;
+  const seg = det >= 1 ? 8 : 6;
   // leg (hip pivot at origin, extends down 0.86): trousers tintable, shoe dark
   const leg = new THREE.CapsuleGeometry(0.068, 0.7, 3, seg); leg.translate(0, -0.42, 0);
   { const p = leg.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i); const k = 1 + Math.max(0, y + 0.35) * 0.35; p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); } }

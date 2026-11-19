@@ -256,7 +256,7 @@ function plateTex(){ const c=document.createElement('canvas'); c.width=256; c.he
   g.fillStyle='#111'; g.font='bold 34px "DejaVu Sans Mono",monospace'; g.fillText('34 TP 358',146,40); g.strokeStyle='#222'; g.lineWidth=3; g.strokeRect(1.5,1.5,253,53);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t; }
 export function makeFleet(scene,max,quality){
-  mats(); const det=quality==='low'?0.45:quality==='med'?0.7:1;
+  mats(); const det=quality==='low'?0.4:quality==='med'?0.55:0.72;
   const kinds=['sedan','suv','hatch','van'];
   const bodyMat=quality==='high'?new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,metalness:0.3,roughness:0.36,clearcoat:1,clearcoatRoughness:0.05,envMapIntensity:1.0}):new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.3,roughness:0.34,envMapIntensity:1.0});
   const lampMat=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
@@ -265,12 +265,12 @@ export function makeFleet(scene,max,quality){
   const rimMat=new THREE.MeshStandardMaterial({color:0xb9bec4,metalness:0.95,roughness:0.3});
   const plateMat=new THREE.MeshStandardMaterial({map:plateTex(),roughness:0.5});
   const shadowMat=new THREE.MeshBasicMaterial({map:boxShadowTex(),transparent:true,depthWrite:false,opacity:0.9,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,toneMapped:false});
-  const sets={}; const ws=quality==='low'?12:quality==='med'?16:22;
+  const sets={}; const ws=quality==='low'?10:quality==='med'?12:16;
   for(const k of kinds){ const C=buildFleetCar(k,det), S=C.S; S.track=S.w(0)-0.13;
     const tp=[], rp=[]; for(const xw of [S.a,-S.b]) for(const s of [-1,1]){ tp.push(tireGeo(S.R,0.21,ws).translate(xw,S.R,s*S.track)); const r=rimGeo(S.R,ws); if(s<0) r.rotateY(Math.PI); rp.push(r.translate(xw,S.R,s*(S.track+0.085))); }
     const shG=new THREE.PlaneGeometry(S.L+0.7,S.w(0)*2+0.6).rotateX(-Math.PI/2).translate(0,0.025,0);
     const mk=(g,m,cast=false)=>{ const im=new THREE.InstancedMesh(g,m,max); im.count=0; im.castShadow=cast; im.receiveShadow=false; im.frustumCulled=false; im.userData.fleet=true; scene.add(im); return im; };
-    sets[k]={ S, body:mk(C.body,bodyMat,quality==='high'), glass:mk(C.glass,fleetGlass), tire:mk(mergeGeometries(tp),tireMat), rim:mk(mergeGeometries(rp),rimMat),
+    sets[k]={ S, body:mk(C.body,bodyMat,false), glass:mk(C.glass,fleetGlass), tire:mk(mergeGeometries(tp),tireMat), rim:mk(mergeGeometries(rp),rimMat),
       plate:mk(C.plate,plateMat), shadow:mk(shG,shadowMat), head:mk(C.head,lampMat), tail:mk(C.tail,lampMat), n:0 };
     sets[k].shadow.renderOrder=1;
   }

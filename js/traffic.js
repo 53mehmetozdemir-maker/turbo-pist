@@ -115,7 +115,7 @@ export class Pedestrians {
       this.peds.push({ b, side, off: r() * side * 4, sp: (0.9 + r() * 0.7) * (r() < 0.5 ? 1 : -1), ph: r() * 6.28, dodge: 0, dv: 0, h: 0.9 + r() * 0.2, x: 0, y: 0, a: 0 }); }
     const hairs = [0x1a120c, 0x2b1d14, 0x4a3020, 0x0d0d0d, 0x6b4a2a, 0x8a8580, 0xb08850];
     const G = personGeos(1);
-    const mk = (g, n, vc) => { const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ roughness: 0.8, vertexColors: !!vc }), n); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; };
+    const mk = (g, n, vc) => { const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ roughness: 0.8, vertexColors: !!vc }), n); m.frustumCulled = false; m.castShadow = false; scene.add(m); return m; };
     this.legs = mk(G.leg, count * 2, true); this.torso = mk(G.torso, count, true); this.head = mk(G.head, count); this.hair = mk(G.hair, count); this.arms = mk(G.arm, count * 2); this.hands = mk(G.hand, count * 2);
     this.meshes = [this.legs, this.torso, this.head, this.hair, this.arms, this.hands];
     const c = new THREE.Color();

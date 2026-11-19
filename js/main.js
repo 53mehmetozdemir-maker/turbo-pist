@@ -117,7 +117,7 @@ function applyTime(t){
   // reflections & ambient light from a real HDR photo of the sky
   scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=t==='night'?0.06:0.35;
   const want=t; if(rainy && t!=='night'){ scene.environmentIntensity=t==='day'?0.55:0.35; } else loadEnv(t).then(e=>{ if(e && settings.time===want && !wet){ scene.environment=e; scene.environmentIntensity=(t==='day'?0.9:t==='dusk'?0.85:0.9)*(wet?0.6:1); } });
-  for(const k in worlds) if(worlds[k].city) worlds[k].city.setNight(nightF);
+  for(const k in worlds) if(worlds[k].city){ worlds[k].city.setNight(nightF); worlds[k].city.setHaze(t,rainy); }
   smoke.mat.uniforms.lit.value=t==='night'?0.32:t==='dusk'?0.75:1;
   fleet.night=nightF>0.5; headlightsOn=nightF>0.5;
   if(bloom){ bloom.enabled=nightF>0; bloom.strength=nightF===1?0.32:0.18; bloom.radius=0.35; bloom.threshold=nightF===1?0.96:1.05; }
