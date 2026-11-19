@@ -16,7 +16,7 @@ import { Traffic, Pedestrians } from './traffic.js';
 
 const $=id=>document.getElementById(id);
 const COLORS=['#e8202a','#1f6fe0','#ff9f1a','#20b956','#8e44ef','#f1f2f6','#202226','#ffd400'];
-const LAPS=3, TRAFFIC_N=32;
+const LAPS=3, TRAFFIC_N=50;
 const store={ get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} } };
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
@@ -71,7 +71,7 @@ function ensureWorld(map){
   if(worlds[map]) return worlds[map];
   if(map==='track'){ const t=buildTrack(scene,settings.quality); worlds.track={kind:'track',group:t.group,startLights:t.startLights,phys:trackWorld}; }
   else { const c=buildCity(scene,settings.quality,fleet); const traffic=new Traffic(fleet,TRAFFIC_N);
-    const peds=new Pedestrians(scene,settings.quality==='high'?90:settings.quality==='med'?60:28);
+    const peds=new Pedestrians(scene,settings.quality==='high'?130:settings.quality==='med'?90:40);
     const lampLights=[]; if(settings.quality!=='low') for(let k=0;k<6;k++){ const L=new THREE.PointLight(0xffd8a0,0,32,1.6); scene.add(L); lampLights.push(L); }
     worlds.city={kind:'city',group:c.group,city:c,traffic,peds,phys:cityWorld,lampLights,map:cityMapCanvas()}; }
   return worlds[map];

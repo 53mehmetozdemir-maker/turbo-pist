@@ -123,13 +123,14 @@ function facade(style) {
   const map = tex(W, H, g => draw(g, false)), em = tex(W, H, g => draw(g, true));
   return { map, em };
 }
-function shopTex() {
+const SHOP_NAMES = [['MARKET','CAFE'],['ECZANE','FIRIN'],['KUAFÖR','BANKA'],['LOKANTA','OPTİK'],['KİTAP','BUTİK'],['DÖNER','TEKNOLOJİ'],['PASTANE','ÇİÇEKÇİ'],['KASAP','SPOR']];
+function shopTex(variant = 0) {
   const W = 512, H = 180; const colors = ['#c0392b', '#2471a3', '#1e8449', '#b9770e', '#7d3c98', '#17202a', '#d35400', '#117a65'];
   const lit = []; const signs = [];
   const draw = (g, em) => {
     g.fillStyle = em ? '#000' : '#6b6560'; g.fillRect(0, 0, W, H);
     for (let s = 0; s < 2; s++) { const x = s * W / 2; const col = signs[s] ??= pick(colors);
-      if (!em) { g.fillStyle = col; g.fillRect(x + 4, 6, W / 2 - 8, 34); g.fillStyle = 'rgba(255,255,255,.85)'; g.font = 'bold 22px sans-serif'; g.fillText(pick(['MARKET', 'CAFE', 'BUTİK', 'ECZANE', 'FIRIN', 'KUAFÖR', 'BANKA', 'LOKANTA', 'OPTİK', 'KİTAP']), x + 20, 31); }
+      if (!em) { g.fillStyle = col; g.fillRect(x + 4, 6, W / 2 - 8, 34); g.fillStyle = 'rgba(255,255,255,.85)'; g.font = 'bold 22px sans-serif'; g.fillText(SHOP_NAMES[(variant * 2 + Math.floor(s / 1)) % SHOP_NAMES.length][s], x + 20, 31); }
       else { g.fillStyle = col; g.globalAlpha = 0.9; g.fillRect(x + 4, 6, W / 2 - 8, 34); g.globalAlpha = 1; }
       const gx = x + 10, gy = 52, gw = W / 2 - 20, gh = H - 60;
       if (em) { g.fillStyle = '#f6d9a0'; g.fillRect(gx, gy, gw, gh); continue; }
@@ -163,10 +164,10 @@ export function buildCity(scene, quality, fleet) {
   const group = new THREE.Group(); scene.add(group);
   const styles = ['glass', 'office', 'white', 'beige', 'brick'];
   const F = {}; for (const s of styles) F[s] = facade(s);
-  const shop = shopTex();
+  const SHOPS = 4; const shops = []; for (let v = 0; v < SHOPS; v++) shops.push(shopTex(v));
   const mats = {}, bufs = {};
   for (const s of styles) { mats[s] = new THREE.MeshStandardMaterial({ map: F[s].map, emissiveMap: F[s].em, emissive: 0xffffff, emissiveIntensity: 0, roughness: s === 'glass' ? 0.12 : 0.85, metalness: s === 'glass' ? 0.75 : 0.05, envMapIntensity: s === 'glass' ? 1.3 : 0.6 }); bufs[s] = new GeoBuf(); }
-  mats.shop = new THREE.MeshStandardMaterial({ map: shop.map, emissiveMap: shop.em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, metalness: 0.2 }); bufs.shop = new GeoBuf();
+  for (let v = 0; v < SHOPS; v++) { mats['shop' + v] = new THREE.MeshStandardMaterial({ map: shops[v].map, emissiveMap: shops[v].em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, metalness: 0.2 }); bufs['shop' + v] = new GeoBuf(); }
   const roofTex = tex(256, 256, (g, w, h) => noise(g, w, h, '#57585a', 0.25, 9000, 2));
   mats.roof = new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.95 }); bufs.roof = new GeoBuf();
   // ground: grass outside, asphalt for the city
@@ -235,7 +236,7 @@ export function buildCity(scene, quality, fleet) {
       const floors = b.district === 'downtown' ? 14 + Math.floor(rnd() * rnd() * 40) : b.district === 'mid' ? 5 + Math.floor(rnd() * 10) : 2 + Math.floor(rnd() * 4);
       let h = 4.2 + floors * 3.2; const uo = Math.floor(rnd() * 4) * 0.25;
       const shopBand = style !== 'glass' || rnd() < 0.5;
-      if (shopBand) { walls(bufs.shop, x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 0, 4.2, 12, 4.2, Math.floor(rnd() * 2) * 0.5); top(bufs.roof, x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 4.2); }
+      if (shopBand) { walls(bufs['shop' + Math.floor(rnd() * SHOPS)], x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 0, 4.2, 12, 4.2, Math.floor(rnd() * 2) * 0.5); top(bufs.roof, x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 4.2); }
       const h0 = shopBand ? 4.2 : 0;
       // towers get setbacks
       if (b.district === 'downtown' && h > 70) {
@@ -252,7 +253,7 @@ export function buildCity(scene, quality, fleet) {
       if (h > tallest.h) tallest = { h, x: (x0 + x1) / 2, z: (z0 + z1) / 2 };
     }
   }
-  for (const k of [...styles, 'shop', 'roof']) { const m = addM(bufs[k], mats[k], true, quality !== 'low'); }
+  for (const k of [...styles, 'shop0', 'shop1', 'shop2', 'shop3', 'roof']) { const m = addM(bufs[k], mats[k], true, quality !== 'low'); }
   // roof props (AC units, water tanks) + antenna on the tallest tower
   const acGeo = new THREE.BoxGeometry(2.2, 1.4, 1.6); acGeo.translate(0, 0.7 + 0.9, 0);
   const tankGeo = new THREE.CylinderGeometry(1.2, 1.2, 2.4, 10); tankGeo.translate(0, 2.1, 0);
@@ -351,8 +352,8 @@ export function buildCity(scene, quality, fleet) {
   for (let k = 0; k < 26; k++) { const a = k / 26 * Math.PI * 2, r = 1250 + rnd() * 300; const h = new THREE.Mesh(new THREE.ConeGeometry(180 + rnd() * 200, 90 + rnd() * 160, 7), hillMat); h.position.set(SIZE / 2 + Math.cos(a) * r, 30, SIZE / 2 + Math.sin(a) * r); group.add(h); }
 
   // ---- night ----
-  const windowMats = [...styles.map(s => mats[s]), mats.shop];
-  function setNight(f) { for (const m of windowMats) m.emissiveIntensity = f * 1.1; mats.shop.emissiveIntensity = f * 0.45; headMat.emissiveIntensity = f * 4; }
+  const windowMats = styles.map(s => mats[s]), shopMats = [0, 1, 2, 3].map(v => mats['shop' + v]);
+  function setNight(f) { for (const m of windowMats) m.emissiveIntensity = f * 1.1; for (const m of shopMats) m.emissiveIntensity = f * 0.45; headMat.emissiveIntensity = f * 4; }
 
   return { group, lamps, updateLights, setNight, parked };
 }

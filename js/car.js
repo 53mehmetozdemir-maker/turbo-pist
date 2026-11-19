@@ -31,8 +31,8 @@ function beamGeo(p,q,th){ const a=new THREE.Vector3(...p), b=new THREE.Vector3(.
   const m=new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1,0,0),b.clone().sub(a).normalize()), new THREE.Vector3(1,1,1)); g.applyMatrix4(m); return g; }
 function ghPoint(S,x,th,side,out=0.012){ const G=S.gh; const y0=S.top(x)-0.06, y1=G.top(x), yc=(y0+y1)/2, hy=(y1-y0)/2, n=3.4;
   const y=yc+hy*sp(Math.sin(th),2/n); const t=Math.max(0,Math.min(1,(y-y0)/(y1-y0))); const w=lerp(G.wb,G.wt,t)+out; return [x,y+out*Math.sin(th),side*w*sp(Math.cos(th),2/n)]; }
-function pillarGeos(S){ const G=S.gh, out=[], L=G.x1-G.x0; for(const s of [-1,1]){
-    out.push(beamGeo(ghPoint(S,G.x1-0.03,0.08,s),ghPoint(S,G.x1-L*0.34,1.0,s),0.06));
+function pillarGeos(S,th=1){ const G=S.gh, out=[], L=G.x1-G.x0; for(const s of [-1,1]){
+    out.push(beamGeo(ghPoint(S,G.x1-0.03,0.08,s),ghPoint(S,G.x1-L*0.34,1.0,s),0.06*th));
     const xb=(G.x0+G.x1)/2-0.15; out.push(beamGeo(ghPoint(S,xb,0.05,s),ghPoint(S,xb,1.0,s),0.07));
     out.push(beamGeo(ghPoint(S,G.x0+0.05,0.08,s),ghPoint(S,G.x0+L*0.22,1.0,s),0.1)); }
   return out; }
@@ -111,7 +111,7 @@ export function buildCar(color, opts={}){
   const lowerMesh=new THREE.Mesh(bodyGeo(S,1,true),paint); lowerMesh.castShadow=true; lowerMesh.receiveShadow=true; body.add(lowerMesh);
   const glass=new THREE.Mesh(glassGeo(S),M.glass); body.add(glass);
   const roof=new THREE.Mesh(roofGeo(S),paint); roof.castShadow=true; body.add(roof);
-  for(const pg of pillarGeos(S)){ const pm=new THREE.Mesh(pg,paint); pm.castShadow=true; body.add(pm); }
+  for(const pg of pillarGeos(S,0.7)){ const pm=new THREE.Mesh(pg,paint); pm.castShadow=true; body.add(pm); }
   const G=S.gh;
   for(const s of [-1,1]){
     // mirrors
