@@ -140,6 +140,8 @@ export function buildTrack(scene,quality){
   const seatMat=new THREE.MeshStandardMaterial({color:0x1d4f9c,roughness:.6});
   const roofMat=new THREE.MeshStandardMaterial({color:0xd6dce3,roughness:.45,metalness:.5,side:THREE.DoubleSide});
   const steel=new THREE.MeshStandardMaterial({color:0x5d636b,roughness:.5,metalness:.7});
+  const sideWallMat=new THREE.MeshStandardMaterial({roughness:.8,map:canvasTex(512,256,(g,w,h)=>{ g.fillStyle='#8d9299'; g.fillRect(0,0,w,h); g.strokeStyle='rgba(0,0,0,.18)'; g.lineWidth=2; for(let x=0;x<w;x+=64){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); } for(let y=0;y<h;y+=64){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); }
+    g.fillStyle='#d8262f'; g.fillRect(40,70,w-80,110); g.fillStyle='#fff'; g.font='bold 54px Inter,sans-serif'; g.textAlign='center'; g.fillText('TURBO PİST',w/2,145); g.fillStyle='#111'; g.fillRect(0,h-18,w,18); },false)});
   const crowdCount=quality==='low'?0:quality==='med'?700:1100;
   const crowd=crowdCount?new THREE.InstancedMesh(spectatorGeo(),new THREE.MeshStandardMaterial({roughness:.85,vertexColors:true}),crowdCount):null; let ci=0;
   const dummy=new THREE.Object3D(), col=new THREE.Color();
@@ -152,7 +154,7 @@ export function buildTrack(scene,quality){
       if(crowd) for(let k=0;k<52 && ci<crowdCount;k++){ if(Math.random()<0.3) continue; dummy.position.set(-19.4+k*0.75+(Math.random()-.5)*.12,h+0.08,side*(r*2-0.05)); dummy.rotation.set(0,side<0?0:Math.PI,0); const sc=0.95+Math.random()*0.12; dummy.scale.set(sc,sc,sc); dummy.updateMatrix(); dummy.matrix.premultiply(st.matrixWorld); crowd.setMatrixAt(ci,dummy.matrix); crowd.setColorAt(ci,col.set(shirts[Math.floor(Math.random()*shirts.length)]).multiplyScalar(0.7+Math.random()*0.4)); ci++; } }
     // rear wall + side walls
     const rw=new THREE.Mesh(new THREE.BoxGeometry(40,7.3,0.3),standMat); rw.position.set(0,3.65,side*13.2); rw.castShadow=true; st.add(rw);
-    for(const x of [-20.1,20.1]){ const sw=new THREE.Mesh(new THREE.BoxGeometry(0.3,7.3,14),standMat); sw.position.set(x,3.65,side*6.5); st.add(sw); }
+    for(const x of [-20.1,20.1]){ const sw=new THREE.Mesh(new THREE.BoxGeometry(0.3,7.3,14),[sideWallMat,sideWallMat,standMat,standMat,standMat,standMat]); sw.position.set(x,3.65,side*6.5); st.add(sw); }
     // cantilever roof: sloped sheet, columns at the back, tapered beams
     const roof=new THREE.Mesh(new THREE.BoxGeometry(42,0.18,16),roofMat); roof.position.set(0,10.3,side*6); roof.rotation.x=side*0.06; roof.castShadow=true; st.add(roof);
     const fascia=new THREE.Mesh(new THREE.BoxGeometry(42,0.7,0.2),new THREE.MeshStandardMaterial({color:0xd8262f,roughness:.5})); fascia.position.set(0,10.1,side*-1.9); st.add(fascia);

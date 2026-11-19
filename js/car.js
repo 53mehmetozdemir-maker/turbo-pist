@@ -123,7 +123,7 @@ function buildFerrari(color){
   mats();
   if(!FM.rubber){ FM.rubber=new THREE.MeshStandardMaterial({color:0x101010,roughness:0.92}); FM.carbon=new THREE.MeshStandardMaterial({color:0x17181b,metalness:0.4,roughness:0.38});
     FM.plastic=new THREE.MeshStandardMaterial({color:0x1c1d20,roughness:0.6}); FM.rim=new THREE.MeshStandardMaterial({color:0xb4b8be,metalness:1,roughness:0.28}); FM.dark=new THREE.MeshStandardMaterial({color:0x101112,roughness:0.9,metalness:0.0,envMapIntensity:0.0,side:THREE.DoubleSide}); FM.dmetal=new THREE.MeshStandardMaterial({color:0x2b2c30,roughness:0.4,metalness:0.7}); FM.chrome=new THREE.MeshStandardMaterial({color:0x4a4d53,roughness:0.18,metalness:1}); }
-  const paint=new THREE.MeshPhysicalMaterial({color,metalness:0.55,roughness:0.34,clearcoat:1,clearcoatRoughness:0.04,envMapIntensity:0.95});
+  const paint=new THREE.MeshPhysicalMaterial({color,metalness:0.22,roughness:0.42,clearcoat:1,clearcoatRoughness:0.03,envMapIntensity:0.8});
   const brakeMat=new THREE.MeshStandardMaterial({color:0x3a0000,emissive:0xff1010,emissiveIntensity:0.6,roughness:0.15,metalness:0.1});
   const headMat=new THREE.MeshStandardMaterial({color:0xcfd6dd,emissive:0xfff1d6,emissiveIntensity:0.15,roughness:0.05,metalness:0.4});
   const brake3Mat=new THREE.MeshStandardMaterial({color:0x2a0000,emissive:0xff1010,emissiveIntensity:0,roughness:0.2});

@@ -702,4 +702,4 @@ function frame(t){
 requestAnimationFrame(frame);
 // test hook
 const BOT=new URLSearchParams(location.search).has('bot');
-window.__game={THREE,model,camera,GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};
+window.__game={THREE,model,showResults,camera,GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};
