@@ -269,24 +269,34 @@ export function makeFleet(scene,max,quality){
   const plateMat=new THREE.MeshStandardMaterial({map:plateTex(),roughness:0.5});
   const shadowMat=new THREE.MeshBasicMaterial({map:boxShadowTex(),transparent:true,depthWrite:false,opacity:0.9,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,toneMapped:false});
   const sets={}; const ws=quality==='low'?10:quality==='med'?12:16;
+  const mk=(g,m)=>{ const im=new THREE.InstancedMesh(g,m,max); im.count=0; im.castShadow=false; im.receiveShadow=false; im.frustumCulled=false; im.userData.fleet=true; scene.add(im); return im; };
+  const tint=(g,c)=>{ g=g.index?g.toNonIndexed():g; if(g.attributes.uv) g.deleteAttribute('uv'); const n=g.attributes.position.count, a=new Float32Array(n*3); for(let i=0;i<n;i++) a.set(c,i*3); g.setAttribute('color',new THREE.BufferAttribute(a,3)); return g; };
   for(const k of kinds){ const C=buildFleetCar(k,det), S=C.S; S.track=S.w(0)-0.13;
     const tp=[], rp=[]; for(const xw of [S.a,-S.b]) for(const s of [-1,1]){ tp.push(tireGeo(S.R,0.21,ws).translate(xw,S.R,s*S.track)); const r=rimGeo(S.R,ws); if(s<0) r.rotateY(Math.PI); rp.push(r.translate(xw,S.R,s*(S.track+0.085))); }
+    // far LOD: one vertex-coloured mesh (paint, dark glass, tyres) + lamps
+    const F=buildFleetCar(k,0.38); const ft=[]; for(const xw of [S.a,-S.b]) for(const s of [-1,1]) ft.push(tint(new THREE.CylinderGeometry(S.R,S.R,0.21,8).rotateX(Math.PI/2).translate(xw,S.R,s*S.track),[0.05,0.05,0.05]));
+    const farBody=mergeGeometries([F.body,tint(F.glass,[0.03,0.035,0.04]),...ft]);
     const shG=new THREE.PlaneGeometry(S.L+0.7,S.w(0)*2+0.6).rotateX(-Math.PI/2).translate(0,0.025,0);
-    const mk=(g,m,cast=false)=>{ const im=new THREE.InstancedMesh(g,m,max); im.count=0; im.castShadow=cast; im.receiveShadow=false; im.frustumCulled=false; im.userData.fleet=true; scene.add(im); return im; };
-    sets[k]={ S, body:mk(C.body,bodyMat,false), glass:mk(C.glass,fleetGlass), tire:mk(mergeGeometries(tp),tireMat), rim:mk(mergeGeometries(rp),rimMat),
-      plate:mk(C.plate,plateMat), shadow:mk(shG,shadowMat), head:mk(C.head,lampMat), tail:mk(C.tail,lampMat), n:0 };
+    sets[k]={ S, near:{ body:mk(C.body,bodyMat), glass:mk(C.glass,fleetGlass), tire:mk(mergeGeometries(tp),tireMat), rim:mk(mergeGeometries(rp),rimMat), plate:mk(C.plate,plateMat), head:mk(C.head,lampMat), tail:mk(C.tail,lampMat) },
+      far:{ body:mk(farBody,bodyMat), head:mk(F.head,lampMat), tail:mk(F.tail,lampMat) }, shadow:mk(shG,shadowMat), n:0 };
     sets[k].shadow.renderOrder=1;
   }
-  const PARTS=['body','glass','tire','rim','plate','shadow','head','tail'];
-  const items=[]; const m4=new THREE.Matrix4(), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0), pv=new THREE.Vector3(), one=new THREE.Vector3(1,1,1), col=new THREE.Color();
+  const items=[]; const m4=new THREE.Matrix4(), zero=new THREE.Matrix4().makeScale(0,0,0), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0), pv=new THREE.Vector3(), one=new THREE.Vector3(1,1,1), col=new THREE.Color();
   const HEAD_ON=new THREE.Color(2.2,2.05,1.7), HEAD_OFF=new THREE.Color(0.55,0.57,0.6), TAIL_ON=new THREE.Color(3.0,0.1,0.06), TAIL_OFF=new THREE.Color(0.32,0.02,0.02), TAIL_NIGHT=new THREE.Color(1.2,0.04,0.03);
-  const fleet={ kinds, items, night:false,
-    add(kind,color){ const s=sets[kind]; const i=s.n++; for(const k of PARTS) s[k].count=s.n; s.body.setColorAt(i,col.set(color)); items.push({kind,i,h:0}); return items.length-1; },
-    set(id,x,y,a,brake,visible=true){ const it=items[id], s=sets[it.kind];
-      if(!visible) m4.makeScale(0,0,0); else { q.setFromAxisAngle(up,-a); pv.set(x,it.h||0,y); m4.compose(pv,q,one); }
-      for(const k of PARTS) s[k].setMatrixAt(it.i,m4);
-      s.tail.setColorAt(it.i, brake?TAIL_ON:(fleet.night?TAIL_NIGHT:TAIL_OFF)); s.head.setColorAt(it.i, fleet.night?HEAD_ON:HEAD_OFF); },
-    commit(){ for(const s of Object.values(sets)){ for(const k of PARTS) s[k].instanceMatrix.needsUpdate=true; for(const k of ['body','tail','head']) if(s[k].instanceColor) s[k].instanceColor.needsUpdate=true; } },
+  const NEAR2=60*60;
+  const all=s=>[...Object.values(s.near),...Object.values(s.far),s.shadow];
+  const fleet={ kinds, items, night:false, cam:new THREE.Vector3(),
+    add(kind,color){ const s=sets[kind]; const i=s.n++; for(const m of all(s)) m.count=s.n; col.set(color); s.near.body.setColorAt(i,col); s.far.body.setColorAt(i,col); items.push({kind,i,h:0,x:0,y:0,a:0,b:false,v:false,lod:-1}); return items.length-1; },
+    set(id,x,y,a,brake,visible=true){ const it=items[id], s=sets[it.kind]; it.x=x; it.y=y; it.a=a; it.b=brake; it.v=visible;
+      const near=visible && ((x-fleet.cam.x)**2+(y-fleet.cam.z)**2)<NEAR2; it.lod=visible?(near?0:1):-1;
+      if(visible){ q.setFromAxisAngle(up,-a); pv.set(x,it.h||0,y); m4.compose(pv,q,one); }
+      const A=visible&&near?m4:zero, B=visible&&!near?m4:zero;
+      for(const m of Object.values(s.near)) m.setMatrixAt(it.i,A); for(const m of Object.values(s.far)) m.setMatrixAt(it.i,B); s.shadow.setMatrixAt(it.i,visible?m4:zero);
+      const lit=fleet.night&&!it.parked; const tc=brake?TAIL_ON:(lit?TAIL_NIGHT:TAIL_OFF), hc=lit?HEAD_ON:HEAD_OFF;
+      s.near.tail.setColorAt(it.i,tc); s.far.tail.setColorAt(it.i,tc); s.near.head.setColorAt(it.i,hc); s.far.head.setColorAt(it.i,hc); },
+    // re-evaluate level of detail for cars that are not updated every frame (parked)
+    relod(){ for(let id=0;id<items.length;id++){ const it=items[id]; if(!it.v) continue; const near=((it.x-fleet.cam.x)**2+(it.y-fleet.cam.z)**2)<NEAR2; if((near?0:1)!==it.lod) fleet.set(id,it.x,it.y,it.a,it.b,true); } },
+    commit(){ for(const s of Object.values(sets)){ for(const m of all(s)){ m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; } } },
     shape(kind){ return sets[kind].S; }
   };
   return fleet;

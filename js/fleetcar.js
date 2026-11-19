@@ -59,13 +59,14 @@ function gridGeo(rings, closed) {
   const idx = []; const faces = [];
   const cols = closed ? nR : nR - 1;
   for (let s = 0; s < nS - 1; s++) for (let k = 0; k < cols; k++) { const k1 = (k + 1) % nR;
-    const a = s * nR + k, b = s * nR + k1, c = (s + 1) * nR + k, d = (s + 1) * nR + k1; idx.push(a, c, b, b, c, d); faces.push([s, k], [s, k]); }
+    const a = s * nR + k, b = s * nR + k1, c = (s + 1) * nR + k, d = (s + 1) * nR + k1; idx.push(a, c, b, b, c, d);
+    const q = [0, 1, 2].map(j => (rings[s][k][j] + rings[s][k1][j] + rings[s + 1][k][j] + rings[s + 1][k1][j]) / 4); faces.push([s, k, q], [s, k, q]); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
   return { g: g.toNonIndexed(), faces };
 }
 function split(geo, faces, classify) {   // classify(s,k,cx,cy,cz) -> colour array or 'glass' or null(drop)
   const p = geo.attributes.position.array, n = geo.attributes.normal.array; const out = { body: { p: [], n: [], c: [] }, glass: { p: [], n: [] } };
-  for (let f = 0; f < faces.length; f++) { const o = f * 9; const cx = (p[o] + p[o + 3] + p[o + 6]) / 3, cy = (p[o + 1] + p[o + 4] + p[o + 7]) / 3, cz = (p[o + 2] + p[o + 5] + p[o + 8]) / 3;
+  for (let f = 0; f < faces.length; f++) { const o = f * 9; const [cx, cy, cz] = faces[f][2];
     const cl = classify(faces[f][0], faces[f][1], cx, cy, cz); if (cl == null) continue;
     const dst = cl === 'glass' ? out.glass : out.body;
     for (let j = 0; j < 9; j++) { dst.p.push(p[o + j]); dst.n.push(n[o + j]); }

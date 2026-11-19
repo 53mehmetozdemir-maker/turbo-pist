@@ -414,7 +414,7 @@ export function buildCity(scene, quality, fleet) {
   const parked = [];
   if (fleet) for (const b of blocks) if (b.type === 'lot') for (let row = 0; row < 3; row++) { const z = b.y0 + 12 + row * 22; for (let x = b.x0 + 8; x < b.x0 + BL - 10; x += 2.8) { if (rnd() < 0.35) continue;
         const kind = pick(['sedan', 'sedan', 'suv', 'hatch', 'hatch', 'van']); const S = fleet.shape(kind); const cx = x + 1.4, cz = z + (rnd() < 0.5 ? 0 : 0);
-        const id = fleet.add(kind, pick(CAR_COLORS)); const a = rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2; fleet.items[id].h = CURB + 0.005; fleet.set(id, cx, cz, a, false); parked.push(id);
+        const id = fleet.add(kind, pick(CAR_COLORS)); const a = rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2; fleet.items[id].h = CURB + 0.005; fleet.items[id].parked = true; fleet.set(id, cx, cz, a, false); parked.push(id);
         b.boxes.push([cx - 0.95, cz - S.L / 2, cx + 0.95, cz + S.L / 2]); } }
 
   // ---- city edge: hedges + distant hills ----
