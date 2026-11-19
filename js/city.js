@@ -414,7 +414,7 @@ export function buildCity(scene, quality, fleet) {
 
   // ---- night ----
   const windowMats = styles.map(s => mats[s]), shopMats = [0, 1, 2, 3].map(v => mats['shop' + v]);
-  function setNight(f) { for (const m of windowMats) m.emissiveIntensity = f * f * 1.1; for (const m of shopMats) m.emissiveIntensity = f * 0.6; headMat.emissiveIntensity = f * 4; }
+  function setNight(f) { for (const m of windowMats) m.emissiveIntensity = f * f * 0.85; for (const m of shopMats) m.emissiveIntensity = f * 0.6; headMat.emissiveIntensity = f * 4; }
 
   const markMat = marks.material;
   function setWet(w) {

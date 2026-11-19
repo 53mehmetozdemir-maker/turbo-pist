@@ -45,7 +45,10 @@ document.body.prepend(renderer.domElement); renderer.domElement.id='c';
 const scene=new THREE.Scene();
 scene.fog=new THREE.Fog(0xc9d9e8,200,1100);
 const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.05,4000);
-const mirrorCam=new THREE.PerspectiveCamera(50,3.2,0.1,800);
+const mirrorCam=new THREE.PerspectiveCamera(50,3.2,0.1,500);
+const mirrorRT=new THREE.WebGLRenderTarget(560,165,{type:THREE.HalfFloatType});
+const mirScene=new THREE.Scene(), mirOrtho=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+{ const q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:mirrorRT.texture,depthTest:false,depthWrite:false,side:THREE.DoubleSide})); q.scale.x=-1; mirScene.add(q); }
 const pmrem=new THREE.PMREMGenerator(renderer);
 const sky=new Sky(); sky.scale.setScalar(6000); scene.add(sky);
 const U=sky.material.uniforms;
@@ -104,7 +107,7 @@ function applyTime(t){
   else if(t==='dusk'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-6),THREE.MathUtils.degToRad(250)); sun.color.set(0xffa860); sun.intensity=1.7; hemi.intensity=0.42; hemi.color.set(0xffc9a0); hemi.groundColor.set(0x3a3040);
     U.turbidity.value=7; U.rayleigh.value=2.6; U.mieCoefficient.value=0.006; sky.visible=true; scene.background=null; scene.fog.color.set(0xd59c7c); scene.fog.near=120; scene.fog.far=850; renderer.toneMappingExposure=0.85; nightF=0.55; }
   else { sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-45),THREE.MathUtils.degToRad(200)); sun.color.set(0x8fa8ff); sun.intensity=0.28; hemi.intensity=0.16; hemi.color.set(0x5068a0); hemi.groundColor.set(0x101418);
-    sky.visible=false; scene.background=new THREE.Color(0x060a16); scene.fog.color.set(0x0a1020); scene.fog.near=60; scene.fog.far=650; renderer.toneMappingExposure=1.15; nightF=1; }
+    sky.visible=false; scene.background=new THREE.Color(0x060a16); scene.fog.color.set(0x0a1020); scene.fog.near=60; scene.fog.far=650; renderer.toneMappingExposure=1.0; nightF=1; }
   const rainy=(typeof wet!=='undefined' && wet);
   if(rainy){ sun.intensity*=0.12; sun.color.set(0xc8ced6); hemi.intensity*=0.9; hemi.color.set(0xb8c2cc); U.turbidity.value=12; U.rayleigh.value=0.4; U.mieCoefficient.value=0.02;
     scene.fog.color.set(t==='night'?0x0a0e16:t==='dusk'?0x6e6670:0x9aa3ad); scene.fog.near=t==='night'?40:60; scene.fog.far=t==='night'?420:520; renderer.toneMappingExposure*=0.95;
@@ -116,7 +119,7 @@ function applyTime(t){
   const want=t; if(rainy && t!=='night'){ scene.environmentIntensity=t==='day'?0.55:0.35; } else loadEnv(t).then(e=>{ if(e && settings.time===want && !wet){ scene.environment=e; scene.environmentIntensity=(t==='day'?0.9:t==='dusk'?0.85:0.9)*(wet?0.6:1); } });
   for(const k in worlds) if(worlds[k].city) worlds[k].city.setNight(nightF);
   fleet.night=nightF>0.5; headlightsOn=nightF>0.5;
-  if(bloom){ bloom.enabled=nightF>0; bloom.strength=nightF===1?0.7:0.22; bloom.threshold=nightF===1?0.8:1.0; }
+  if(bloom){ bloom.enabled=nightF>0; bloom.strength=nightF===1?0.32:0.18; bloom.radius=0.35; bloom.threshold=nightF===1?0.96:1.05; }
 }
 
 // ---------------- weather: rain, wet roads, light reflections ----------------
@@ -170,6 +173,14 @@ const model=buildCar(settings.color); scene.add(model.root);
 const headSpot=new THREE.SpotLight(0xfff2d8,0,90,0.55,0.45,1.2); headSpot.position.set(2.1,0.7,0); model.body.add(headSpot);
 const headTarget=new THREE.Object3D(); headTarget.position.set(25,-1.5,0); model.body.add(headTarget); headSpot.target=headTarget;
 let headlightsOn=false;
+let cubeRT=null, cubeCam=null;
+if(settings.quality==='high' && model.setEnvMap){ cubeRT=new THREE.WebGLCubeRenderTarget(128,{type:THREE.HalfFloatType}); cubeCam=new THREE.CubeCamera(0.3,600,cubeRT); scene.add(cubeCam); }
+function updateReflections(){
+  if(!cubeCam) return; const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false;
+  model.root.visible=false; rain.m.visible=false; cubeCam.position.set(phys.x,1.0,phys.y); cubeCam.update(renderer,scene);
+  model.root.visible=true; rain.m.visible=wet; renderer.shadowMap.autoUpdate=au;
+  if(!updateReflections.on){ model.setEnvMap(cubeRT.texture); updateReflections.on=true; }
+}
 function setMyColor(c){ settings.color=c; model.paint.color.set(c); }
 const smoke=new Particles(scene,settings.quality==='low'?250:700);
 const skids=new SkidMarks(scene,settings.quality==='low'?1200:3500);
@@ -453,7 +464,8 @@ function updateCamera(dt){
     const va=c.speed>4?Math.atan2(c.vy,c.vx):c.a; let da=va-c.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI; const ha=c.a+da*0.35;
     const tx=c.x-Math.cos(ha)*back, tz=c.y-Math.sin(ha)*back;
     if(!camInit){ camPos.set(tx,up,tz); camInit=true; }
-    const k=1-Math.exp(-dt*7); camPos.x+=(tx-camPos.x)*k; camPos.z+=(tz-camPos.z)*k; camPos.y+=(up-camPos.y)*k;
+    const k=1-Math.exp(-dt*10); camPos.x+=(tx-camPos.x)*k; camPos.z+=(tz-camPos.z)*k; camPos.y+=(up-camPos.y)*k;
+    { const dx=camPos.x-c.x, dz=camPos.z-c.y, d=Math.hypot(dx,dz), maxD=back+0.8, minD=back-1.2; if(d>maxD){ camPos.x=c.x+dx/d*maxD; camPos.z=c.y+dz/d*maxD; } else if(d<minD&&d>0.01){ camPos.x=c.x+dx/d*minD; camPos.z=c.y+dz/d*minD; } }
     const vib=(Math.random()-.5)*(c.rough||0)*2;
     camera.position.set(camPos.x+rx,camPos.y+ry+vib,camPos.z);
     camLook.set(c.x+ca*2.5,0.9,c.y+sa*2.5); camera.lookAt(camLook);
@@ -594,13 +606,18 @@ function frame(t){
   // render
   renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
   if(composer) composer.render(); else renderer.render(scene,camera);
+  if(driving && frameNo%5===0) updateReflections();
   if(driving && camMode===1){
     const w=Math.round(innerWidth*0.26), h=Math.round(w/3.4), x=Math.round((innerWidth-w)/2), y=innerHeight-h-Math.round(innerHeight*0.035);
-    const mp=model.mirror||[0.3,1.2,0]; const p=worldOf(model,mp[0],mp[1],mp[2]), back=worldOf(model,-20,0.9,0);
-    mirrorCam.position.copy(p); mirrorCam.lookAt(back); mirrorCam.aspect=w/h; mirrorCam.updateProjectionMatrix();
-    model.root.visible=false;
-    renderer.setScissorTest(true); renderer.setScissor(x,y,w,h); renderer.setViewport(x,y,w,h); renderer.render(scene,mirrorCam);
-    renderer.setScissorTest(false); model.root.visible=true;
+    if(frameNo%2===0){
+      const mp=model.mirror||[0.3,1.2,0]; const p=worldOf(model,mp[0],mp[1],mp[2]), back=worldOf(model,-20,0.9,0);
+      mirrorCam.position.copy(p); mirrorCam.lookAt(back); mirrorCam.aspect=w/h; mirrorCam.updateProjectionMatrix();
+      const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false; model.root.visible=false;
+      renderer.setRenderTarget(mirrorRT); renderer.render(scene,mirrorCam); renderer.setRenderTarget(null);
+      model.root.visible=true; renderer.shadowMap.autoUpdate=au;
+    }
+    renderer.setScissorTest(true); renderer.setScissor(x,y,w,h); renderer.setViewport(x,y,w,h); renderer.render(mirScene,mirOrtho);
+    renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
     $('mirrorFrame').style.cssText=`display:block;left:${x-4}px;top:${innerHeight-y-h-4}px;width:${w+8}px;height:${h+8}px`;
   } else $('mirrorFrame').style.display='none';
 }

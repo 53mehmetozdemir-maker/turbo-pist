@@ -126,6 +126,7 @@ function buildFerrari(color){
   const brakeMat=new THREE.MeshStandardMaterial({color:0x3a0000,emissive:0xff1010,emissiveIntensity:0.6,roughness:0.15,metalness:0.1});
   const headMat=new THREE.MeshStandardMaterial({color:0xcfd6dd,emissive:0xfff1d6,emissiveIntensity:0.15,roughness:0.05,metalness:0.4});
   const glass=new THREE.MeshPhysicalMaterial({color:0x0e1216,metalness:0.2,roughness:0.02,transparent:true,opacity:0.42,envMapIntensity:1.6,clearcoat:1});
+  const chromeMat=new THREE.MeshStandardMaterial({color:0xe8ecf0,metalness:1,roughness:0.03,envMapIntensity:1.1});
   const root=new THREE.Group(), body=new THREE.Group(); root.add(body);
   // model faces -Z with +X to its right; our cars face +X with +Z to the right
   const holder=new THREE.Group(); holder.rotation.y=-Math.PI/2; holder.position.x=0.19; body.add(holder);
@@ -140,7 +141,8 @@ function buildFerrari(color){
     else if(mn==='Carbon_Fiber') o.material=FM.carbon;
     else if(mn==='plastic_gray') o.material=FM.plastic;
     else if(mn==='metal_gray') o.material=(o.parent&&/^wheel_/.test(o.parent.name))?FM.rim:FM.dmetal;
-    else if(mn==='Interior_light'||mn==='Interior_dark') o.material=FM.dark; });
+    else if(mn==='Interior_light'||mn==='Interior_dark') o.material=FM.dark;
+    else if(mn==='metal_chrome') o.material=chromeMat; });
   const W=['wheel_fl','wheel_fr','wheel_rl','wheel_rr'].map(k=>m.getObjectByName(k));
   const unsprung=new THREE.Group(); unsprung.rotation.y=-Math.PI/2; unsprung.position.x=0.19; root.add(unsprung);
   W.forEach(w=>{ if(w) unsprung.add(w); });   // wheel nodes sit directly under the identity root node, so local transforms stay valid
@@ -153,6 +155,7 @@ function buildFerrari(color){
   const gC=document.createElement('canvas'); gC.width=256; gC.height=128;
   return { root, body, paint, brakeMat, headMat, wheels:[], pivots:[], steer:new THREE.Object3D(), interior:new THREE.Group(), flames, lowerMesh:null, origPos:null, color,
     gauge:{canvas:gC,tex:{needsUpdate:false},ctx:gC.getContext('2d')},
+    setEnvMap(t){ for(const m of [paint,glass,chromeMat]){ m.envMap=t; m.needsUpdate=true; } },
     cockpit:[-0.02,1.03,-0.35], cockpitLook:[6,0.86,-0.35], hood:[0.7,1.22,0], mirror:[0.45,1.1,0],
     setPose(steer,ang){ if(W[0]){ W[0].rotation.y=-steer; W[1].rotation.y=-steer; } for(let i=0;i<4;i++) if(W[i]) W[i].rotation.x=-ang[i];
       if(sw){ tmpQ.setFromAxisAngle(axis,steer*7); sw.quaternion.copy(swQ).multiply(tmpQ); } } };
