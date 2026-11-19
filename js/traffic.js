@@ -1,5 +1,6 @@
 // AI traffic on the city lane graph + pedestrians on the sidewalks.
 import * as THREE from 'three';
+import { personGeos } from './props.js';
 import { NB, P, ROAD, LANES, lightState, blocks, SW, CURB, CAR_COLORS } from './city.js';
 
 const BL = P - ROAD;
@@ -23,7 +24,7 @@ export class Traffic {
       if (!valid(i + DIRS[d][0], j + DIRS[d][1])) continue;
       const lane = rnd() < 0.5 ? 0 : 1, s = 5 + rnd() * (BL - 25);
       if (this.cars.some(c => c.i === i && c.j === j && c.d === d && c.lane === lane && Math.abs(c.s - s) < 12)) continue;
-      const kind = ['sedan', 'sedan', 'suv', 'hatch'][Math.floor(rnd() * 4)];
+      const kind = ['sedan', 'sedan', 'sedan', 'suv', 'hatch', 'hatch', 'van'][Math.floor(rnd() * 7)];
       const color = rnd() < 0.08 ? '#f0c419' : CAR_COLORS[Math.floor(rnd() * CAR_COLORS.length)];
       const c = { i, j, d, lane, s, v: 8, v0: 11 + rnd() * 4, turn: null, next: null, kind, len: this.fleet.shape(kind).L, id: this.fleet.add(kind, color), x: 0, y: 0, a: 0, brake: false, vx: 0, vy: 0 };
       this.chooseNext(c); this.place(c); this.cars.push(c); return;
@@ -112,16 +113,16 @@ export class Pedestrians {
     let pr = 99; const r = () => { pr = (pr * 16807) % 2147483647; return pr / 2147483647; };
     for (let k = 0; k < count; k++) { const b = blocks[Math.floor(r() * blocks.length)]; const side = BL - 2 * 2.3;
       this.peds.push({ b, side, off: r() * side * 4, sp: (0.9 + r() * 0.7) * (r() < 0.5 ? 1 : -1), ph: r() * 6.28, dodge: 0, dv: 0, h: 0.9 + r() * 0.2, x: 0, y: 0, a: 0 }); }
-    const legG = new THREE.BoxGeometry(0.14, 0.82, 0.16); legG.translate(0, -0.41, 0);
-    const torsoG = new THREE.BoxGeometry(0.42, 0.62, 0.24); torsoG.translate(0, 1.15, 0);
-    const headG = new THREE.SphereGeometry(0.12, 10, 8); headG.translate(0, 1.6, 0);
-    const armG = new THREE.BoxGeometry(0.1, 0.58, 0.1); armG.translate(0, -0.29, 0);
-    const mk = (g, n) => { const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ roughness: 0.85 }), n); m.frustumCulled = false; scene.add(m); return m; };
-    this.legs = mk(legG, count * 2); this.torso = mk(torsoG, count); this.head = mk(headG, count); this.arms = mk(armG, count * 2);
+    const hairs = [0x1a120c, 0x2b1d14, 0x4a3020, 0x0d0d0d, 0x6b4a2a, 0x8a8580, 0xb08850];
+    const G = personGeos(1);
+    const mk = (g, n, vc) => { const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ roughness: 0.8, vertexColors: !!vc }), n); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; };
+    this.legs = mk(G.leg, count * 2, true); this.torso = mk(G.torso, count, true); this.head = mk(G.head, count); this.hair = mk(G.hair, count); this.arms = mk(G.arm, count * 2); this.hands = mk(G.hand, count * 2);
+    this.meshes = [this.legs, this.torso, this.head, this.hair, this.arms, this.hands];
     const c = new THREE.Color();
-    this.peds.forEach((p, i) => { const pc = pants[Math.floor(r() * pants.length)], sc = shirts[Math.floor(r() * shirts.length)];
-      this.legs.setColorAt(i * 2, c.set(pc)); this.legs.setColorAt(i * 2 + 1, c.set(pc)); this.torso.setColorAt(i, c.set(sc)); this.arms.setColorAt(i * 2, c.set(sc)); this.arms.setColorAt(i * 2 + 1, c.set(sc)); this.head.setColorAt(i, c.set(skin[Math.floor(r() * skin.length)])); });
-    this.D = new THREE.Object3D(); this.M = new THREE.Matrix4();
+    this.peds.forEach((p, i) => { const pc = pants[Math.floor(r() * pants.length)], sc = shirts[Math.floor(r() * shirts.length)], sk = skin[Math.floor(r() * skin.length)];
+      this.legs.setColorAt(i * 2, c.set(pc)); this.legs.setColorAt(i * 2 + 1, c.set(pc)); this.torso.setColorAt(i, c.set(sc)); this.arms.setColorAt(i * 2, c.set(sc)); this.arms.setColorAt(i * 2 + 1, c.set(sc));
+      this.head.setColorAt(i, c.set(sk)); this.hands.setColorAt(i * 2, c.set(sk)); this.hands.setColorAt(i * 2 + 1, c.set(sk)); this.hair.setColorAt(i, c.set(hairs[Math.floor(r() * hairs.length)])); });
+    this.D = new THREE.Object3D(); this.M = new THREE.Matrix4(); this.E = new THREE.Euler();
   }
   // loop position around the block's sidewalk (inset 2.3 m from the kerb)
   loopPos(p, d, inset) { const b = p.b, s = p.side, L = s * 4; d = ((d % L) + L) % L; const x0 = b.x0 + inset, y0 = b.y0 + inset, x1 = b.x0 + BL - inset, y1 = b.y0 + BL - inset;
@@ -137,12 +138,13 @@ export class Pedestrians {
       const [x, y, a0] = this.loopPos(p, d, inset); const a = p.sp > 0 ? a0 : a0 + Math.PI;
       p.x = x; p.y = y; p.a = a;
       const walk = threat ? 0 : 1, sw = Math.sin(t * 6.5 * Math.abs(p.sp) + p.ph) * 0.5 * walk, bob = Math.abs(Math.cos(t * 6.5 * Math.abs(p.sp) + p.ph)) * 0.04 * walk;
-      const set = (mesh, idx, ox, oy, oz, rx) => { D.position.set(x, CURB + oy + bob, y); D.rotation.set(0, -a, 0); D.scale.set(p.h, p.h, p.h); D.updateMatrix();
-        const local = this.M.makeRotationX(0).makeRotationZ(rx).setPosition(ox, 0, oz); D.matrix.multiply(local); mesh.setMatrixAt(idx, D.matrix); };
-      set(this.legs, i * 2, 0, 0.82 * p.h, -0.1, sw); set(this.legs, i * 2 + 1, 0, 0.82 * p.h, 0.1, -sw);
-      set(this.torso, i, 0, 0, 0, 0); set(this.head, i, 0, 0, 0, 0);
-      set(this.arms, i * 2, 0, 1.42 * p.h, -0.27, -sw * 0.8); set(this.arms, i * 2 + 1, 0, 1.42 * p.h, 0.27, sw * 0.8);
+      const set = (mesh, idx, ox, oy, oz, rx, rz = 0) => { D.position.set(x, CURB + bob, y); D.rotation.set(0, -a + Math.PI / 2, 0); D.scale.set(p.h, p.h, p.h); D.updateMatrix();
+        this.M.makeRotationFromEuler(this.E.set(rx, 0, rz)).setPosition(ox, oy, oz); D.matrix.multiply(this.M); mesh.setMatrixAt(idx, D.matrix); };
+      set(this.legs, i * 2, -0.09, 0.86, 0, sw); set(this.legs, i * 2 + 1, 0.09, 0.86, 0, -sw);
+      set(this.torso, i, 0, 0, 0, 0); set(this.head, i, 0, 0, 0, 0); set(this.hair, i, 0, 0, 0, 0);
+      set(this.arms, i * 2, -0.21, 1.4, 0, -sw * 0.8, -0.08); set(this.arms, i * 2 + 1, 0.21, 1.4, 0, sw * 0.8, 0.08);
+      set(this.hands, i * 2, -0.21, 1.4, 0, -sw * 0.8, -0.08); set(this.hands, i * 2 + 1, 0.21, 1.4, 0, sw * 0.8, 0.08);
     });
-    for (const m of [this.legs, this.torso, this.head, this.arms]) { m.instanceMatrix.needsUpdate = true; }
+    for (const m of this.meshes) { m.instanceMatrix.needsUpdate = true; }
   }
 }

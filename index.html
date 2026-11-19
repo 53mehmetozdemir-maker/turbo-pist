@@ -69,17 +69,9 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
 .laps{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1)}
 #hBest{color:#d58cff}
 #mini{position:absolute;top:12px;right:12px}
-#br{position:absolute;right:16px;bottom:16px;width:230px}
-.spd{display:flex;align-items:flex-end;justify-content:space-between}
-#hSpd{font-family:Bungee,sans-serif;font-size:56px;line-height:.9}
-.unit{font-size:12px;opacity:.6;margin-left:4px}
-#hGear{font-family:Bungee,sans-serif;font-size:34px;width:56px;height:56px;border-radius:50%;border:3px solid #ffd32a;display:flex;align-items:center;justify-content:center}
-.bar{height:8px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:8px}
-.bar>div{height:100%;width:0;border-radius:5px;transition:width .05s linear}
-#rpmBar{background:linear-gradient(90deg,#2ed573,#ffd32a 70%,#ff4757)}
-#rpmBar.red{filter:brightness(1.4)}
-#hGear.cut{border-color:#ff3b3b;color:#ff3b3b;box-shadow:0 0 14px #ff3b3b}
-#nitroBar{background:linear-gradient(90deg,#3a7bd5,#66d9ff)}
+#br{position:absolute;right:10px;bottom:6px;width:300px;height:220px}
+#gauge{width:300px;height:220px;display:block}
+#drops{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;display:none}
 .minirow{display:flex;justify-content:space-between;font-size:11px;opacity:.75;margin-top:6px}
 #bl{position:absolute;left:14px;bottom:12px;font-size:11px;opacity:.6}
 #lights{position:absolute;top:14%;left:50%;transform:translateX(-50%);display:flex;gap:14px;padding:14px 18px;background:rgba(10,10,12,.85);border-radius:16px}
@@ -93,12 +85,19 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
 .tb{width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;font:800 22px Inter;color:#fff;touch-action:none}
 .tb.sm{width:54px;height:54px;font-size:14px}
 .tb.on{background:rgba(255,211,42,.5)}
-@media (pointer:coarse){ #br{bottom:auto;top:160px;right:12px;width:190px} #hSpd{font-size:42px} }
-#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0d1016;z-index:10;font-family:Bungee,sans-serif;font-size:22px;color:#ffd32a}
+@media (pointer:coarse){ #br{bottom:auto;top:150px;right:4px;transform:scale(.72);transform-origin:top right} }
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,#1b2230,#07090d 70%);z-index:10}
+.ld{text-align:center;width:min(360px,80vw)}
+.ldt{font-family:Bungee,Inter,sans-serif;font-size:40px;background:linear-gradient(90deg,#ffd32a,#ff4757);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ldt small{font-size:18px;vertical-align:top;margin-left:4px}
+.ldbar{height:6px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;margin:22px 0 12px}
+.ldbar div{height:100%;width:35%;border-radius:4px;background:linear-gradient(90deg,#ffd32a,#ff4757);animation:ld 1.2s ease-in-out infinite}
+@keyframes ld{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+.ldm{font-size:13px;opacity:.65}
 </style>
 </head>
 <body>
-<div id="loading">Şehir ve araba yükleniyor…</div>
+<div id="loading"><div class="ld"><div class="ldt">TURBO PİST<small>3D</small></div><div class="ldbar"><div></div></div><div class="ldm">Şehir, araba ve gökyüzü yükleniyor…</div></div></div>
 
 <div id="hud" class="hidden">
   <div id="tl" class="box">
@@ -116,20 +115,16 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
   <canvas id="mini" width="190" height="190"></canvas>
   <div id="street" class="hidden"><div id="stName"></div><div id="stDist"></div></div>
   <div id="freeBar" class="box hidden"><span id="freeInfo"></span><button class="sec" id="freeCopy">🔗 Davet</button></div>
-  <div id="br" class="box">
-    <div class="spd"><div><span id="hSpd">0</span><span class="unit">km/s</span></div><div id="hGear">N</div></div>
-    <div class="bar"><div id="rpmBar"></div></div>
-    <div class="bar" title="Nitro"><div id="nitroBar"></div></div>
-    <div class="minirow"><span>⚡ Nitro</span><span>Hasar <b id="hDmg">0%</b></span></div>
-  </div>
+  <div id="br"><canvas id="gauge" width="300" height="220"></canvas></div>
   <div id="bl"><span id="hNet"></span></div>
   <div id="lights" class="hidden"><div></div><div></div><div></div><div></div><div></div></div>
 </div>
 <div id="mirrorFrame"></div>
+<canvas id="drops"></canvas>
 
 <div id="menu" class="panel">
   <h1>TURBO PİST<small>3D</small></h1>
-  <div class="sub">Şehirde serbest sürüş · pistte yarış · arkadaşınla online 🏙️🏁</div>
+  <div class="sub">Şehirde serbest sürüş · pistte yarış · arkadaşınla online</div>
   <label>Adın</label>
   <input type="text" id="name" maxlength="14" placeholder="Pilot">
   <label>Araba rengi</label>
@@ -141,7 +136,7 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
   <label>Hava</label>
   <div class="seg" id="wSeg"><button data-v="clear">☀️ Açık</button><button data-v="rain">🌧️ Yağmurlu</button></div>
   <label>Oda kodu</label>
-  <div class="row"><input type="text" id="code" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-family:Bungee,monospace"><button class="sec" id="newCode" title="Yeni kod">🎲</button></div>
+  <div class="row"><input type="text" id="code" maxlength="6" style="text-transform:uppercase;letter-spacing:6px;font:800 18px Inter,sans-serif"><button class="sec" id="newCode" title="Yeni kod">🎲</button></div>
   <div class="cols">
     <div><label>Grafik</label><div class="seg" id="qSeg"><button data-v="low">Düşük</button><button data-v="med">Orta</button><button data-v="high">Yüksek</button></div></div>
     <div><label>Vites</label><div class="seg" id="gSeg"><button data-v="auto">Oto</button><button data-v="manual">Manuel</button></div></div>
@@ -197,8 +192,18 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
 
 <div id="pause" class="panel hidden">
   <h1 style="font-size:30px">DURAKLATILDI</h1>
-  <div class="btns"><button class="go" id="resumeBtn">Devam Et</button><button class="sec" id="pauseMenuBtn">Ana Menü</button></div>
-  <div class="note">Esc ile devam edebilirsin.</div>
+  <label>Kamera</label>
+  <div class="seg" id="pCam"><button data-v="0">Takip</button><button data-v="1">Kokpit</button><button data-v="2">Kaput</button></div>
+  <div class="cols2">
+    <div><label>Saat</label><div class="seg" id="pTime"><button data-v="day">Gündüz</button><button data-v="dusk">Akşam</button><button data-v="night">Gece</button></div></div>
+    <div><label>Hava</label><div class="seg" id="pWx"><button data-v="clear">Açık</button><button data-v="rain">Yağmurlu</button></div></div>
+  </div>
+  <div class="cols2">
+    <div><label>Vites</label><div class="seg" id="pGear"><button data-v="auto">Oto</button><button data-v="manual">Manuel</button></div></div>
+    <div><label>Ses</label><div class="seg" id="pSnd"><button data-v="on">Açık</button><button data-v="off">Kapalı</button></div></div>
+  </div>
+  <div class="btns"><button class="go" id="resumeBtn">Devam Et</button><button class="sec" id="respawnBtn">Yola Geri Dön</button><button class="sec" id="pauseMenuBtn">Ana Menü</button></div>
+  <div class="note" id="pauseNote">Esc ile devam edebilirsin.</div>
 </div>
 <div id="toast" style="opacity:0"></div>
 

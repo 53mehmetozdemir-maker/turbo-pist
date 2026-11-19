@@ -12,10 +12,10 @@ export class Particles {
     g.setAttribute('size',new THREE.BufferAttribute(this.size,1).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('alpha',new THREE.BufferAttribute(this.alpha,1).setUsage(THREE.DynamicDrawUsage));
     const mat=new THREE.ShaderMaterial({ transparent:true, depthWrite:false, vertexColors:true,
-      uniforms:{ scale:{value:600} },
+      uniforms:{ scale:{value:600}, lit:{value:1}, maxPx:{value:400} },
       vertexShader:`attribute float size; attribute float alpha; varying float vA; varying vec3 vC; uniform float scale;
-        void main(){ vA=alpha; vC=color; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=size*scale/max(0.1,-mv.z); gl_Position=projectionMatrix*mv; }`,
-      fragmentShader:`varying float vA; varying vec3 vC; void main(){ vec2 d=gl_PointCoord-0.5; float r=dot(d,d); if(r>0.25) discard; float a=vA*(1.0-r*4.0); gl_FragColor=vec4(vC,a); }` });
+        uniform float maxPx; void main(){ vA=alpha; vC=color; vec4 mv=modelViewMatrix*vec4(position,1.0); float px=size*scale/max(0.1,-mv.z); vA*=clamp(maxPx/px,0.0,1.0); gl_PointSize=min(px,maxPx); gl_Position=projectionMatrix*mv; }`,
+      fragmentShader:`varying float vA; varying vec3 vC; uniform float lit; void main(){ vec2 d=gl_PointCoord-0.5; float r=dot(d,d)*4.0; if(r>1.0) discard; float a=vA*exp(-r*3.2)*(1.0-r); vec3 c=vC; if(vC.r<0.95||vC.g<0.6) c*=lit; gl_FragColor=vec4(c,a); }` });
     this.points=new THREE.Points(g,mat); this.points.frustumCulled=false; scene.add(this.points); this.mat=mat;
   }
   emit(x,y,z,vx,vy,vz,{color=[0.85,0.85,0.85],size=1,life=2,grow=1.5,alpha=0.35,grav=0}={}){
@@ -24,7 +24,7 @@ export class Particles {
     this.size[i]=size; this.life[i]=life; this.maxLife[i]=life; this.grow[i]=grow; this.a0[i]=alpha; this.alpha[i]=alpha; this.grav[i]=grav;
   }
   update(dt,viewportH){
-    this.mat.uniforms.scale.value=viewportH*0.9;
+    this.mat.uniforms.scale.value=viewportH*0.9; this.mat.uniforms.maxPx.value=viewportH*0.35;
     for(let i=0;i<this.max;i++){ if(this.life[i]<=0){ this.alpha[i]=0; continue; }
       this.life[i]-=dt; const k=this.life[i]/this.maxLife[i];
       this.vel[i*3+1]-=this.grav[i]*dt; const drag=Math.exp(-dt*1.5);
