@@ -174,7 +174,7 @@ const headSpot=new THREE.SpotLight(0xfff2d8,0,90,0.55,0.45,1.2); headSpot.positi
 const headTarget=new THREE.Object3D(); headTarget.position.set(25,-1.5,0); model.body.add(headTarget); headSpot.target=headTarget;
 let headlightsOn=false;
 let cubeRT=null, cubeCam=null;
-if(settings.quality==='high' && model.setEnvMap){ cubeRT=new THREE.WebGLCubeRenderTarget(128,{type:THREE.HalfFloatType}); cubeCam=new THREE.CubeCamera(0.3,600,cubeRT); scene.add(cubeCam); }
+if(settings.quality==='high' && model.setEnvMap){ cubeRT=new THREE.WebGLCubeRenderTarget(96,{type:THREE.HalfFloatType}); cubeCam=new THREE.CubeCamera(0.3,350,cubeRT); scene.add(cubeCam); }
 function updateReflections(){
   if(!cubeCam) return; const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false;
   model.root.visible=false; rain.m.visible=false; cubeCam.position.set(phys.x,1.0,phys.y); cubeCam.update(renderer,scene);
@@ -606,7 +606,7 @@ function frame(t){
   // render
   renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
   if(composer) composer.render(); else renderer.render(scene,camera);
-  if(driving && frameNo%5===0) updateReflections();
+  if(driving && frameNo%10===0) updateReflections();
   if(driving && camMode===1){
     const w=Math.round(innerWidth*0.26), h=Math.round(w/3.4), x=Math.round((innerWidth-w)/2), y=innerHeight-h-Math.round(innerHeight*0.035);
     if(frameNo%2===0){
