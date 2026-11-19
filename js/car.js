@@ -281,24 +281,30 @@ export function makeFleet(scene,max,quality){
       far:{ body:mk(farBody,bodyMat), head:mk(F.head,lampMat), tail:mk(F.tail,lampMat) }, shadow:mk(shG,shadowMat), n:0 };
     sets[k].shadow.renderOrder=1;
   }
-  const items=[]; const m4=new THREE.Matrix4(), zero=new THREE.Matrix4().makeScale(0,0,0), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0), pv=new THREE.Vector3(), one=new THREE.Vector3(1,1,1), col=new THREE.Color();
+  const items=[]; const m4=new THREE.Matrix4(), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0), pv=new THREE.Vector3(), one=new THREE.Vector3(1,1,1);
   const HEAD_ON=new THREE.Color(2.2,2.05,1.7), HEAD_OFF=new THREE.Color(0.55,0.57,0.6), TAIL_ON=new THREE.Color(3.0,0.1,0.06), TAIL_OFF=new THREE.Color(0.32,0.02,0.02), TAIL_NIGHT=new THREE.Color(1.2,0.04,0.03);
-  const NEAR2=60*60;
-  const all=s=>[...Object.values(s.near),...Object.values(s.far),s.shadow];
-  const fleet={ kinds, items, night:false, cam:new THREE.Vector3(),
-    add(kind,color){ const s=sets[kind]; const i=s.n++; for(const m of all(s)) m.count=s.n; col.set(color); s.near.body.setColorAt(i,col); s.far.body.setColorAt(i,col); items.push({kind,i,h:0,x:0,y:0,a:0,b:false,v:false,lod:-1}); return items.length-1; },
-    set(id,x,y,a,brake,visible=true){ const it=items[id], s=sets[it.kind]; it.x=x; it.y=y; it.a=a; it.b=brake; it.v=visible;
-      const near=visible && ((x-fleet.cam.x)**2+(y-fleet.cam.z)**2)<NEAR2; it.lod=visible?(near?0:1):-1;
-      if(visible){ q.setFromAxisAngle(up,-a); pv.set(x,it.h||0,y); m4.compose(pv,q,one); }
-      const A=visible&&near?m4:zero, B=visible&&!near?m4:zero;
-      for(const m of Object.values(s.near)) m.setMatrixAt(it.i,A); for(const m of Object.values(s.far)) m.setMatrixAt(it.i,B); s.shadow.setMatrixAt(it.i,visible?m4:zero);
-      const lit=fleet.night&&!it.parked; const tc=brake?TAIL_ON:(lit?TAIL_NIGHT:TAIL_OFF), hc=lit?HEAD_ON:HEAD_OFF;
-      s.near.tail.setColorAt(it.i,tc); s.far.tail.setColorAt(it.i,tc); s.near.head.setColorAt(it.i,hc); s.far.head.setColorAt(it.i,hc); },
-    // re-evaluate level of detail for cars that are not updated every frame (parked)
-    relod(){ for(let id=0;id<items.length;id++){ const it=items[id]; if(!it.v) continue; const near=((it.x-fleet.cam.x)**2+(it.y-fleet.cam.z)**2)<NEAR2; if((near?0:1)!==it.lod) fleet.set(id,it.x,it.y,it.a,it.b,true); } },
-    commit(){ for(const s of Object.values(sets)){ for(const m of all(s)){ m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; } } },
+  const NEAR2=55*55, FAR2=520*520; const fwd=new THREE.Vector3();
+  const byKind={}; for(const k of kinds) byKind[k]=[];
+  // instances are packed every frame: only cars in front of the camera are drawn, near ones with full detail
+  const fleet={ kinds, items, night:false, cam:new THREE.Vector3(), camDir:new THREE.Vector3(0,0,-1),
+    add(kind,color){ const it={kind,h:0,x:0,y:0,a:0,b:false,v:false,col:new THREE.Color(color)}; items.push(it); byKind[kind].push(it); return items.length-1; },
+    set(id,x,y,a,brake,visible=true){ const it=items[id]; it.x=x; it.y=y; it.a=a; it.b=brake; it.v=visible; },
+    relod(){},
+    commit(){ const cx=fleet.cam.x, cz=fleet.cam.z, dx=fleet.camDir.x, dz=fleet.camDir.z, dl=Math.hypot(dx,dz);
+      for(const k of kinds){ const s=sets[k], L=byKind[k]; let nN=0, nF=0, nS=0;
+        for(const it of L){ if(!it.v) continue; const ox=it.x-cx, oz=it.y-cz, d2=ox*ox+oz*oz; if(d2>FAR2) continue;
+          if(d2>100 && dl>0.01 && (ox*dx+oz*dz)/dl < -8) continue;                               // behind the camera
+          q.setFromAxisAngle(up,-it.a); pv.set(it.x,it.h||0,it.y); m4.compose(pv,q,one);
+          const lit=fleet.night&&!it.parked; const tc=it.b?TAIL_ON:(lit?TAIL_NIGHT:TAIL_OFF), hc=lit?HEAD_ON:HEAD_OFF;
+          const P=d2<NEAR2?s.near:s.far, i=d2<NEAR2?nN++:nF++;
+          for(const m of P.list) m.setMatrixAt(i,m4); P.body.setColorAt(i,it.col); P.tail.setColorAt(i,tc); P.head.setColorAt(i,hc);
+          if(d2<160*160) s.shadow.setMatrixAt(nS++,m4); }
+        for(const m of s.near.list){ m.count=nN; m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; }
+        for(const m of s.far.list){ m.count=nF; m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; }
+        s.shadow.count=nS; s.shadow.instanceMatrix.needsUpdate=true; } },
     shape(kind){ return sets[kind].S; }
   };
+  for(const k of kinds){ const s=sets[k]; s.near.list=Object.values(s.near); s.far.list=Object.values(s.far); }
   return fleet;
 }
 

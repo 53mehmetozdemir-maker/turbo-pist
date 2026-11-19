@@ -629,7 +629,7 @@ function frame(t){
     const sim=!online||net.isHost;
     if(sim){ trafAcc+=fdt; let n=0; while(trafAcc>=1/30 && n<4){ W.traffic.step(1/30,players); trafAcc-=1/30; n++; } W.traffic.remote=null; }
     if(online && net.isHost){ trafSend+=fdt; if(trafSend>0.1){ trafSend=0; net.sendAll({t:'x',k:'tr',d:W.traffic.pack()}); } }
-    fleet.cam.copy(camera.position); if(frameNo%12===0) fleet.relod(); W.traffic.render(fdt); fleet.commit();
+    fleet.cam.copy(camera.position); if(camMode===1&&mode!=='menu'&&mode!=='lobby') fleet.camDir.set(0,0,0); else camera.getWorldDirection(fleet.camDir); W.traffic.render(fdt); fleet.commit();
     W.peds.update(fdt,players);
     if(frameNo%15===0) W.city.updateLights();
     // nearest street lamps become real lights at night
