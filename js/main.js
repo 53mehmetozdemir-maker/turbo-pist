@@ -426,7 +426,8 @@ function carEffects(dt){
   const slideF=Math.max(0,Math.abs(c.slipF)-0.16)*4;
   for(let i=0;i<4;i++){
     const rear=i>=2, s=rear?slideR:slideF; const [x,z]=wheelsXY[i]; const surf=rear?c.surfR:c.surfF; const loose=surf===2||surf===4;
-    skids.add(i,x,z,c.a, !loose && c.speed>2 ? Math.min(1,s) : 0);
+    const spinning=rear&&c.burnout; skids.add(i,x,z,c.a, !loose && (c.speed>2||spinning) ? Math.min(1,s) : 0);
+    if(spinning && !loose && Math.random()<0.3*dt*60) smoke.emit(x+(Math.random()-.5)*0.4,0.3,z+(Math.random()-.5)*0.4,(Math.random()-.5)*2.5-1.2*Math.cos(c.a),0.9+Math.random()*1.2,(Math.random()-.5)*2.5-1.2*Math.sin(c.a),{size:0.9,grow:2.8,life:1.6+Math.random()*0.8,alpha:0.2});
     if(c.speed>2 && !loose && s>0.45 && Math.random()<Math.min(1,s-0.35)*0.8*dt*60) smoke.emit(x,0.25,z,(Math.random()-.5)*1.5-c.vx*0.1,0.6+Math.random(),(Math.random()-.5)*1.5-c.vy*0.1,{size:0.8,grow:2.2,life:1.2+Math.random(),alpha:0.24});
     if(loose && c.speed>3 && Math.random()<0.5*dt*60) smoke.emit(x,0.3,z,-c.vx*0.2+(Math.random()-.5)*2,1+Math.random()*1.5,-c.vy*0.2+(Math.random()-.5)*2,{color:surf===4?[0.45,0.5,0.32]:[0.72,0.62,0.45],size:1.1,grow:2.8,life:1.2,alpha:0.35});
   }

@@ -52,7 +52,7 @@ export class SkidMarks {
   add(w,x,z,a,s){
     const prev=this.last[w];
     if(s<=0){ this.last[w]=null; return; }
-    if(prev && Math.hypot(x-prev.x,z-prev.z)<0.35) return;
+    if(prev && Math.hypot(x-prev.x,z-prev.z)<0.12) return;
     const hw=0.13, nx=-Math.sin(a)*hw, nz=Math.cos(a)*hw;
     if(prev && Math.hypot(x-prev.x,z-prev.z)<3){
       const q=this.i; this.i=(this.i+1)%this.max; const v=q*12, y=0.045;
