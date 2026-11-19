@@ -196,7 +196,12 @@ export function buildCity(scene, quality, fleet) {
   ground.rotation.x = -Math.PI / 2; ground.position.set(SIZE / 2, -0.02, SIZE / 2); ground.receiveShadow = true; group.add(ground);
   const asphaltTex = tex(512, 512, (g, w, h) => { noise(g, w, h, '#3c3e42', 0.2, 30000, 2); for (let i = 0; i < 30; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .12})`; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 60, 10 + Math.random() * 30, Math.random() * 3, 0, 7); g.fill(); } g.strokeStyle = 'rgba(15,15,15,.35)'; g.lineWidth = 1.5; for (let i = 0; i < 12; i++) { g.beginPath(); let x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - .5) * 40; y += (Math.random() - .5) * 40; g.lineTo(x, y); } g.stroke(); } });
   asphaltTex.repeat.set((SIZE + ROAD) / 9, (SIZE + ROAD) / 9);
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(SIZE + ROAD, SIZE + ROAD), new THREE.MeshStandardMaterial({ map: asphaltTex, bumpMap: asphaltTex, bumpScale: 1.2, roughness: 0.88 }));
+  const roadMat = new THREE.MeshStandardMaterial({ map: asphaltTex, bumpMap: asphaltTex, bumpScale: 1.2, roughness: 0.88 });
+  // puddles: dark smooth blobs used as roughness map when wet
+  const puddleTex = tex(512, 512, (g, w, h) => { g.fillStyle = '#8c8c8c'; g.fillRect(0, 0, w, h); for (let i = 0; i < 26; i++) { const x = Math.random() * w, y = Math.random() * h, r = 15 + Math.random() * 55;
+      const gr = g.createRadialGradient(x, y, 2, x, y, r); gr.addColorStop(0, 'rgba(10,10,10,1)'); gr.addColorStop(0.7, 'rgba(40,40,40,.9)'); gr.addColorStop(1, 'rgba(200,200,200,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * 3, 0, 7); g.fill(); } }, { linear: true });
+  puddleTex.repeat.set((SIZE + ROAD) / 37, (SIZE + ROAD) / 37);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(SIZE + ROAD, SIZE + ROAD), roadMat);
   road.rotation.x = -Math.PI / 2; road.position.set(SIZE / 2, 0, SIZE / 2); road.receiveShadow = true; group.add(road);
 
   // ---- road markings (vertex coloured quads) ----
@@ -232,12 +237,13 @@ export function buildCity(scene, quality, fleet) {
   }
   const curbMat = new THREE.MeshStandardMaterial({ color: 0xbdbab3, roughness: 0.8 });
   const addM = (buf, mat, recv = true, cast = false) => { const m = new THREE.Mesh(buf.build(), mat); m.receiveShadow = recv; m.castShadow = cast; group.add(m); return m; };
-  addM(slab, new THREE.MeshStandardMaterial({ map: tileTex, bumpMap: tileTex, bumpScale: 1.5, roughness: 0.85 })); addM(curbB, curbMat);
+  const slabMat = new THREE.MeshStandardMaterial({ map: tileTex, bumpMap: tileTex, bumpScale: 1.5, roughness: 0.85 }); addM(slab, slabMat); addM(curbB, curbMat);
   const g2 = grassTex.clone(); g2.repeat.set(1, 1); g2.needsUpdate = true; addM(grassB, new THREE.MeshStandardMaterial({ map: g2, roughness: 1 }));
   const a2 = asphaltTex.clone(); a2.repeat.set(1, 1); a2.needsUpdate = true; addM(lotB, new THREE.MeshStandardMaterial({ map: a2, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1 }));
 
   // ---- buildings ----
   const roofProps = []; let tallest = { h: 0 };
+  const balc = [], acs2 = [], awn = []; bufs.cornice = new GeoBuf(); const BAL_MAX = quality === 'low' ? 1500 : quality === 'med' ? 4500 : 8000;
   for (const b of blocks) {
     if (b.type !== 'buildings') continue;
     const inner0x = b.x0 + SW, inner0z = b.y0 + SW, size = BL - 2 * SW;
@@ -255,7 +261,11 @@ export function buildCity(scene, quality, fleet) {
       const floors = b.district === 'downtown' ? 14 + Math.floor(rnd() * rnd() * 40) : b.district === 'mid' ? 5 + Math.floor(rnd() * 10) : 2 + Math.floor(rnd() * 4);
       let h = 4.2 + floors * 3.2; const uo = Math.floor(rnd() * 4) * 0.25;
       const shopBand = style !== 'glass' || rnd() < 0.5;
-      if (shopBand) { walls(bufs['shop' + Math.floor(rnd() * SHOPS)], x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 0, 4.2, 12, 4.2, Math.floor(rnd() * 2) * 0.5); top(bufs.roof, x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 4.2); }
+      if (shopBand) { walls(bufs['shop' + Math.floor(rnd() * SHOPS)], x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 0, 4.2, 12, 4.2, Math.floor(rnd() * 2) * 0.5); top(bufs.roof, x0 - 0.15, z0 - 0.15, x1 + 0.15, z1 + 0.15, 4.2);
+        // awnings over some shop windows (each side, every 6 m)
+        const awCol = Math.floor(rnd() * 6);
+        for (const [ax0, az0, ax1, az1, nx, nz] of [[x0, z1, x1, z1, 0, 1], [x0, z0, x1, z0, 0, -1], [x1, z0, x1, z1, 1, 0], [x0, z0, x0, z1, -1, 0]]) {
+          const len = Math.hypot(ax1 - ax0, az1 - az0); for (let d = 3; d < len - 2; d += 6) { if (rnd() < 0.45) continue; const t = d / len; awn.push([ax0 + (ax1 - ax0) * t + nx * 0.85, az0 + (az1 - az0) * t + nz * 0.85, Math.atan2(nx, nz), (awCol + Math.floor(d / 6)) % 6]); } } }
       const h0 = shopBand ? 4.2 : 0;
       // towers get setbacks
       if (b.district === 'downtown' && h > 70) {
@@ -263,8 +273,20 @@ export function buildCity(scene, quality, fleet) {
         const s = Math.min(x1 - x0, z1 - z0) * (0.12 + rnd() * 0.08); x0 += s; x1 -= s; z0 += s; z1 -= s;
         walls(bufs[style], x0, z0, x1, z1, h1, h, 12, 12.8, uo); top(bufs.roof, x0, z0, x1, z1, h);
       } else { walls(bufs[style], x0, z0, x1, z1, h0, h, 12, 12.8, uo); top(bufs.roof, x0, z0, x1, z1, h); }
-      // parapet
+      // parapet + cornice (masonry buildings)
       walls(bufs.roof, x0, z0, x1, z1, h, h + 0.9, 6, 6);
+      if (style !== 'glass') { walls(bufs.cornice, x0 - 0.35, z0 - 0.35, x1 + 0.35, z1 + 0.35, h - 0.5, h + 0.12, 6, 6); top(bufs.cornice, x0 - 0.35, z0 - 0.35, x1 + 0.35, z1 + 0.35, h + 0.12); 
+        if (floors > 3) { const hb = h0 + 0.02; walls(bufs.cornice, x0 - 0.18, z0 - 0.18, x1 + 0.18, z1 + 0.18, hb, hb + 0.35, 6, 6); } }
+      // balconies (residential) and wall-mounted AC units, aligned to the facade's window bays
+      const resid = (style === 'beige' || style === 'brick' || style === 'white') && b.district !== 'downtown' && rnd() < 0.6;
+      const acChance = style === 'glass' ? 0 : 0.05;
+      for (const [ax0, az0, ax1, az1, nx, nz] of [[x0, z1, x1, z1, 0, 1], [x1, z0, x0, z0, 0, -1], [x1, z1, x1, z0, 1, 0], [x0, z0, x0, z1, -1, 0]]) {
+        const len = Math.hypot(ax1 - ax0, az1 - az0), rot = Math.atan2(nx, nz);
+        for (let k = 0; k < 200; k++) { const along = ((k + 0.5) / 4 - uo) * 12; if (along < 1.2) continue; if (along > len - 1.2) break;
+          const t = along / len, px = ax0 + (ax1 - ax0) * t, pz = az0 + (az1 - az0) * t;
+          for (let f = 1; f < Math.min(floors, 14); f++) { const y = h0 + f * 3.2;
+            if (resid && k % 2 === 0 && balc.length < BAL_MAX) balc.push([px + nx * 0.55, y - 0.15, pz + nz * 0.55, rot]);
+            else if (rnd() < acChance && acs2.length < 3000) acs2.push([px + nx * 0.3 + nz * 0.9, y - 0.5, pz + nz * 0.3 - nx * 0.9, rot]); } } }
       addBox(b, x0 - 0.2, z0 - 0.2, x1 + 0.2, z1 + 0.2);
       // rooftop props
       const nprops = Math.floor((x1 - x0) * (z1 - z0) / 220);
@@ -273,6 +295,23 @@ export function buildCity(scene, quality, fleet) {
     }
   }
   for (const k of [...styles, 'shop0', 'shop1', 'shop2', 'shop3', 'roof']) { const m = addM(bufs[k], mats[k], true, quality !== 'low'); }
+  addM(bufs.cornice, new THREE.MeshStandardMaterial({ color: 0xd9d4c8, roughness: 0.8 }), true, quality !== 'low');
+  const D0 = new THREE.Object3D();
+  const instList = (geo, mat, list, f, cast = false) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)); list.forEach((it, i) => { f(D0, it, i, m); D0.updateMatrix(); m.setMatrixAt(i, D0.matrix); }); m.count = list.length; m.castShadow = cast; m.receiveShadow = true; group.add(m); return m; };
+  const place = (D, [x, y, z, r]) => { D.position.set(x, y, z); D.rotation.set(0, r, 0); D.scale.set(1, 1, 1); };
+  const slabG = new THREE.BoxGeometry(2.4, 0.14, 1.1); slabG.translate(0, 0, 0);
+  const railG = new THREE.BoxGeometry(2.4, 1.0, 0.05); railG.translate(0, 0.55, 0.53);
+  const railSideG = new THREE.BoxGeometry(0.05, 1.0, 1.1); 
+  const sideL = railSideG.clone().translate(-1.18, 0.55, 0), sideR = railSideG.clone().translate(1.18, 0.55, 0);
+  instList(slabG, new THREE.MeshStandardMaterial({ color: 0xcfc9bd, roughness: 0.8 }), balc, place, quality === 'high');
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x2c3036, metalness: 0.6, roughness: 0.35, transparent: true, opacity: 0.85 });
+  instList(railG, railMat, balc, place); instList(sideL, railMat, balc, place); instList(sideR, railMat, balc, place);
+  const acG = new THREE.BoxGeometry(0.85, 0.58, 0.45); acG.translate(0, 0, 0.22);
+  instList(acG, new THREE.MeshStandardMaterial({ color: 0xe4e4e0, roughness: 0.6 }), acs2, place);
+  const awG = new THREE.BoxGeometry(4.6, 0.06, 1.5); awG.rotateX(0.32); awG.translate(0, 3.85, 0);
+  const awColors = [0xb03a2e, 0x1f618d, 0x196f3d, 0x9a7d0a, 0x6c3483, 0x2e4053].map(c => new THREE.Color(c));
+  const awM = instList(awG, new THREE.MeshStandardMaterial({ roughness: 0.85 }), awn, (D, [x, z, r, c], i, m) => { D.position.set(x, CURB, z); D.rotation.set(0, r, 0); D.scale.set(1, 1, 1); m.setColorAt(i, awColors[c]); });
+  if (awM.instanceColor) awM.instanceColor.needsUpdate = true;
   // roof props (AC units, water tanks) + antenna on the tallest tower
   const acGeo = new THREE.BoxGeometry(2.2, 1.4, 1.6); acGeo.translate(0, 0.7 + 0.9, 0);
   const tankGeo = new THREE.CylinderGeometry(1.2, 1.2, 2.4, 10); tankGeo.translate(0, 2.1, 0);
@@ -377,7 +416,15 @@ export function buildCity(scene, quality, fleet) {
   const windowMats = styles.map(s => mats[s]), shopMats = [0, 1, 2, 3].map(v => mats['shop' + v]);
   function setNight(f) { for (const m of windowMats) m.emissiveIntensity = f * f * 1.1; for (const m of shopMats) m.emissiveIntensity = f * 0.6; headMat.emissiveIntensity = f * 4; }
 
-  return { group, lamps, updateLights, setNight, parked };
+  const markMat = marks.material;
+  function setWet(w) {
+    roadMat.roughness = w ? 1.0 : 0.88; roadMat.roughnessMap = w ? puddleTex : null; roadMat.color.set(w ? 0x6a6a6c : 0xffffff); roadMat.envMapIntensity = w ? 1.6 : 1; roadMat.metalness = w ? 0.05 : 0; roadMat.needsUpdate = true;
+    slabMat.roughness = w ? 0.35 : 0.85; slabMat.color.set(w ? 0x9a9a9a : 0xffffff); slabMat.envMapIntensity = w ? 1.3 : 1;
+    markMat.roughness = w ? 0.15 : 0.6;
+    for (const m of [...windowMats, curbMat]) { m.roughness = w ? Math.min(m.roughness, 0.4) : m.userData.r0 ?? m.roughness; }
+  }
+  for (const m of [...windowMats, curbMat]) m.userData.r0 = m.roughness;
+  return { group, lamps, updateLights, setNight, setWet, parked };
 }
 export const CAR_COLORS = ['#f2f2f2', '#f2f2f2', '#1b1c1f', '#1b1c1f', '#9ea3a8', '#9ea3a8', '#5b6066', '#1f3a5f', '#7a1f1f', '#d7c9a7', '#2f4f3a', '#f0c419'];
 

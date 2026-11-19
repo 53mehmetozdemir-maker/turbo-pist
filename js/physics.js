@@ -16,7 +16,7 @@ const P = {
 const TQ = [[0,200],[1000,260],[2500,390],[4000,490],[5200,530],[6200,515],[7000,470],[7600,420],[8000,300]];
 function torqueAt(rpm){ for(let i=1;i<TQ.length;i++) if(rpm<=TQ[i][0]){ const [r0,t0]=TQ[i-1],[r1,t1]=TQ[i]; return t0+(t1-t0)*(rpm-r0)/(r1-r0); } return 0; }
 const SURF = [ {mu:1.0, drag:0}, {mu:0.93, drag:0}, {mu:0.55, drag:3.2}, {mu:0.95, drag:0.3}, {mu:0.62, drag:1.6} ];   // asphalt, kerb, gravel, sidewalk(curb), grass
-export const OPTS = { forceSurface: null };
+export const OPTS = { forceSurface: null, wet: false };
 const pac = (s,B) => Math.sin(P.C*Math.atan(B*s));
 
 export class Car {
@@ -62,7 +62,7 @@ export class Car {
     // ---- surfaces under each axle ----
     const fx=this.x+ca*P.a, fy=this.y+sa*P.a, rx=this.x-ca*P.b, ry=this.y-sa*P.b;
     this.surfF=OPTS.forceSurface??this.world.surface(fx,fy,this); this.surfR=OPTS.forceSurface??this.world.surface(rx,ry,this);
-    const muF=SURF[this.surfF].mu, muR=SURF[this.surfR].mu*P.muRear;
+    const wetK=OPTS.wet?0.74:1; const muF=SURF[this.surfF].mu*wetK, muR=SURF[this.surfR].mu*P.muRear*wetK;
     this.kerb=(this.surfF===1||this.surfR===1)?1:0;
     if(this.prevSurfF!=null && this.prevSurfF!==this.surfF && (this.prevSurfF===3||this.surfF===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfF=this.surfF;
     if(this.prevSurfR!=null && this.prevSurfR!==this.surfR && (this.prevSurfR===3||this.surfR===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfR=this.surfR;
@@ -170,8 +170,13 @@ export class Car {
     // suspension bounce (visual)
     this.bumpV += (-this.bump*180 - this.bumpV*14)*dt; this.bump += this.bumpV*dt;
     // body pitch/roll (visual)
-    this.pitch += ((-this.axPrev*0.011) - this.pitch)*Math.min(1,dt*6);
-    this.rollA += ((this.ayPrev*0.012) - this.rollA)*Math.min(1,dt*6);
+    // sprung body: damped springs so the nose dives and rebounds, the body leans and settles
+    const kP=95, cP=11, kR=80, cR=9;
+    this.pitchV=(this.pitchV||0)+((-this.axPrev*0.014)-this.pitch)*kP*dt-(this.pitchV||0)*cP*dt; this.pitch+=this.pitchV*dt;
+    this.rollV=(this.rollV||0)+((this.ayPrev*0.018)-this.rollA)*kR*dt-(this.rollV||0)*cR*dt; this.rollA+=this.rollV*dt;
+    this.pitch=Math.max(-0.07,Math.min(0.07,this.pitch)); this.rollA=Math.max(-0.08,Math.min(0.08,this.rollA));
+    // road texture: tiny vibration growing with speed, stronger on kerbs/gravel
+    this.rough=(this.kerb?0.012:0)+((this.surfF===2||this.surfF===4)?0.02:0)+speed*0.00006;
   }
 
   corners(){ const ca=Math.cos(this.a), sa=Math.sin(this.a), hl=2.2, hw=0.92;
