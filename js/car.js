@@ -130,7 +130,7 @@ function buildFerrari(color){
   // model faces -Z with +X to its right; our cars face +X with +Z to the right
   const holder=new THREE.Group(); holder.rotation.y=-Math.PI/2; holder.position.x=0.19; body.add(holder);
   const m=FERRARI.clone(true); holder.add(m);
-  m.traverse(o=>{ if(!o.isMesh) return; o.castShadow=true; o.receiveShadow=true;
+  m.traverse(o=>{ if(!o.isMesh) return; const big=/^(body|tire|carbon_fibre_trim|plastic_gray)/.test(o.name)||o.material&&o.material.name==='Body_Color'; o.castShadow=big; o.receiveShadow=big;
     const n=(o.name||'')+'|'+(o.parent&&o.parent.name||''); const mn=o.material&&o.material.name||'';
     if(mn==='Body_Color'||/(^|\|)body/.test(n)) o.material=paint;
     else if(mn==='Glass_Gray'||/(^|\|)glass/.test(n)){ o.material=glass; o.castShadow=false; }
