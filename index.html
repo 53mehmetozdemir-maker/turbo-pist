@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Turbo Pist 3D</title>
+<title>Turbo Pist 3D · Şehir</title>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.187.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.187.0/examples/jsm/"}}</script>
@@ -29,6 +29,15 @@ input[type=text]:focus{border-color:#ffd32a}
 .seg button{flex:1;background:transparent;color:#fff;padding:8px 6px;font-size:13px;border-radius:8px}
 .seg button.on{background:#ffd32a;color:#111}
 .cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.cols2{display:grid;grid-template-columns:1fr 1.3fr;gap:8px}
+#street{position:absolute;left:16px;bottom:34px;text-shadow:0 2px 6px rgba(0,0,0,.8)}
+#stName{font-family:Bungee,sans-serif;font-size:24px;line-height:1.1}
+#stDist{font-size:13px;opacity:.85;font-weight:600}
+#freeBar{position:absolute;top:12px;left:12px;display:flex;gap:8px;align-items:center;pointer-events:auto}
+#freeBar button{padding:8px 12px;font-size:13px}
+#freeInfo{font-size:12px;opacity:.85}
+#mini{border-radius:50%}
+#mini.sq{border-radius:14px}
 button{cursor:pointer;border:0;border-radius:12px;padding:13px 16px;font:800 15px Inter,sans-serif;color:#111;background:#ffd32a;transition:transform .08s,filter .15s}
 button:hover{filter:brightness(1.08)}button:active{transform:scale(.97)}
 button.sec{background:rgba(255,255,255,.1);color:#fff}
@@ -59,7 +68,7 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
 .hl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;opacity:.6}
 .laps{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1)}
 #hBest{color:#d58cff}
-#mini{position:absolute;top:12px;right:12px;background:rgba(8,10,14,.55);border-radius:14px}
+#mini{position:absolute;top:12px;right:12px}
 #br{position:absolute;right:16px;bottom:16px;width:230px}
 .spd{display:flex;align-items:flex-end;justify-content:space-between}
 #hSpd{font-family:Bungee,sans-serif;font-size:56px;line-height:.9}
@@ -103,7 +112,9 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
       <div><div class="hl">En iyi</div><div class="hs" id="hBest">-</div></div>
     </div>
   </div>
-  <canvas id="mini" width="200" height="152"></canvas>
+  <canvas id="mini" width="190" height="190"></canvas>
+  <div id="street" class="hidden"><div id="stName"></div><div id="stDist"></div></div>
+  <div id="freeBar" class="box hidden"><span id="freeInfo"></span><button class="sec" id="freeCopy">🔗 Davet</button></div>
   <div id="br" class="box">
     <div class="spd"><div><span id="hSpd">0</span><span class="unit">km/s</span></div><div id="hGear">N</div></div>
     <div class="bar"><div id="rpmBar"></div></div>
@@ -117,11 +128,15 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
 
 <div id="menu" class="panel">
   <h1>TURBO PİST<small>3D</small></h1>
-  <div class="sub">Gerçekçi fizik · kokpit kamerası · arkadaşınla online yarış 🏁</div>
+  <div class="sub">Şehirde serbest sürüş · pistte yarış · arkadaşınla online 🏙️🏁</div>
   <label>Adın</label>
   <input type="text" id="name" maxlength="14" placeholder="Pilot">
   <label>Araba rengi</label>
   <div class="swatches" id="swatches"></div>
+  <div class="cols2">
+    <div><label>Harita</label><div class="seg" id="mSeg"><button data-v="city">🏙️ Şehir</button><button data-v="track">🏁 Pist</button></div></div>
+    <div><label>Saat</label><div class="seg" id="tSeg"><button data-v="day">Gündüz</button><button data-v="dusk">Akşam</button><button data-v="night">Gece</button></div></div>
+  </div>
   <label>Oda kodu</label>
   <div class="row"><input type="text" id="code" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-family:Bungee,monospace"><button class="sec" id="newCode" title="Yeni kod">🎲</button></div>
   <div class="cols">
@@ -143,7 +158,10 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
       <span><kbd>Shift</kbd><kbd>N</kbd></span><span>Nitro</span>
       <span><kbd>C</kbd></span><span>Kamera: takip · kokpit · kaput</span>
       <span><kbd>Q</kbd><kbd>E</kbd></span><span>Vites düşür / yükselt (manuel)</span>
-      <span><kbd>R</kbd></span><span>Piste geri dön</span>
+      <span><kbd>H</kbd></span><span>Korna</span>
+      <span><kbd>L</kbd></span><span>Farlar</span>
+      <span><kbd>R</kbd></span><span>Yola geri dön</span>
+      <span><kbd>Esc</kbd></span><span>Duraklat / menü</span>
       <span><kbd>M</kbd></span><span>Ses aç/kapa</span>
       <span>🎮</span><span>Oyun kolu: sol çubuk, RT/LT, A el freni, B nitro, Y kamera, LB/RB vites</span>
     </div>
@@ -172,12 +190,17 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
   </div>
 </div>
 
+<div id="pause" class="panel hidden">
+  <h1 style="font-size:30px">DURAKLATILDI</h1>
+  <div class="btns"><button class="go" id="resumeBtn">Devam Et</button><button class="sec" id="pauseMenuBtn">Ana Menü</button></div>
+  <div class="note">Esc ile devam edebilirsin.</div>
+</div>
 <div id="toast" style="opacity:0"></div>
 
 <div id="touch" class="hidden">
   <div class="grp"><div class="tb" data-k="left">◀</div><div class="tb" data-k="right">▶</div></div>
   <div class="grp">
-    <div class="col"><div class="tb sm" data-k="cam">🎥</div><div class="tb sm" data-k="nitro">N</div><div class="tb sm" data-k="hand">EL</div></div>
+    <div class="col"><div class="tb sm" data-k="cam">🎥</div><div class="tb sm" data-k="horn">📯</div><div class="tb sm" data-k="nitro">N</div><div class="tb sm" data-k="hand">EL</div></div>
     <div class="col"><div class="tb" data-k="gas">▲</div><div class="tb" data-k="down">▼</div></div>
   </div>
 </div>

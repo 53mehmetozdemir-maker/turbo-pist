@@ -1,73 +1,126 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { TP, N, WORLD, buildTrack, drawMinimapTrack, query, nearest } from './track.js';
-import { buildCar, dentCar, repairCar, drawGauges, CAR } from './car.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { TP, N, WORLD, buildTrack, drawMinimapTrack, nearest, trackWorld } from './track.js';
+import { buildCar, dentCar, repairCar, drawGauges, CAR, makeFleet } from './car.js';
 import { Car } from './physics.js';
 import { CarAudio } from './audio.js';
 import { Particles, SkidMarks } from './effects.js';
 import { Net } from './net.js';
+import { buildCity, cityWorld, streetName, district, nearestLane, cityMapCanvas, SIZE, P as CP, LANES } from './city.js';
+import { Traffic, Pedestrians } from './traffic.js';
 
 const $=id=>document.getElementById(id);
 const COLORS=['#e8202a','#1f6fe0','#ff9f1a','#20b956','#8e44ef','#f1f2f6','#202226','#ffd400'];
-const LAPS=3;
+const LAPS=3, TRAFFIC_N=32;
 const store={ get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} } };
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
-// ---------------- settings ----------------
 const settings={
   quality: store.get('tp3_quality') || (isTouch?'med':'high'),
-  manual: store.get('tp3_manual')==='1',
-  assists: store.get('tp3_assists')!=='0',
+  manual: store.get('tp3_manual')==='1', assists: store.get('tp3_assists')!=='0',
   name: store.get('tp_name')||'', color: store.get('tp3_color')||COLORS[0],
+  map: store.get('tp4_map')||'city', time: store.get('tp4_time')||'day',
 };
 if(!COLORS.includes(settings.color)) settings.color=COLORS[0];
 
 // ---------------- renderer / scene ----------------
 const renderer=new THREE.WebGLRenderer({antialias:settings.quality!=='low', powerPreference:'high-performance'});
 const DPR=window.devicePixelRatio||1;
-renderer.setPixelRatio(settings.quality==='high'?Math.min(DPR,2):settings.quality==='med'?Math.min(DPR,1.25):Math.min(DPR,1)*0.85);
+renderer.setPixelRatio(settings.quality==='high'?Math.min(DPR,1.75):settings.quality==='med'?Math.min(DPR,1.2):Math.min(DPR,1)*0.85);
 renderer.setSize(innerWidth,innerHeight);
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.75;
 renderer.shadowMap.enabled=settings.quality!=='low'; renderer.shadowMap.type=THREE.PCFShadowMap;
 document.body.prepend(renderer.domElement); renderer.domElement.id='c';
-
 const scene=new THREE.Scene();
-scene.fog=new THREE.Fog(0xc9d9e8,260,1300);
+scene.fog=new THREE.Fog(0xc9d9e8,200,1100);
 const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.05,4000);
 const mirrorCam=new THREE.PerspectiveCamera(50,3.2,0.1,800);
 const pmrem=new THREE.PMREMGenerator(renderer);
-scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.55;
-
 const sky=new Sky(); sky.scale.setScalar(6000); scene.add(sky);
-const sunDir=new THREE.Vector3().setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-38),THREE.MathUtils.degToRad(140));
-Object.assign(sky.material.uniforms,{}); const U=sky.material.uniforms;
-U.turbidity.value=3; U.rayleigh.value=1.2; U.mieCoefficient.value=0.004; U.mieDirectionalG.value=0.8; U.sunPosition.value.copy(sunDir);
-if(U.cloudCoverage){ U.cloudCoverage.value=0.35; U.cloudDensity.value=0.35; }
+const U=sky.material.uniforms;
 const hemi=new THREE.HemisphereLight(0xcfe3ff,0x4a6a35,0.75); scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xfff1dc,2.6); sun.castShadow=renderer.shadowMap.enabled;
 const SH=settings.quality==='high'?2048:1024; sun.shadow.mapSize.set(SH,SH);
-Object.assign(sun.shadow.camera,{left:-45,right:45,top:45,bottom:-45,near:1,far:400}); sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.03;
+Object.assign(sun.shadow.camera,{left:-55,right:55,top:55,bottom:-55,near:1,far:600}); sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.04;
 scene.add(sun); scene.add(sun.target);
+const sunDir=new THREE.Vector3();
+// stars for the night sky
+const stars=(()=>{ const g=new THREE.BufferGeometry(), n=1500, p=new Float32Array(n*3); for(let i=0;i<n;i++){ const v=new THREE.Vector3().randomDirection(); v.y=Math.abs(v.y); v.multiplyScalar(3000); p.set([v.x,v.y,v.z],i*3); }
+  g.setAttribute('position',new THREE.BufferAttribute(p,3)); const m=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:2,sizeAttenuation:false,fog:false})); m.visible=false; scene.add(m); return m; })();
 
-const track=buildTrack(scene,settings.quality);
+// post-processing (bloom) on high quality
+let composer=null, bloom=null;
+if(settings.quality==='high'){
+  composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,camera));
+  bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth/2,innerHeight/2),0.35,0.5,0.88); composer.addPass(bloom); composer.addPass(new OutputPass());
+}
+
+// ---------------- worlds (built lazily) ----------------
+const worlds={};
+const fleet=makeFleet(scene,260,settings.quality);
+function ensureWorld(map){
+  if(worlds[map]) return worlds[map];
+  if(map==='track'){ const t=buildTrack(scene,settings.quality); worlds.track={kind:'track',group:t.group,startLights:t.startLights,phys:trackWorld}; }
+  else { const c=buildCity(scene,settings.quality,fleet); const traffic=new Traffic(fleet,TRAFFIC_N);
+    const peds=new Pedestrians(scene,settings.quality==='high'?90:settings.quality==='med'?60:28);
+    const lampLights=[]; if(settings.quality!=='low') for(let k=0;k<6;k++){ const L=new THREE.PointLight(0xffd8a0,0,32,1.6); scene.add(L); lampLights.push(L); }
+    worlds.city={kind:'city',group:c.group,city:c,traffic,peds,phys:cityWorld,lampLights,map:cityMapCanvas()}; }
+  return worlds[map];
+}
+let W=null;   // active world
+function useWorld(map){
+  W=ensureWorld(map);
+  for(const k in worlds){ const on=worlds[k]===W; worlds[k].group.visible=on; if(worlds[k].peds) for(const m of [worlds[k].peds.legs,worlds[k].peds.torso,worlds[k].peds.head,worlds[k].peds.arms]) m.visible=on; }
+  for(const k of ['body','glass','dark','head','tail']) {}   // fleet only used in the city
+  fleetVisible(map==='city');
+  phys.world=W.phys; applyTime(settings.time); miniBg=null; $('mini').classList.toggle('sq',map==='track');
+}
+function fleetVisible(v){ scene.traverse(o=>{ if(o.isInstancedMesh && o.userData.fleet) o.visible=v; }); }
+
+// ---------------- time of day ----------------
+let nightF=0;
+function applyTime(t){
+  const city=W&&W.kind==='city';
+  if(t==='day'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-40),THREE.MathUtils.degToRad(140)); sun.color.set(0xfff1dc); sun.intensity=2.6; hemi.intensity=0.75; hemi.color.set(0xcfe3ff); hemi.groundColor.set(0x4a6a35);
+    U.turbidity.value=3; U.rayleigh.value=1.2; U.mieCoefficient.value=0.004; sky.visible=true; scene.background=null; scene.fog.color.set(0xc9d9e8); scene.fog.near=city?160:260; scene.fog.far=city?950:1300; renderer.toneMappingExposure=city?0.6:0.72; nightF=0; }
+  else if(t==='dusk'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-6),THREE.MathUtils.degToRad(250)); sun.color.set(0xffa860); sun.intensity=1.7; hemi.intensity=0.42; hemi.color.set(0xffc9a0); hemi.groundColor.set(0x3a3040);
+    U.turbidity.value=7; U.rayleigh.value=2.6; U.mieCoefficient.value=0.006; sky.visible=true; scene.background=null; scene.fog.color.set(0xd59c7c); scene.fog.near=120; scene.fog.far=850; renderer.toneMappingExposure=0.72; nightF=0.55; }
+  else { sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-45),THREE.MathUtils.degToRad(200)); sun.color.set(0x8fa8ff); sun.intensity=0.28; hemi.intensity=0.16; hemi.color.set(0x5068a0); hemi.groundColor.set(0x101418);
+    sky.visible=false; scene.background=new THREE.Color(0x060a16); scene.fog.color.set(0x0a1020); scene.fog.near=60; scene.fog.far=650; renderer.toneMappingExposure=0.95; nightF=1; }
+  U.sunPosition.value.copy(sunDir); if(U.cloudCoverage){ U.cloudCoverage.value=0.35; U.cloudDensity.value=0.35; }
+  stars.visible=nightF===1;
+  // reflections: environment from the sky (day/dusk) or a dim room (night)
+  if(nightF<1){ const tmp=new THREE.Scene(); const s2=new Sky(); s2.scale.setScalar(1000); Object.assign(s2.material.uniforms.turbidity,{value:U.turbidity.value}); s2.material.uniforms.rayleigh.value=U.rayleigh.value; s2.material.uniforms.sunPosition.value.copy(sunDir); if(s2.material.uniforms.cloudCoverage) s2.material.uniforms.cloudCoverage.value=0; tmp.add(s2);
+    scene.environment=pmrem.fromScene(tmp,0).texture; scene.environmentIntensity=t==='day'?0.45:0.4; }
+  else { scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.08; }
+  for(const k in worlds) if(worlds[k].city) worlds[k].city.setNight(nightF);
+  fleet.night=nightF>0.5; headlightsOn=nightF>0.5;
+  if(bloom){ bloom.strength=nightF===1?0.85:nightF>0?0.5:0.28; bloom.threshold=nightF===1?0.75:0.88; }
+}
+
+// ---------------- local car ----------------
+const phys=new Car(); phys.manual=settings.manual; phys.assists=settings.assists; phys.world=trackWorld;
+const model=buildCar(settings.color); scene.add(model.root);
+const headSpot=new THREE.SpotLight(0xfff2d8,0,90,0.55,0.45,1.2); headSpot.position.set(1.9,0.75,0); model.body.add(headSpot);
+const headTarget=new THREE.Object3D(); headTarget.position.set(25,-1.5,0); model.body.add(headTarget); headSpot.target=headTarget;
+let headlightsOn=false;
+function setMyColor(c){ settings.color=c; model.paint.color.set(c); }
 const smoke=new Particles(scene,settings.quality==='low'?250:700);
 const skids=new SkidMarks(scene,settings.quality==='low'?1200:3500);
 const audio=new CarAudio();
 
-// ---------------- local car ----------------
-const phys=new Car(); phys.manual=settings.manual; phys.assists=settings.assists;
-let model=buildCar(settings.color); scene.add(model.root);
-function setMyColor(c){ settings.color=c; model.paint.color.set(c); }
-
-// remote cars
 const remotes=new Map();
 function nameSprite(text){
   const c=document.createElement('canvas'); c.width=256; c.height=64; const g=c.getContext('2d');
   g.font='bold 34px Inter,sans-serif'; const w=Math.min(250,g.measureText(text).width+28);
   g.fillStyle='rgba(10,12,18,.72)'; g.beginPath(); g.roundRect((256-w)/2,6,w,50,14); g.fill(); g.fillStyle='#fff'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(text,128,32);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
-  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:true,transparent:true})); s.scale.set(3.2,0.8,1); return s;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,toneMapped:false})); s.scale.set(3.2,0.8,1); return s;
 }
 
 // ---------------- state ----------------
@@ -76,9 +129,9 @@ let countStart=0, raceStart=0, elapsed=0, lapStart=0, lastLap=0, bestLap=0, resu
 let camMode=+(store.get('tp3_cam')||0);
 const CAM_NAMES=['Takip kamerası','Kokpit','Kaput kamerası'];
 const me={lap:0,cp:0,idx:0,prevIdx:0,fin:false,ft:0};
-let shake=0, respawnCool=0;
+let shake=0, respawnCool=0, horn=false;
 
-// ---------------- UI: menu ----------------
+// ---------------- UI ----------------
 const nameIn=$('name'), codeIn=$('code');
 nameIn.value=settings.name;
 function randCode(){ const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
@@ -92,17 +145,21 @@ function seg(id,val,on){ const el=$(id); [...el.children].forEach(b=>{ b.classLi
 seg('qSeg',settings.quality,v=>{ store.set('tp3_quality',v); if(v!==settings.quality){ toast('Grafik ayarı uygulanıyor…'); setTimeout(()=>location.reload(),400); } });
 seg('gSeg',settings.manual?'manual':'auto',v=>{ settings.manual=v==='manual'; phys.manual=settings.manual; store.set('tp3_manual',settings.manual?'1':'0'); });
 seg('aSeg',settings.assists?'on':'off',v=>{ settings.assists=v==='on'; phys.assists=settings.assists; store.set('tp3_assists',settings.assists?'1':'0'); });
+seg('mSeg',settings.map,v=>{ settings.map=v; store.set('tp4_map',v); toast(v==='city'?'Harita yükleniyor…':'Pist yükleniyor…',1200); setTimeout(()=>{ useWorld(v); parkShowcase(); updateMenuLabels(); },30); });
+seg('tSeg',settings.time,v=>{ settings.time=v; store.set('tp4_time',v); applyTime(v); });
+function updateMenuLabels(){ $('soloBtn').textContent=settings.map==='city'?'Tek Başına Gez':'Tek Başına Antrenman'; }
 function cleanName(){ return (nameIn.value.trim()||'Pilot').slice(0,14); }
-function show(id){ ['menu','lobby','results'].forEach(p=>$(p).classList.toggle('hidden',p!==id)); }
+function show(id){ ['menu','lobby','results','pause'].forEach(p=>$(p).classList.toggle('hidden',p!==id)); }
 function toast(msg,ms=2500){ const t=$('toast'); t.textContent=msg; t.style.opacity=1; clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.opacity=0,ms); }
 function saveName(){ settings.name=cleanName(); store.set('tp_name',settings.name); }
 
 // ---------------- network ----------------
 let peers=[];
 const net=new Net(ps=>{ peers=ps; onPeersChanged(); }, ()=>{ goMenu(); }, toast);
+net.onExtra=d=>{ if(d.k==='tr' && W && W.traffic && !net.isHost) W.traffic.unpack(d.d); };
 const netNote=$('netNote');
-if(net.available){ $('joinBtn').disabled=false; netNote.innerHTML='Aynı oda kodunu giren herkes aynı yarışa katılır. Lobideki <b>Davet linkini kopyala</b> ile arkadaşına link gönder.'; }
-else netNote.innerHTML='<span class="warn">Bağlantı kütüphanesi yüklenemedi.</span> İnterneti kontrol edip sayfayı yenile. Antrenman yapabilirsin.';
+if(net.available){ $('joinBtn').disabled=false; netNote.innerHTML='Aynı oda kodunu giren herkes aynı haritaya katılır (haritayı odayı açan seçer). Lobideki <b>Davet linkini kopyala</b> ile arkadaşına link gönder.'; }
+else netNote.innerHTML='<span class="warn">Bağlantı kütüphanesi yüklenemedi.</span> İnterneti kontrol edip sayfayı yenile.';
 const myPres=()=>({name:settings.name,color:settings.color});
 
 $('joinBtn').onclick=async()=>{
@@ -113,13 +170,14 @@ $('joinBtn').onclick=async()=>{
   catch(e){ $('joinBtn').disabled=false; $('joinBtn').textContent='Odaya Gir'; toast('Odaya bağlanılamadı ('+((e&&e.type)||'hata')+')',4000); return; }
   $('joinBtn').disabled=false; $('joinBtn').textContent='Odaya Gir';
   online=true; seenRaces=new Set(); $('lobbyCode').textContent=code;
-  net.set({...myPres(), ready:false, st:'lobby', raceId:null, race:null});
-  if(net.isHost) net.rebuild();
-  enterLobby();
+  if(net.isHost){ net.set({...myPres(), map:settings.map, ready:false, st:'lobby', raceId:null, race:null}); net.rebuild();
+    if(settings.map==='city') startFree(); else enterLobby(); }
+  else { net.set({...myPres(), ready:false, st:'lobby', raceId:null}); enterLobby(); $('lobbyNote').textContent='Oda kurucusunun haritası bekleniyor…'; }
 };
-$('soloBtn').onclick=()=>{ saveName(); audio.start(); online=false; startRace({id:'solo'+Date.now(), p:['me']}); };
+$('soloBtn').onclick=()=>{ saveName(); audio.start(); online=false; if(settings.map==='city') startFree(); else startRace({id:'solo'+Date.now(), p:['me']}); };
 $('copyBtn').onclick=async()=>{ const url=location.origin+location.pathname+'?oda='+encodeURIComponent($('lobbyCode').textContent);
   try{ await navigator.clipboard.writeText(url); toast('Link kopyalandı ✓ Arkadaşına gönder'); }catch(e){ toast(url,6000); } };
+$('freeCopy').onclick=()=>$('copyBtn').onclick();
 function enterLobby(){
   mode='lobby'; ready=false; resultsShown=false; raceId=null; clearRemotes();
   net.set({ready:false, st:'lobby', raceId:null, fin:null, x:null});
@@ -128,8 +186,12 @@ function enterLobby(){
 }
 $('readyBtn').onclick=()=>{ ready=!ready; net.set({ready}); $('readyBtn').textContent=ready?'Hazır değilim':'Hazırım'; $('readyBtn').classList.toggle('go',!ready); renderLobby(); checkHost(); };
 $('leaveBtn').onclick=()=>goMenu();
-function goMenu(){ net.leave(); online=false; peers=[]; clearRemotes(); mode='menu'; resultsShown=false; show('menu'); hud(false); }
-function hud(on){ $('hud').classList.toggle('hidden',!on); $('touch').classList.toggle('hidden',!(on&&isTouch)); $('lights').classList.add('hidden'); }
+function goMenu(){ net.leave(); online=false; peers=[]; clearRemotes(); mode='menu'; resultsShown=false; show('menu'); hud(false); parkShowcase(); for(const id in (audio.horns||{})) audio.horn(id,false); }
+function hud(on){ $('hud').classList.toggle('hidden',!on); $('touch').classList.toggle('hidden',!(on&&isTouch)); $('lights').classList.add('hidden');
+  const free=mode==='free'; $('tl').classList.toggle('hidden',free); $('street').classList.toggle('hidden',!free); $('freeBar').classList.toggle('hidden',!free); }
+$('resumeBtn').onclick=()=>{ show(null); paused=false; };
+$('pauseMenuBtn').onclick=()=>{ paused=false; goMenu(); };
+let paused=false;
 
 const safeColor=c=>COLORS.includes(c)?c:'#888';
 const safeName=s=>(typeof s==='string'?s:'Pilot').replace(/[\u0000-\u001f]/g,'').slice(0,14)||'Pilot';
@@ -140,43 +202,62 @@ function renderLobby(){
   for(const p of named()){
     const li=document.createElement('li');
     const dot=document.createElement('span'); dot.className='dot'; dot.style.background=safeColor(p.p.color);
-    const nm=document.createElement('span'); nm.className='nm'; nm.textContent=safeName(p.p.name)+(p.me?' (sen)':'');
+    const nm=document.createElement('span'); nm.className='nm'; nm.textContent=safeName(p.p.name)+(p.me?' (sen)':'')+(p.id===net.hostId?' 👑':'');
     const tag=document.createElement('span'); tag.className='tag';
-    if(p.p.st==='race') tag.textContent='yarışta'; else if(p.p.ready){ tag.textContent='hazır ✓'; tag.classList.add('ok'); } else tag.textContent='bekliyor';
+    if(p.p.st==='race') tag.textContent='yarışta'; else if(p.p.st==='free') tag.textContent='şehirde'; else if(p.p.ready){ tag.textContent='hazır ✓'; tag.classList.add('ok'); } else tag.textContent='bekliyor';
     li.append(dot,nm,tag); ul.appendChild(li);
   }
   const n=named().filter(p=>p.p.st==='lobby').length;
   $('lobbyNote').textContent = n<2 ? 'Arkadaşının bu oda koduyla girmesini bekle…' : 'Herkes "Hazırım" deyince yarış başlar.';
 }
+function hostPres(){ const h=peers.find(p=>p.id===net.hostId); return h&&h.p||null; }
 function onPeersChanged(){
+  // follow the host's map choice
+  const hp=hostPres();
+  if(online && !net.isHost && hp && hp.map && (mode==='lobby')){
+    if(hp.map!==settings.map){ settings.map=hp.map; useWorld(hp.map); }
+    if(hp.map==='city'){ startFree(); return; }
+  }
   for(const p of peers){ const r=p.p&&p.p.race; if(r && typeof r.id==='string' && Array.isArray(r.p)) handleRace(r); }
-  if(raceId){
+  if(raceId || mode==='free'){
     const alive=new Set();
-    for(const p of peers){ if(p.me) continue; const s=p.p||{}; if(s.raceId!==raceId || typeof s.x!=='number') continue;
+    for(const p of peers){ if(p.me) continue; const s=p.p||{}; const inMine= mode==='free' ? s.st==='free' : s.raceId===raceId; if(!inMine || typeof s.x!=='number') continue;
       alive.add(p.id); let r=remotes.get(p.id);
       if(!r){ const m=buildCar(safeColor(s.color)); scene.add(m.root); const label=nameSprite(safeName(s.name)); label.position.y=2.1; m.root.add(label);
-        r={model:m,x:s.x,y:s.y,a:s.a||0,v:0,vx:0,vy:0,steer:0,t:performance.now(),wheel:0,dmg:0}; remotes.set(p.id,r); }
+        r={model:m,x:s.x,y:s.y,a:s.a||0,v:0,vx:0,vy:0,steer:0,t:performance.now(),wheel:0}; remotes.set(p.id,r); }
       if(r.tx!==s.x||r.ty!==s.y||r.ta!==s.a) r.t=performance.now();
-      r.tx=s.x; r.ty=s.y; r.ta=s.a||0; r.v=+s.v||0; r.sr=+s.sr||0; r.bk=!!s.bk; r.nt=!!s.nt; r.dm=+s.dm||0;
+      r.tx=s.x; r.ty=s.y; r.ta=s.a||0; r.v=+s.v||0; r.sr=+s.sr||0; r.bk=!!s.bk; r.nt=!!s.nt; r.hn=!!s.hn; r.hl=!!s.hl;
       r.name=safeName(s.name); r.color=safeColor(s.color); r.lap=s.lap|0; r.cp=s.cp|0; r.idx=s.idx|0; r.fin=!!s.fin; r.ft=+s.ft||0; r.best=+s.best||0;
     }
-    for(const [k,r] of [...remotes]) if(!alive.has(k)){ scene.remove(r.model.root); remotes.delete(k); }
+    for(const [k,r] of [...remotes]) if(!alive.has(k)){ scene.remove(r.model.root); audio.horn(k,false); remotes.delete(k); }
   }
   renderLobby(); checkHost();
 }
-function clearRemotes(){ for(const r of remotes.values()) scene.remove(r.model.root); remotes.clear(); }
+function clearRemotes(){ for(const [k,r] of remotes){ scene.remove(r.model.root); audio.horn(k,false); } remotes.clear(); }
 function checkHost(){
-  if(!online||mode!=='lobby'||!net.isHost) return;
+  if(!online||mode!=='lobby'||!net.isHost||settings.map!=='track') return;
   const lp=named().filter(p=>p.p.st==='lobby'); if(lp.length<2 || !lp.every(p=>p.p.ready)) return;
   const race={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), p:lp.map(p=>p.id).sort()};
   net.set({race}); handleRace(race);
 }
 function handleRace(r){ if(seenRaces.has(r.id)) return; seenRaces.add(r.id); if(mode!=='lobby' || !r.p.includes(net.myId)) return; startRace(r); }
 
+// ---------------- free roam ----------------
+function startFree(){
+  useWorld('city'); clearRemotes(); skids.clear(); repairCar(model); raceId=null;
+  // spawn on a random outer lane, spread players apart
+  const k=Math.floor(Math.random()*8); const i=1+Math.floor(Math.random()*8);
+  const sp=[{x:i*CP+30,y:k*CP+LANES[1],a:0},{x:k*CP-LANES[1],y:i*CP+30,a:Math.PI/2}][Math.random()<0.5?0:1];
+  phys.reset(sp.x,sp.y,sp.a); phys.manual=settings.manual; phys.assists=settings.assists;
+  mode='free'; show(null); hud(true); camInit=false;
+  toast(`Şehirde serbest sürüş · ${CAM_NAMES[camMode]} (C) · Korna (H) · Esc menü`,4000);
+  if(online) net.set({...myPres(), st:'free', ready:false, raceId:null, map:net.isHost?'city':undefined});
+}
+
 // ---------------- race ----------------
 function gridPos(slot){ const row=Math.floor(slot/2), col=slot%2; const gi=(N-6-row*3+N)%N; const p=TP[gi]; const off=(col?1:-1)*2.8; return {x:p.x+p.nx*off, y:p.y+p.ny*off, a:p.a, i:gi}; }
 function startRace(r){
-  raceId=r.id; racers=r.p.slice(0,8); clearRemotes(); skids.clear(); repairCar(model);
+  useWorld('track'); raceId=r.id; racers=r.p.slice(0,8); clearRemotes(); skids.clear(); repairCar(model);
   const me_id=online?net.myId:'me'; const g=gridPos(Math.max(0,racers.indexOf(me_id)));
   phys.reset(g.x,g.y,g.a); phys.manual=settings.manual; phys.assists=settings.assists; phys.hint=g.i;
   Object.assign(me,{lap:0,cp:0,idx:g.i,prevIdx:g.i,fin:false,ft:0}); lastLap=0; bestLap=0; elapsed=0; resultsShown=false; lightsShown=-1;
@@ -185,8 +266,11 @@ function startRace(r){
   net.set({...myPres(), st:'race', ready:false, raceId, x:+g.x.toFixed(2), y:+g.y.toFixed(2), a:+g.a.toFixed(3), v:0, lap:0, cp:0, idx:g.i, fin:false, ft:0});
 }
 function respawn(){
-  if(mode!=='race'||me.fin||respawnCool>0) return; respawnCool=3;
-  const i=nearest(phys.x,phys.y); const p=TP[i]; phys.x=p.x; phys.y=p.y; phys.a=p.a; phys.vx=phys.vy=phys.yawRate=0; phys.hint=i; phys.steer=0; toast('Piste geri dönüldü');
+  if(respawnCool>0) return;
+  if(mode==='race' && !me.fin){ respawnCool=3; const i=nearest(phys.x,phys.y); const p=TP[i]; phys.x=p.x; phys.y=p.y; phys.a=p.a; phys.hint=i; }
+  else if(mode==='free'){ respawnCool=2; const l=nearestLane(phys.x,phys.y); phys.x=l.x; phys.y=l.y; phys.a=l.a; }
+  else return;
+  phys.vx=phys.vy=phys.yawRate=0; phys.steer=0; toast('Yola geri dönüldü');
 }
 function progOf(lap,cp,idx){ return lap*N + ((cp===0 && idx>N/2) ? idx-N : idx); }
 function standings(){
@@ -196,11 +280,10 @@ function standings(){
 }
 const fmt=ms=>{ if(!ms) return '-:--.---'; const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, c=Math.floor(ms)%1000; return m+':'+String(s).padStart(2,'0')+'.'+String(c).padStart(3,'0'); };
 function lapLogic(){
-  const ni=phys.hint; me.prevIdx=me.idx; me.idx=ni;
-  if(me.fin) return;
+  const ni=phys.hint; me.prevIdx=me.idx; me.idx=ni; if(me.fin) return;
   if(me.cp<3){ const lo=Math.floor((me.cp+1)*N/4); if(ni>=lo && ni<lo+Math.floor(N*0.12)) me.cp++; }
   else if(me.prevIdx>N*0.85 && ni<N*0.15){
-    const now=performance.now(); const lt=now-lapStart; lapStart=now; lastLap=lt; if(!bestLap||lt<bestLap){ bestLap=lt; }
+    const now=performance.now(); const lt=now-lapStart; lapStart=now; lastLap=lt; if(!bestLap||lt<bestLap) bestLap=lt;
     me.lap++; me.cp=0;
     if(me.lap>=LAPS){ me.fin=true; me.ft=elapsed; toast('🏁 Bitiş! '+fmt(elapsed),3500); setTimeout(showResults,1500); }
     else toast((lt===bestLap?'🟣 En iyi tur ':'Tur ')+fmt(lt)+(me.lap===LAPS-1?' · Son tur! 🔥':''),3000);
@@ -238,42 +321,36 @@ let padPrev=[];
 function readInput(){
   let steer=((keys.ArrowRight||keys.KeyD||tkeys.right)?1:0)-((keys.ArrowLeft||keys.KeyA||tkeys.left)?1:0);
   let gas=(keys.ArrowUp||keys.KeyW||tkeys.gas)?1:0, brake=(keys.ArrowDown||keys.KeyS||tkeys.down)?1:0;
-  let hand=!!(keys.Space||tkeys.hand), nitro=!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyN||tkeys.nitro), analog=false;
+  let hand=!!(keys.Space||tkeys.hand), nitro=!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyN||tkeys.nitro), analog=false, hn=!!(keys.KeyH||tkeys.horn);
   const pads=navigator.getGamepads?navigator.getGamepads():[];
   for(const gp of pads){ if(!gp) continue;
     const ax=gp.axes[0]||0; if(Math.abs(ax)>0.08){ steer=Math.sign(ax)*Math.pow((Math.abs(ax)-0.08)/0.92,1.4); analog=true; }
     const b=i=>gp.buttons[i]?gp.buttons[i].value||(gp.buttons[i].pressed?1:0):0;
-    gas=Math.max(gas,b(7)); brake=Math.max(brake,b(6)); hand=hand||b(0)>0.5; nitro=nitro||b(1)>0.5;
-    const press=i=>b(i)>0.5 && !padPrev[i]; if(press(3)) edges.push('KeyC'); if(press(5)) edges.push('KeyE'); if(press(4)) edges.push('KeyQ'); if(press(2)) edges.push('KeyR');
+    gas=Math.max(gas,b(7)); brake=Math.max(brake,b(6)); hand=hand||b(0)>0.5; nitro=nitro||b(1)>0.5; hn=hn||b(10)>0.5||b(11)>0.5;
+    const press=i=>b(i)>0.5 && !padPrev[i]; if(press(3)) edges.push('KeyC'); if(press(5)) edges.push('KeyE'); if(press(4)) edges.push('KeyQ'); if(press(2)) edges.push('KeyR'); if(press(9)) edges.push('Escape');
     padPrev=gp.buttons.map(x=>x.pressed); break; }
-  return {steer,gas,brake,hand,nitro,analog};
-}
-const BOT=new URLSearchParams(location.search).has('bot');
-function botInput(){
-  const c=phys, i=c.hint<0?nearest(c.x,c.y):c.hint, look=Math.round(8+c.speed*0.5);
-  const p=TP[(i+look)%N]; let da=Math.atan2(p.y-c.y,p.x-c.x)-c.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;
-  let curv=0; for(let k=5;k<60;k+=5){ let d=TP[(i+k+5)%N].a-TP[(i+k)%N].a; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; curv=Math.max(curv,Math.abs(d)); }
-  const vmax=Math.max(14,Math.min(80,Math.sqrt(9.0*15/Math.max(curv/15,0.002))));
-  return {steer:Math.max(-1,Math.min(1,da*4)), gas:c.speed<vmax?1:0, brake:c.speed>vmax+3?1:0, hand:false, nitro:false, analog:true};
+  return {steer,gas,brake,hand,nitro,analog,horn:hn};
 }
 function handleEdges(){
   while(edges.length){ const k=edges.shift();
     if(k==='KeyC'){ camMode=(camMode+1)%3; store.set('tp3_cam',camMode); toast(CAM_NAMES[camMode],1500); }
     else if(k==='KeyM'){ audio.setMuted(!audio.muted); toast(audio.muted?'Ses kapalı':'Ses açık',1200); }
+    else if(k==='KeyL'){ headlightsOn=!headlightsOn; toast(headlightsOn?'Farlar açık':'Farlar kapalı',1000); }
     else if(k==='KeyR') respawn();
-    else if((k==='KeyE'||k==='KeyX') && phys.manual && mode==='race'){ phys.shift(1); audio.shiftBlip(); }
-    else if((k==='KeyQ'||k==='KeyZ') && phys.manual && mode==='race'){ phys.shift(-1); audio.shiftBlip(); }
+    else if(k==='Escape' && (mode==='free'||mode==='race')){ paused=!paused; show(paused?'pause':null); }
+    else if((k==='KeyE'||k==='KeyX') && phys.manual){ phys.shift(1); audio.shiftBlip(); }
+    else if((k==='KeyQ'||k==='KeyZ') && phys.manual){ phys.shift(-1); audio.shiftBlip(); }
   }
 }
 
-// ---------------- per-frame car visuals ----------------
-const _v=new THREE.Vector3(), _q=new THREE.Quaternion(), _m=new THREE.Matrix4();
-function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro){
+// ---------------- visuals ----------------
+const _v=new THREE.Vector3();
+function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0){
   m.root.position.set(x,0,y); m.root.rotation.y=-a;
-  m.body.rotation.set(-roll,0,-pitch); m.body.position.y=0.02;
+  m.body.rotation.set(-roll,0,-pitch); m.body.position.y=0.02+bump;
   for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; }
   m.steer.rotation.x=steer*12;
-  m.brakeMat.emissiveIntensity=brake?4:0.6;
+  m.brakeMat.emissiveIntensity=brake?5:(headlightsOn?1.5:0.6);
   for(const f of m.flames){ f.visible=nitro; if(nitro){ const s=0.8+Math.random()*0.5; f.scale.set(s,1,1); } }
 }
 function worldOf(m,lx,ly,lz){ _v.set(lx,ly,lz); return m.body.localToWorld(_v); }
@@ -283,10 +360,10 @@ function carEffects(dt){
   const slideR=Math.max(0,Math.abs(c.slipR)-0.11)*5 + c.spinR + (c.hand&&c.speed>3?0.7:0);
   const slideF=Math.max(0,Math.abs(c.slipF)-0.16)*4;
   for(let i=0;i<4;i++){
-    const rear=i>=2, s=rear?slideR:slideF; const [x,z]=wheelsXY[i]; const surf=rear?c.surfR:c.surfF;
-    skids.add(i,x,z,c.a, surf!==2 && c.speed>2 ? Math.min(1,s) : 0);
-    if(c.speed>2 && surf!==2 && s>0.45 && Math.random()<Math.min(1,s-0.35)*0.8*dt*60) smoke.emit(x,0.25,z,(Math.random()-.5)*1.5-c.vx*0.1,0.6+Math.random(),(Math.random()-.5)*1.5-c.vy*0.1,{size:0.8,grow:2.2,life:1.2+Math.random(),alpha:0.24});
-    if(surf===2 && c.speed>3 && Math.random()<0.5*dt*60) smoke.emit(x,0.3,z,-c.vx*0.2+(Math.random()-.5)*2,1+Math.random()*1.5,-c.vy*0.2+(Math.random()-.5)*2,{color:[0.72,0.62,0.45],size:1.1,grow:2.8,life:1.2,alpha:0.4});
+    const rear=i>=2, s=rear?slideR:slideF; const [x,z]=wheelsXY[i]; const surf=rear?c.surfR:c.surfF; const loose=surf===2||surf===4;
+    skids.add(i,x,z,c.a, !loose && c.speed>2 ? Math.min(1,s) : 0);
+    if(c.speed>2 && !loose && s>0.45 && Math.random()<Math.min(1,s-0.35)*0.8*dt*60) smoke.emit(x,0.25,z,(Math.random()-.5)*1.5-c.vx*0.1,0.6+Math.random(),(Math.random()-.5)*1.5-c.vy*0.1,{size:0.8,grow:2.2,life:1.2+Math.random(),alpha:0.24});
+    if(loose && c.speed>3 && Math.random()<0.5*dt*60) smoke.emit(x,0.3,z,-c.vx*0.2+(Math.random()-.5)*2,1+Math.random()*1.5,-c.vy*0.2+(Math.random()-.5)*2,{color:surf===4?[0.45,0.5,0.32]:[0.72,0.62,0.45],size:1.1,grow:2.8,life:1.2,alpha:0.35});
   }
   if(c.scrape>0.2 || c.impact>3){ const p=c.impactAt||{lx:0,lz:0}; const wx=c.x+ca*p.lx-sa*p.lz, wz=c.y+sa*p.lx+ca*p.lz;
     for(let k=0;k<(c.impact>3?14:2);k++) smoke.emit(wx,0.5,wz,(Math.random()-.5)*6,1+Math.random()*3,(Math.random()-.5)*6,{color:[1,0.65,0.2],size:0.12,grow:0,life:0.35+Math.random()*0.3,alpha:1,grav:9}); }
@@ -295,17 +372,17 @@ function carEffects(dt){
 
 // ---------------- camera ----------------
 const camPos=new THREE.Vector3(), camLook=new THREE.Vector3(); let camInit=false, orbit=0;
+function parkShowcase(){ if(W.kind==='track'){ const g=gridPos(0); phys.reset(g.x,g.y,g.a); phys.hint=g.i; } else { phys.reset(4*CP+38,5*CP+LANES[1],0); } }
 function updateCamera(dt){
   const c=phys; const ca=Math.cos(c.a), sa=Math.sin(c.a);
-  if(mode==='menu'||mode==='lobby'||mode==='results' && !resultsShown){
-    orbit+=dt*0.18; const cx=c.x, cz=c.y; camera.fov=45;
-    camera.position.set(cx+Math.cos(orbit)*8.5, 2.3, cz+Math.sin(orbit)*8.5); camera.lookAt(cx,0.7,cz); camera.updateProjectionMatrix(); camInit=false; return;
+  if(mode==='menu'||mode==='lobby'){
+    orbit+=dt*0.15; camera.fov=45;
+    camera.position.set(c.x+Math.cos(orbit)*8.5, 2.2, c.y+Math.sin(orbit)*8.5); camera.lookAt(c.x,0.8,c.y); camera.updateProjectionMatrix(); camInit=false; model.interior.visible=false; return;
   }
   const sh=shake; shake=Math.max(0,shake-dt*3);
   const rx=(Math.random()-.5)*sh*0.12, ry=(Math.random()-.5)*sh*0.12;
   if(camMode===0){
-    const back=6.6+c.speed*0.012, up=2.25;
-    // follow the velocity direction a little when sliding
+    const back=6.4+c.speed*0.012, up=2.2;
     const va=c.speed>4?Math.atan2(c.vy,c.vx):c.a; let da=va-c.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI; const ha=c.a+da*0.35;
     const tx=c.x-Math.cos(ha)*back, tz=c.y-Math.sin(ha)*back;
     if(!camInit){ camPos.set(tx,up,tz); camInit=true; }
@@ -328,56 +405,86 @@ function updateCamera(dt){
 // ---------------- HUD ----------------
 const _txt={}; function setText(id,v){ v=String(v); if(_txt[id]!==v){ _txt[id]=v; $(id).textContent=v; } }
 const mini=$('mini'), mctx=mini.getContext('2d'); let miniBg=null;
-const ms=Math.min(mini.width/WORLD.w, mini.height/WORLD.h)*0.92, mox=(mini.width-WORLD.w*ms)/2, moy=(mini.height-WORLD.h*ms)/2;
 function renderMini(){
-  if(!miniBg){ miniBg=document.createElement('canvas'); miniBg.width=mini.width; miniBg.height=mini.height; const g=miniBg.getContext('2d'); g.translate(mox,moy);
+  const w=mini.width, h=mini.height;
+  if(W.kind==='city'){   // rotating radar centred on the player (GTA style)
+    const M=W.map, s=0.9; mctx.save(); mctx.clearRect(0,0,w,h);
+    mctx.beginPath(); mctx.arc(w/2,h/2,Math.min(w,h)/2-2,0,7); mctx.clip();
+    mctx.translate(w/2,h/2+18); mctx.rotate(-phys.a-Math.PI/2); mctx.scale(s,s); mctx.translate(-phys.x-M.offset,-phys.y-M.offset);
+    mctx.drawImage(M.canvas,0,0);
+    const dot=(x,y,c,r)=>{ mctx.fillStyle=c; mctx.beginPath(); mctx.arc(x+M.offset,y+M.offset,r/s,0,7); mctx.fill(); mctx.strokeStyle='#000'; mctx.lineWidth=1.5/s; mctx.stroke(); };
+    if(W.traffic) for(const t of W.traffic.cars) dot(t.x,t.y,'rgba(230,230,230,.8)',2);
+    for(const r of remotes.values()) dot(r.x,r.y,r.color,5);
+    mctx.restore();
+    // player arrow
+    mctx.save(); mctx.translate(w/2,h/2+18); mctx.fillStyle=settings.color; mctx.strokeStyle='#fff'; mctx.lineWidth=2; mctx.beginPath(); mctx.moveTo(0,-9); mctx.lineTo(6,7); mctx.lineTo(0,3); mctx.lineTo(-6,7); mctx.closePath(); mctx.fill(); mctx.stroke(); mctx.restore();
+    mctx.strokeStyle='rgba(0,0,0,.6)'; mctx.lineWidth=4; mctx.beginPath(); mctx.arc(w/2,h/2,Math.min(w,h)/2-2,0,7); mctx.stroke();
+    mctx.fillStyle='#fff'; mctx.font='bold 12px Inter'; mctx.textAlign='center'; const north=-phys.a-Math.PI/2-Math.PI/2; mctx.fillText('K',w/2+Math.cos(north)*(h/2-12),h/2+Math.sin(north)*(h/2-12)+4);
+    return;
+  }
+  const ms=Math.min(w/WORLD.w, h/WORLD.h)*0.92, mox=(w-WORLD.w*ms)/2, moy=(h-WORLD.h*ms)/2;
+  if(!miniBg){ miniBg=document.createElement('canvas'); miniBg.width=w; miniBg.height=h; const g=miniBg.getContext('2d'); g.fillStyle='rgba(8,10,14,.55)'; g.fillRect(0,0,w,h); g.translate(mox,moy);
     g.lineJoin='round'; g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=5; drawMinimapTrack(g,ms); g.stroke(); g.strokeStyle='rgba(30,32,38,1)'; g.lineWidth=2.5; drawMinimapTrack(g,ms); g.stroke(); }
-  mctx.clearRect(0,0,mini.width,mini.height); mctx.drawImage(miniBg,0,0);
+  mctx.clearRect(0,0,w,h); mctx.drawImage(miniBg,0,0);
   const dot=(x,y,c,r)=>{ mctx.fillStyle=c; mctx.beginPath(); mctx.arc(mox+x*ms,moy+y*ms,r,0,7); mctx.fill(); mctx.strokeStyle='#000'; mctx.lineWidth=1.5; mctx.stroke(); };
   for(const r of remotes.values()) dot(r.x,r.y,r.color,4.5); dot(phys.x,phys.y,settings.color,6);
 }
 let frameNo=0, fps=0, fpsN=0, fpsT=performance.now();
 function updateHud(){
-  const st=standings(), pos=st.findIndex(x=>x.me)+1;
-  setText('hLap',Math.min(me.lap+1,LAPS)+'/'+LAPS); setText('hPos',pos+'/'+st.length);
-  const now=performance.now();
-  setText('hTime',fmt(me.fin?me.ft:elapsed)); setText('hLast',fmt(lastLap)); setText('hBest',fmt(bestLap));
-  setText('hCur',mode==='race'&&!me.fin?fmt(now-lapStart):'-:--.---');
+  if(mode!=='free'){ const st=standings(), pos=st.findIndex(x=>x.me)+1;
+    setText('hLap',Math.min(me.lap+1,LAPS)+'/'+LAPS); setText('hPos',pos+'/'+st.length);
+    setText('hTime',fmt(me.fin?me.ft:elapsed)); setText('hLast',fmt(lastLap)); setText('hBest',fmt(bestLap));
+    setText('hCur',mode==='race'&&!me.fin?fmt(performance.now()-lapStart):'-:--.---'); }
+  else if(frameNo%10===0){ setText('stName',streetName(phys.x,phys.y)); setText('stDist',district(phys.x,phys.y)); setText('freeInfo',(online?(remotes.size+1)+' oyuncu':'Tek başına')+' · '+(['Gündüz','Akşam','Gece'][['day','dusk','night'].indexOf(settings.time)])); }
   setText('hSpd',phys.kmh); setText('hGear',phys.gearLabel());
   $('rpmBar').style.width=Math.min(100,phys.rpm/80)+'%'; $('rpmBar').classList.toggle('red',phys.rpm>7000);
   $('nitroBar').style.width=(phys.nitro*100)+'%';
   setText('hDmg',Math.round(phys.damage)+'%'); $('hDmg').style.color=phys.damage>60?'#ff6b5a':phys.damage>25?'#ffd32a':'#9ee6a8';
   setText('hNet',fps+' FPS'+(online?(net.isHost?' · oda kurucusu':(net.ping!=null?' · '+net.ping+' ms':'')):'')+(phys.manual?' · manuel':'')+(phys.assists?'':' · yardımsız'));
-  if(frameNo%3===0) renderMini();
+  if(frameNo%2===0) renderMini();
 }
 
 // ---------------- main loop ----------------
-const STEP=1/120; let acc=0, last=performance.now();
-addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
-// park the local car on the grid for the menu showcase
-{ const g=gridPos(0); phys.reset(g.x,g.y,g.a); phys.hint=g.i; }
+const STEP=1/120; let acc=0, last=performance.now(), trafAcc=0, trafSend=0, lampT=0;
+addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); if(composer){ composer.setSize(innerWidth,innerHeight); } });
+useWorld(settings.map); parkShowcase(); updateMenuLabels();
 
 function frame(t){
   requestAnimationFrame(frame);
   const fdt=Math.min(0.1,Math.max(0,(t-last)/1000)); last=t; frameNo++;
   fpsN++; if(t-fpsT>1000){ fps=Math.round(fpsN*1000/(t-fpsT)); fpsN=0; fpsT=t; }
   handleEdges(); if(respawnCool>0) respawnCool-=fdt;
-  const inp=BOT&&mode==='race'?botInput():readInput();
-  const racing=mode==='race'||mode==='countdown';
-  // countdown: five red lights, one per second, then lights out
+  const inp=readInput();
+  const driving=mode==='race'||mode==='countdown'||mode==='free';
   if(mode==='countdown'){
-    const e=(t-countStart)/1000, n=Math.min(5,Math.floor(e)+0);
+    const e=(t-countStart)/1000, n=Math.min(5,Math.floor(e));
     if(n!==lightsShown && e<5){ lightsShown=n; audio.beep(false); }
     const on=e<5?Math.min(5,Math.floor(e)+1):0;
-    [...$('lights').children].forEach((el,i)=>el.classList.toggle('on',i<on)); track.startLights.forEach((m,i)=>m.emissiveIntensity=i<on?4:0);
-    if(e>=5.4){ mode='race'; raceStart=t; lapStart=t; audio.beep(true); [...$('lights').children].forEach(el=>el.classList.remove('on')); track.startLights.forEach(m=>m.emissiveIntensity=0);
+    [...$('lights').children].forEach((el,i)=>el.classList.toggle('on',i<on)); W.startLights.forEach((m,i)=>m.emissiveIntensity=i<on?4:0);
+    if(e>=5.4){ mode='race'; raceStart=t; lapStart=t; audio.beep(true); [...$('lights').children].forEach(el=>el.classList.remove('on')); W.startLights.forEach(m=>m.emissiveIntensity=0);
       setTimeout(()=>{ if(mode==='race') $('lights').classList.add('hidden'); },900); }
   }
   if(mode==='race' && !me.fin) elapsed=t-raceStart;
-  // physics
-  if(racing){
-    acc+=fdt; const others=[...remotes.values()];
-    const drive = mode==='race' && !me.fin ? inp : {steer:me.fin?0:inp.steer,gas:mode==='countdown'?inp.gas:0,brake:me.fin?0.6:0,hand:false,nitro:false,analog:inp.analog};
+  // ---- city simulation (traffic: host or solo simulates, followers interpolate) ----
+  if(W.kind==='city'){
+    const players=[{x:phys.x,y:phys.y,vx:phys.vx,vy:phys.vy,speed:phys.speed}]; for(const r of remotes.values()) players.push({x:r.x,y:r.y,vx:r.vx,vy:r.vy,speed:Math.abs(r.v)});
+    const sim=!online||net.isHost;
+    if(sim){ trafAcc+=fdt; let n=0; while(trafAcc>=1/30 && n<4){ W.traffic.step(1/30,players); trafAcc-=1/30; n++; } W.traffic.remote=null; }
+    if(online && net.isHost){ trafSend+=fdt; if(trafSend>0.1){ trafSend=0; net.sendAll({t:'x',k:'tr',d:W.traffic.pack()}); } }
+    W.traffic.render(fdt); fleet.commit();
+    W.peds.update(fdt,players);
+    if(frameNo%15===0) W.city.updateLights();
+    // nearest street lamps become real lights at night
+    lampT-=fdt; if(nightF>0.5 && W.lampLights.length && lampT<=0){ lampT=0.3;
+      const L=W.city.lamps.map(l=>{ const th=-l[2]; return [l[0]+2*Math.sin(th),l[1]+2*Math.cos(th)]; }).map(p=>[p,(p[0]-phys.x)**2+(p[1]-phys.y)**2]).sort((a,b)=>a[1]-b[1]);
+      W.lampLights.forEach((ll,k)=>{ const p=L[k][0]; ll.position.set(p[0],7.4,p[1]); ll.intensity=60; }); }
+    else if(nightF<=0.5) W.lampLights.forEach(ll=>ll.intensity=0);
+  }
+  // ---- player physics ----
+  if(driving && !paused){
+    acc+=fdt; const others=[...remotes.values()]; if(W.kind==='city') others.push(...W.traffic.obstacles());
+    const drive = mode==='countdown' ? {steer:inp.steer,gas:inp.gas,brake:0,hand:false,nitro:false,analog:inp.analog}
+                : (mode==='race' && me.fin) ? {steer:0,gas:0,brake:0.6,hand:false,nitro:false} : inp;
     while(acc>=STEP){
       const hx=phys.x,hy=phys.y,ha=phys.a;
       phys.step(STEP,drive,others);
@@ -386,14 +493,16 @@ function frame(t){
       acc-=STEP;
     }
     if(mode==='race') lapLogic();
-    if(online) net.set({x:+phys.x.toFixed(2),y:+phys.y.toFixed(2),a:+phys.a.toFixed(3),v:+phys.vLong.toFixed(2),sr:+phys.steer.toFixed(3),bk:phys.brake>0.1||phys.hand>0,nt:phys.nitroOn,dm:Math.round(phys.damage),lap:me.lap,cp:me.cp,idx:me.idx,fin:me.fin,ft:Math.round(me.ft),best:Math.round(bestLap)});
+    horn=!!inp.horn; audio.horn('me',horn,1);
+    if(online) net.set({x:+phys.x.toFixed(2),y:+phys.y.toFixed(2),a:+phys.a.toFixed(3),v:+phys.vLong.toFixed(2),sr:+phys.steer.toFixed(3),bk:phys.brake>0.1||phys.hand>0,nt:phys.nitroOn,hn:horn,hl:headlightsOn,lap:me.lap,cp:me.cp,idx:me.idx,fin:me.fin,ft:Math.round(me.ft),best:Math.round(bestLap)});
     if(phys.kerb||phys.surfF===2) shake=Math.max(shake,Math.min(0.35,phys.speed*0.01));
     carEffects(fdt);
-  }
-  placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,phys.brake>0.1||phys.hand>0,phys.nitroOn);
-  // remote cars: dead-reckoning toward the predicted position
+  } else if(paused){ acc=0; }
+  placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,phys.brake>0.1||phys.hand>0,phys.nitroOn,phys.bump*0.25);
+  headSpot.intensity=headlightsOn&&driving?(nightF>0.5?260:120):0;
+  // remote players
   const now=performance.now(), k=1-Math.exp(-fdt*16);
-  for(const r of remotes.values()){
+  for(const [id,r] of remotes){
     const age=Math.min(0.25,(now-r.t)/1000); const px=r.tx+Math.cos(r.ta)*r.v*age, py=r.ty+Math.sin(r.ta)*r.v*age;
     const ox=r.x, oy=r.y;
     if(Math.hypot(px-r.x,py-r.y)>30){ r.x=px; r.y=py; } r.x+=(px-r.x)*k; r.y+=(py-r.y)*k;
@@ -402,18 +511,18 @@ function frame(t){
     r.steer+=(r.sr-r.steer)*k; r.wheel+=r.v/CAR.wheelR*fdt;
     placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt);
     r.model.interior.visible=false;
+    const dist=Math.hypot(r.x-phys.x,r.y-phys.y); audio.horn(id,r.hn&&dist<150,Math.max(0.05,1-dist/150));
   }
-  // sun & shadows follow the player
-  sun.position.set(phys.x+sunDir.x*150, sunDir.y*150, phys.y+sunDir.z*150); sun.target.position.set(phys.x,0,phys.y);
-  audio.update(phys,fdt,racing);
+  sun.position.set(phys.x+sunDir.x*200, sunDir.y*200, phys.y+sunDir.z*200); sun.target.position.set(phys.x,0,phys.y);
+  audio.update(phys,fdt,driving&&!paused);
   updateCamera(fdt);
   smoke.update(fdt,renderer.domElement.height); skids.update();
-  if(racing && camMode===1 && frameNo%3===0) drawGauges(model,phys.rpm,phys.kmh,phys.gearLabel(),phys.nitro);
-  if(racing) updateHud();
-  // render (plus rear-view mirror in cockpit)
+  if(driving && camMode===1 && frameNo%3===0) drawGauges(model,phys.rpm,phys.kmh,phys.gearLabel(),phys.nitro);
+  if(driving) updateHud();
+  // render
   renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
-  renderer.render(scene,camera);
-  if(racing && camMode===1){
+  if(composer) composer.render(); else renderer.render(scene,camera);
+  if(driving && camMode===1){
     const w=Math.round(innerWidth*0.26), h=Math.round(w/3.4), x=Math.round((innerWidth-w)/2), y=innerHeight-h-Math.round(innerHeight*0.035);
     const p=worldOf(model,0.3,1.2,0), back=worldOf(model,-20,0.9,0);
     mirrorCam.position.copy(p); mirrorCam.lookAt(back); mirrorCam.aspect=w/h; mirrorCam.updateProjectionMatrix();
@@ -424,4 +533,6 @@ function frame(t){
   } else $('mirrorFrame').style.display='none';
 }
 requestAnimationFrame(frame);
-window.__game={phys,me,get mode(){return mode;}};
+// test hook
+const BOT=new URLSearchParams(location.search).has('bot');
+window.__game={phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};

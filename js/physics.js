@@ -2,7 +2,6 @@
 // load transfer, engine torque curve, gearbox, brakes, handbrake, downforce,
 // surface grip, wall collisions and damage.  World plane = (x, y); heading a,
 // forward = (cos a, sin a), right = (-sin a, cos a).
-import { query, surfaceAt, BARRIER, TP, N } from './track.js';
 import { CAR } from './car.js';
 
 const G = 9.81;
@@ -16,7 +15,7 @@ const P = {
 // torque curve [rpm, Nm]
 const TQ = [[0,200],[1000,260],[2500,390],[4000,490],[5200,530],[6200,515],[7000,470],[7600,420],[8000,300]];
 function torqueAt(rpm){ for(let i=1;i<TQ.length;i++) if(rpm<=TQ[i][0]){ const [r0,t0]=TQ[i-1],[r1,t1]=TQ[i]; return t0+(t1-t0)*(rpm-r0)/(r1-r0); } return 0; }
-const SURF = [ {mu:1.0, drag:0}, {mu:0.93, drag:0}, {mu:0.55, drag:3.2} ];   // asphalt, kerb, gravel (drag in m/s^2 per axle share)
+const SURF = [ {mu:1.0, drag:0}, {mu:0.93, drag:0}, {mu:0.55, drag:3.2}, {mu:0.95, drag:0.3}, {mu:0.62, drag:1.6} ];   // asphalt, kerb, gravel, sidewalk(curb), grass
 export const OPTS = { forceSurface: null };
 const pac = (s,B) => Math.sin(P.C*Math.atan(B*s));
 
@@ -26,7 +25,7 @@ export class Car {
     Object.assign(this,{ x,y,a, vx:0, vy:0, yawRate:0, steer:0, gear:1, rpm:P.idle, shiftT:0, clutch:1,
       throttle:0, brake:0, hand:0, axPrev:0, ayPrev:0, nitro:1, nitroOn:false, damage:0, hint:-1,
       wheelSpin:[0,0,0,0], wheelAng:[0,0,0,0], slipF:0, slipR:0, spinR:0, surfF:0, surfR:0, lat:0,
-      impact:0, impactAt:null, scrape:0, kerb:0, speed:0, vLong:0, vLat:0, pitch:0, rollA:0, reversing:false });
+      impact:0, impactAt:null, scrape:0, bump:0, bumpV:0, hitV:0, kerb:0, speed:0, vLong:0, vLat:0, pitch:0, rollA:0, reversing:false });
   }
   get kmh(){ return Math.round(Math.abs(this.vLong)*3.6); }
   gearLabel(){ return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 && this.gear===1 ? 'N' : String(this.gear)); }
@@ -62,10 +61,11 @@ export class Car {
 
     // ---- surfaces under each axle ----
     const fx=this.x+ca*P.a, fy=this.y+sa*P.a, rx=this.x-ca*P.b, ry=this.y-sa*P.b;
-    const qf=query(fx,fy,this.hint), qr=query(rx,ry,qf.i); this.hint=qf.i;
-    this.surfF=OPTS.forceSurface??surfaceAt(qf.lat); this.surfR=OPTS.forceSurface??surfaceAt(qr.lat); this.lat=(qf.lat+qr.lat)/2;
+    this.surfF=OPTS.forceSurface??this.world.surface(fx,fy,this); this.surfR=OPTS.forceSurface??this.world.surface(rx,ry,this);
     const muF=SURF[this.surfF].mu, muR=SURF[this.surfR].mu*P.muRear;
     this.kerb=(this.surfF===1||this.surfR===1)?1:0;
+    if(this.prevSurfF!=null && this.prevSurfF!==this.surfF && (this.prevSurfF===3||this.surfF===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfF=this.surfF;
+    if(this.prevSurfR!=null && this.prevSurfR!==this.surfR && (this.prevSurfR===3||this.surfR===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfR=this.surfR;
 
     // ---- engine & gearbox ----
     const ratio=(this.reversing?P.reverse:P.gears[this.gear-1])*P.final;
@@ -167,36 +167,30 @@ export class Car {
     this.vLong=this.vx*c2+this.vy*s2; this.vLat=-this.vx*s2+this.vy*c2; this.speed=Math.hypot(this.vx,this.vy);
     const wv=this.vLong/P.r;
     for(let i=0;i<4;i++){ let w=wv; if(i>=2){ if(this.hand && Math.abs(this.vLong)>1) w=0; else if(spin) w+=Math.sign(Fdrive)*this.spinR*60; } if(lockF && i<2) w=0; this.wheelSpin[i]=w; this.wheelAng[i]+=w*dt; }
+    // suspension bounce (visual)
+    this.bumpV += (-this.bump*180 - this.bumpV*14)*dt; this.bump += this.bumpV*dt;
     // body pitch/roll (visual)
     this.pitch += ((-this.axPrev*0.011) - this.pitch)*Math.min(1,dt*6);
     this.rollA += ((this.ayPrev*0.012) - this.rollA)*Math.min(1,dt*6);
   }
 
   corners(){ const ca=Math.cos(this.a), sa=Math.sin(this.a), hl=2.2, hw=0.92;
-    return [[hl,-hw],[hl,hw],[-hl,-hw],[-hl,hw],[0,-hw],[0,hw]].map(([lx,lz])=>({lx,lz,x:this.x+ca*lx-sa*lz,y:this.y+sa*lx+ca*lz})); }
+    return [[hl,-hw],[hl,hw],[-hl,-hw],[-hl,hw],[0,-hw],[0,hw],[hl+0.05,0],[-hl-0.05,0]].map(([lx,lz])=>({lx,lz,x:this.x+ca*lx-sa*lz,y:this.y+sa*lx+ca*lz})); }
 
-  collideWalls(dt){
-    for(const c of this.corners()){
-      const q=query(c.x,c.y,this.hint); const over=Math.abs(q.lat)-BARRIER;
-      if(over<=0) continue;
-      const s=Math.sign(q.lat), nx=q.nx*s, ny=q.ny*s;            // outward normal
-      this.x-=nx*over; this.y-=ny*over;
-      // velocity of the corner point
-      const rx=c.x-this.x, ry=c.y-this.y;
-      const pvx=this.vx-this.yawRate*ry, pvy=this.vy+this.yawRate*rx;
-      const vn=pvx*nx+pvy*ny;
-      if(vn<=0) continue;
-      const e=0.22, mu=0.35;
-      const rn=rx*ny-ry*nx, invM=1/P.mass+rn*rn/P.inertia;
-      const j=(1+e)*vn/invM;
-      // friction along the wall
-      const tx=-ny, ty=nx, vt=pvx*tx+pvy*ty; const jt=Math.max(-mu*j,Math.min(mu*j,-vt/(1/P.mass+((rx*ty-ry*tx)**2)/P.inertia)));
-      const Jx=-j*nx+jt*tx, Jy=-j*ny+jt*ty;
-      this.vx+=Jx/P.mass; this.vy+=Jy/P.mass; this.yawRate+=(rx*Jy-ry*Jx)/P.inertia;
-      if(vn>this.impact){ this.impact=vn; this.impactAt={lx:c.lx,lz:c.lz}; }
-      if(vn>this.hitV) this.hitV=vn;
-      this.scrape=Math.min(1,this.scrape+Math.abs(vt)*0.02);
-    }
+  collideWalls(dt){ this.world.collide(this); }
+  // resolve a contact at body point c (world x,y; local lx,lz) penetrating along n by pen
+  contact(c,nx,ny,pen){
+    this.x-=nx*pen; this.y-=ny*pen;
+    const rx=c.x-this.x, ry=c.y-this.y;
+    const pvx=this.vx-this.yawRate*ry, pvy=this.vy+this.yawRate*rx;
+    const vn=pvx*nx+pvy*ny; if(vn<=0) return;
+    const e=0.22, mu=0.35, rn=rx*ny-ry*nx, invM=1/P.mass+rn*rn/P.inertia, j=(1+e)*vn/invM;
+    const tx=-ny, ty=nx, vt=pvx*tx+pvy*ty; const jt=Math.max(-mu*j,Math.min(mu*j,-vt/(1/P.mass+((rx*ty-ry*tx)**2)/P.inertia)));
+    const Jx=-j*nx+jt*tx, Jy=-j*ny+jt*ty;
+    this.vx+=Jx/P.mass; this.vy+=Jy/P.mass; this.yawRate+=(rx*Jy-ry*Jx)/P.inertia;
+    if(vn>this.impact){ this.impact=vn; this.impactAt={lx:c.lx,lz:c.lz}; }
+    if(vn>this.hitV) this.hitV=vn;
+    this.scrape=Math.min(1,this.scrape+Math.abs(vt)*0.02);
   }
   collideCar(o){
     // two circles per car (front & rear) against the other car's two circles

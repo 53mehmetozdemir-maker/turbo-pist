@@ -13,11 +13,14 @@ export class Net {
     this.onPeers=onPeers; this.onLost=onLost; this.toast=toast||(()=>{});
     this.peer=null; this.isHost=false; this.myId=null; this.hostConn=null; this.conns=new Map();
     this.map={}; this.mine={}; this.pending={}; this.dirty=false; this.ping=null; this.peers=[];
-    this.tick=0; this.seq=0; this.lastHostSeq=-1;
+    this.tick=0; this.seq=0; this.lastHostSeq=-1; this.onExtra=null;
     setInterval(()=>this.pump(),33);
   }
   get available(){ return typeof window.Peer==='function'; }
   get online(){ return !!this.peer; }
+  get hostId(){ return this.isHost?this.myId:(this.hostConn?this.hostConn.peer:null); }
+  // host -> everyone: extra messages (e.g. traffic state)
+  sendAll(obj){ if(!this.isHost) return; for(const c of this.conns.values()) if(c.open){ try{ c.send(obj); }catch(e){} } }
   rebuild(){ this.peers=Object.keys(this.map).sort().map(id=>({id, me:id===this.myId, p:this.map[id]})); this.onPeers(this.peers); }
   set(patch){
     if(!this.peer) return; merge(this.mine,patch);
@@ -65,6 +68,7 @@ export class Net {
         c.on('data',d=>{
           if(!d||typeof d!=='object') return;
           if(d.t==='pong' && typeof d.c==='number'){ this.ping=Math.round(performance.now()-d.c); return; }
+          if(d.t==='x'){ this.onExtra&&this.onExtra(d); return; }
           if(d.t==='m' && d.m && typeof d.m==='object'){ if(typeof d.s==='number'){ if(d.s<=this.lastHostSeq) return; this.lastHostSeq=d.s; }
             this.map=d.m; if(this.myId) this.map[this.myId]=Object.assign({},this.map[this.myId],this.mine); this.rebuild(); }
         });

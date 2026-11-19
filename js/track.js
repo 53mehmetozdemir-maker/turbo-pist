@@ -176,3 +176,14 @@ export function buildTrack(scene,quality){
 
 // minimap path (2D canvas)
 export function drawMinimapTrack(g,s){ g.beginPath(); g.moveTo(TP[0].x*s,TP[0].y*s); for(const p of TP) g.lineTo(p.x*s,p.y*s); g.closePath(); }
+
+// world interface used by the physics
+export const trackWorld = {
+  surface(x,y,car){ const q=query(x,y,car.hint); car.hint=q.i; car.lat=q.lat; return surfaceAt(q.lat); },
+  collide(car){
+    for(const c of car.corners()){
+      const q=query(c.x,c.y,car.hint); const over=Math.abs(q.lat)-BARRIER; if(over<=0) continue;
+      const s=Math.sign(q.lat); car.contact(c,q.nx*s,q.ny*s,over);
+    }
+  }
+};
