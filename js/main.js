@@ -408,8 +408,9 @@ function handleEdges(){
 
 // ---------------- visuals ----------------
 const _v=new THREE.Vector3();
-function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=headlightsOn){
-  m.root.position.set(x,0,y); m.root.rotation.y=-a;
+function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=headlightsOn,gh=null){
+  m.root.position.set(x,0,y); m.root.rotation.order='YXZ'; m.root.rotation.y=-a;
+  if(gh){ m.gY=(m.gY||0)+(((gh.f+gh.r)/2)-(m.gY||0))*0.35; m.gS=(m.gS||0)+(Math.atan2(gh.f-gh.r,CAR.a+CAR.b)-(m.gS||0))*0.35; m.root.position.y=m.gY; m.root.rotation.z=m.gS; }
   m.body.rotation.set(-roll,0,-pitch); m.body.position.y=(m.setPose?0:0.02)+bump;
   if(m.setPose) m.setPose(steer,wheelAng);
   else { for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; } m.steer.rotation.x=steer*12; }
@@ -504,7 +505,7 @@ function updateHud(){
     setText('hTime',fmt(me.fin?me.ft:elapsed)); setText('hLast',fmt(lastLap)); setText('hBest',fmt(bestLap));
     setText('hCur',mode==='race'&&!me.fin?fmt(performance.now()-lapStart):'-:--.---'); }
   else if(frameNo%10===0){ setText('stName',streetName(phys.x,phys.y)); setText('stDist',district(phys.x,phys.y)); setText('freeInfo',(online?(remotes.size+1)+' oyuncu':'Tek başına')+' · '+(['Gündüz','Akşam','Gece'][['day','dusk','night'].indexOf(settings.time)])); }
-  setText('hSpd',phys.kmh); setText('hGear',phys.gearLabel());
+  setText('hSpd',phys.kmh); setText('hGear',phys.gearLabel()); $('hGear').classList.toggle('cut',(phys.cutT||0)>0);
   $('rpmBar').style.width=Math.min(100,phys.rpm/80)+'%'; $('rpmBar').classList.toggle('red',phys.rpm>7000);
   $('nitroBar').style.width=(phys.nitro*100)+'%';
   setText('hDmg',Math.round(phys.damage)+'%'); $('hDmg').style.color=phys.damage>60?'#ff6b5a':phys.damage>25?'#ffd32a':'#9ee6a8';
@@ -569,7 +570,7 @@ function frame(t){
     if(phys.kerb||phys.surfF===2) shake=Math.max(shake,Math.min(0.35,phys.speed*0.01));
     carEffects(fdt);
   } else if(paused){ acc=0; }
-  placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,phys.brake>0.1||phys.hand>0,phys.nitroOn,phys.bump*0.25);
+  placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,(phys.brake>0.1&&!phys.burnout)||phys.hand>0,phys.nitroOn,phys.bump*0.25,headlightsOn,{f:phys.surfF===3?0.15:0,r:phys.surfR===3?0.15:0});
   headSpot.intensity=headlightsOn&&driving?(nightF>0.5?260:120):0;
   // remote players
   const now=performance.now(), k=1-Math.exp(-fdt*16);

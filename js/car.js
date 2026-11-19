@@ -142,10 +142,12 @@ function buildFerrari(color){
     else if(mn==='metal_gray') o.material=(o.parent&&/^wheel_/.test(o.parent.name))?FM.rim:FM.dmetal;
     else if(mn==='Interior_light'||mn==='Interior_dark') o.material=FM.dark; });
   const W=['wheel_fl','wheel_fr','wheel_rl','wheel_rr'].map(k=>m.getObjectByName(k));
+  const unsprung=new THREE.Group(); unsprung.rotation.y=-Math.PI/2; unsprung.position.x=0.19; root.add(unsprung);
+  W.forEach(w=>{ if(w) unsprung.add(w); });   // wheel nodes sit directly under the identity root node, so local transforms stay valid
   W.forEach(w=>{ if(w) w.rotation.order='YXZ'; });
   const sw=m.getObjectByName('steering_wheel'); const swQ=sw?sw.quaternion.clone():null; const tmpQ=new THREE.Quaternion(), axis=new THREE.Vector3(0,1,0);
   const sh=new THREE.Mesh(new THREE.PlaneGeometry(0.655*4,1.3*4),new THREE.MeshBasicMaterial({map:AO_TEX,blending:THREE.MultiplyBlending,toneMapped:false,transparent:true,premultipliedAlpha:true,depthWrite:false}));
-  sh.rotation.x=-Math.PI/2; sh.position.y=0.012; sh.renderOrder=2; holder.add(sh);
+  sh.rotation.x=-Math.PI/2; sh.position.y=0.012; sh.renderOrder=2; unsprung.add(sh);
   const flameMat=new THREE.MeshBasicMaterial({color:0x66b3ff,transparent:true,opacity:0.85,blending:THREE.AdditiveBlending,depthWrite:false});
   const flames=[-0.13,0,0.13].map(z=>{ const f=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.6,10).rotateZ(Math.PI/2),flameMat); f.position.set(-2.45,0.42,z); f.visible=false; body.add(f); return f; });
   const gC=document.createElement('canvas'); gC.width=256; gC.height=128;
@@ -153,7 +155,7 @@ function buildFerrari(color){
     gauge:{canvas:gC,tex:{needsUpdate:false},ctx:gC.getContext('2d')},
     cockpit:[-0.02,1.03,-0.35], cockpitLook:[6,0.86,-0.35], hood:[0.7,1.22,0], mirror:[0.45,1.1,0],
     setPose(steer,ang){ if(W[0]){ W[0].rotation.y=-steer; W[1].rotation.y=-steer; } for(let i=0;i<4;i++) if(W[i]) W[i].rotation.x=-ang[i];
-      if(sw){ tmpQ.setFromAxisAngle(axis,-steer*7); sw.quaternion.copy(swQ).multiply(tmpQ); } } };
+      if(sw){ tmpQ.setFromAxisAngle(axis,steer*7); sw.quaternion.copy(swQ).multiply(tmpQ); } } };
 }
 
 export function buildCar(color, opts={}){

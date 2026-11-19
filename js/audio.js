@@ -44,6 +44,8 @@ export class CarAudio {
     this.popCool-=dt; if(this.lastThr>0.6 && thr<0.1 && car.rpm>4200) this.popBurst=0.9; this.lastThr=thr;
     if(this.popBurst>0){ this.popBurst-=dt; if(this.popCool<=0 && Math.random()<0.35){ this.pop(0.5+Math.random()*0.6); this.popCool=0.05+Math.random()*0.1; } }
     if(car.gear!==this.lastGear && car.gear>this.lastGear && thr>0.5) this.pop(0.35); this.lastGear=car.gear;
+    // rev limiter: every ignition cut = a sharp bark and a dip in the engine note
+    if(car.cutEvent && car.cutEvent!==this.lastCut){ this.lastCut=car.cutEvent; this.pop(0.7); this.eng.gain.cancelScheduledValues(t); this.eng.gain.setValueAtTime(0.05,t); this.eng.gain.linearRampToValueAtTime(0.32,t+0.05); }
     // rain & wet tyre spray
     this.rain.g.gain.setTargetAtTime(this.wet?0.09:0,t,0.3); this.spray.g.gain.setTargetAtTime(this.wet?Math.min(0.22,car.speed*0.006):0,t,0.1);
     const slip=Math.max(Math.abs(car.slipR)-0.09,Math.abs(car.slipF)-0.12,0)*4 + car.spinR + (car.hand&&car.speed>3?0.6:0);
