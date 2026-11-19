@@ -11,13 +11,13 @@ const sp=(v,e)=>Math.sign(v)*Math.pow(Math.abs(v),e);
 function prof(pts){ return x=>{ if(x<=pts[0][0]) return pts[0][1]; for(let i=1;i<pts.length;i++) if(x<=pts[i][0]){ const t=(x-pts[i-1][0])/(pts[i][0]-pts[i-1][0]); const s=t*t*(3-2*t); return lerp(pts[i-1][1],pts[i][1],s); } return pts[pts.length-1][1]; }; }
 
 // ring(x) -> {w, wTop, y0, y1, n}; returns BufferGeometry
-export function loft(x0,x1,stations,segs,ring,{caps=true,thetaFrom=0,thetaTo=Math.PI*2,closed=true}={}){
+export function loft(x0,x1,stations,segs,ring,{caps=true,thetaFrom=0,thetaTo=Math.PI*2,closed=true,skip=null}={}){
   const pos=[], idx=[]; const rs=closed?segs:segs+1;
   for(let s=0;s<=stations;s++){ const x=lerp(x0,x1,s/stations), r=ring(x);
     for(let k=0;k<rs;k++){ const th=lerp(thetaFrom,thetaTo,k/segs); const c=Math.cos(th), si=Math.sin(th);
       const yc=(r.y0+r.y1)/2, hy=(r.y1-r.y0)/2; const y=yc+hy*sp(si,2/r.n); const t=(y-r.y0)/Math.max(1e-4,r.y1-r.y0);
       const w=r.wTop!=null?lerp(r.w,r.wTop,Math.max(0,Math.min(1,t))):r.w; pos.push(x, y, w*sp(c,2/r.n)); } }
-  for(let s=0;s<stations;s++) for(let k=0;k<segs;k++){ const k1=closed?(k+1)%segs:k+1; const a=s*rs+k,b=s*rs+k1,c=(s+1)*rs+k,d=(s+1)*rs+k1; idx.push(a,c,b, b,c,d); }
+  for(let s=0;s<stations;s++) for(let k=0;k<segs;k++){ if(skip && skip(lerp(x0,x1,(s+0.5)/stations), lerp(thetaFrom,thetaTo,(k+0.5)/segs))) continue; const k1=closed?(k+1)%segs:k+1; const a=s*rs+k,b=s*rs+k1,c=(s+1)*rs+k,d=(s+1)*rs+k1; idx.push(a,c,b, b,c,d); }
   if(caps && closed){ for(const [s,front] of [[0,false],[stations,true]]){ const r=ring(lerp(x0,x1,s/stations)); const ci=pos.length/3; pos.push(lerp(x0,x1,s/stations),(r.y0+r.y1)/2,0);
       for(let k=0;k<segs;k++){ const a=s*rs+k,b=s*rs+(k+1)%segs; if(front) idx.push(ci,b,a); else idx.push(ci,a,b); } } }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals(); return g;
@@ -61,9 +61,10 @@ export const SHAPES = {
     bot:x=>archCut(x,1.25,1.2,0.27),
     gh:{x0:-1.85,x1:0.8, top:prof([[-1.85,1.0],[-1.7,1.45],[0.1,1.47],[0.8,0.96]]), wb:0.8, wt:0.66}, n:3.8 },
 };
-function bodyGeo(S,detail=1){
-  const st=Math.round(64*detail), sg=Math.round(28*detail);
-  return loft(-S.L/2,S.L/2,st,sg,x=>{ const y1=S.top(x), y0=Math.min(S.bot(x),y1-0.08); return {w:S.w(x),y0,y1,n:S.n}; });
+function bodyGeo(S,detail=1,openCabin=false){
+  const st=Math.round(64*detail), sg=Math.round(28*detail), G=S.gh;
+  const skip=openCabin?(x,th)=>x>G.x0+0.12 && x<G.x1-0.12 && th>Math.PI*0.2 && th<Math.PI*0.8:null;
+  return loft(-S.L/2,S.L/2,st,sg,x=>{ const y1=S.top(x), y0=Math.min(S.bot(x),y1-0.08); return {w:S.w(x),y0,y1,n:S.n}; },{skip});
 }
 function glassGeo(S,detail=1){ const G=S.gh;
   return loft(G.x0,G.x1,Math.round(26*detail),Math.round(22*detail),x=>({w:G.wb,wTop:G.wt,y0:S.top(x)-0.06,y1:G.top(x),n:3.4}),{caps:true});
@@ -107,15 +108,15 @@ export function buildCar(color, opts={}){
   mats(); const S=SHAPES.sport;
   const paint=new THREE.MeshPhysicalMaterial({color,metalness:0.6,roughness:0.28,clearcoat:1,clearcoatRoughness:0.03,envMapIntensity:1.25});
   const root=new THREE.Group(), body=new THREE.Group(); root.add(body);
-  const lowerMesh=new THREE.Mesh(bodyGeo(S),paint); lowerMesh.castShadow=true; lowerMesh.receiveShadow=true; body.add(lowerMesh);
+  const lowerMesh=new THREE.Mesh(bodyGeo(S,1,true),paint); lowerMesh.castShadow=true; lowerMesh.receiveShadow=true; body.add(lowerMesh);
   const glass=new THREE.Mesh(glassGeo(S),M.glass); body.add(glass);
   const roof=new THREE.Mesh(roofGeo(S),paint); roof.castShadow=true; body.add(roof);
   for(const pg of pillarGeos(S)){ const pm=new THREE.Mesh(pg,paint); pm.castShadow=true; body.add(pm); }
   const G=S.gh;
   for(const s of [-1,1]){
     // mirrors
-    const mir=new THREE.Mesh(new THREE.SphereGeometry(0.1,12,8),paint); mir.scale.set(0.9,0.6,1.1); mir.position.set(0.72,1.0,s*1.0); body.add(mir);
-    const arm=beam([0.72,0.97,s*0.88],[0.72,0.98,s*0.96],0.03,M.trim); body.add(arm);
+    const mir=new THREE.Mesh(new THREE.SphereGeometry(0.085,12,8),paint); mir.scale.set(0.9,0.6,1.0); mir.position.set(0.8,1.0,s*0.99); body.add(mir);
+    const arm=beam([0.8,0.97,s*0.88],[0.8,0.98,s*0.95],0.03,M.trim); body.add(arm);
     // side skirt + door line + handle
     const sk=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.06,0.05),M.trim); sk.position.set(-0.05,0.25,s*0.95); body.add(sk);
     const dl=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.5,0.01),M.black); dl.position.set(0.85,0.66,s*0.93); body.add(dl);
@@ -160,8 +161,10 @@ export function buildCar(color, opts={}){
   const mk=new THREE.Mesh(new THREE.BoxGeometry(0.025,0.03,0.02),new THREE.MeshBasicMaterial({color:0xffd32a})); mk.position.set(0,0.17,0); sw.add(mk);
   for(const s of [-0.38,0.38]){ const seat=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.12,0.48),M.leather); seat.position.set(-0.45,0.42,s); interior.add(seat);
     const back=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.65,0.48),M.leather); back.position.set(-0.74,0.76,s); back.rotation.z=0.2; interior.add(back); }
+  const fw=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.62,1.7),M.interior); fw.position.set(0.9,0.6,0); interior.add(fw);   // firewall
+  const fwl=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.05,1.7),M.interior); fwl.position.set(0.68,0.32,0); fwl.rotation.z=0.35; interior.add(fwl);   // footwell
   const cons=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.22,0.22),M.interior); cons.position.set(0.05,0.52,0); interior.add(cons);
-  const floor=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.04,1.7),M.interior); floor.position.set(-0.2,0.3,0); interior.add(floor);
+  const floor=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.04,1.7),M.interior); floor.position.set(-0.15,0.3,0); interior.add(floor);
   for(const s of [-1,1]){ const door=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.6,0.05),M.interior); door.position.set(-0.25,0.62,s*0.84); interior.add(door);
     const sill=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.04,0.12),M.leather); sill.position.set(-0.25,0.93,s*0.82); interior.add(sill); }
   const head=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.2),M.interior); head.rotation.x=Math.PI/2; head.position.set(-0.3,G.top(-0.3)-0.03,0); interior.add(head);
@@ -188,9 +191,9 @@ export function buildCar(color, opts={}){
 export function makeFleet(scene,max,quality){
   mats(); const det=quality==='low'?0.3:0.4;
   const kinds=['sedan','suv','hatch'];
-  const bodyMat=new THREE.MeshPhysicalMaterial({color:0xffffff,metalness:0.55,roughness:0.35,clearcoat:0.8,clearcoatRoughness:0.08,envMapIntensity:1.1});
+  const bodyMat=quality==='high'?new THREE.MeshPhysicalMaterial({color:0xffffff,metalness:0.55,roughness:0.35,clearcoat:0.8,clearcoatRoughness:0.08,envMapIntensity:1.1}):new THREE.MeshStandardMaterial({color:0xffffff,metalness:0.5,roughness:0.32,envMapIntensity:1.1});
   const lampMat=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
-  const fleetGlass=new THREE.MeshPhysicalMaterial({color:0x0a1016,metalness:0.2,roughness:0.05,transparent:true,opacity:0.88,clearcoat:1,envMapIntensity:1.4});
+  const fleetGlass=new THREE.MeshStandardMaterial({color:0x0a1016,metalness:0.6,roughness:0.08,transparent:true,opacity:0.9,envMapIntensity:1.4});
   const sets={};
   for(const k of kinds){ const S=SHAPES[k];
     const body=mergeGeometries([bodyGeo(S,det),roofGeo(S,det),...pillarGeos(S).map(g=>g.toNonIndexed())].map(g=>{ const n=g.index?g.toNonIndexed():g; n.deleteAttribute('uv'); return n; }));

@@ -21,7 +21,7 @@ const store={ get(k){ try{return localStorage.getItem(k);}catch(e){return null;}
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
 const settings={
-  quality: store.get('tp3_quality') || (isTouch?'med':'high'),
+  quality: store.get('tp3_quality') || null,
   manual: store.get('tp3_manual')==='1', assists: store.get('tp3_assists')!=='0',
   name: store.get('tp_name')||'', color: store.get('tp3_color')||COLORS[0],
   map: store.get('tp4_map')||'city', time: store.get('tp4_time')||'day',
@@ -31,7 +31,11 @@ if(!COLORS.includes(settings.color)) settings.color=COLORS[0];
 // ---------------- renderer / scene ----------------
 const renderer=new THREE.WebGLRenderer({antialias:settings.quality!=='low', powerPreference:'high-performance'});
 const DPR=window.devicePixelRatio||1;
-renderer.setPixelRatio(settings.quality==='high'?Math.min(DPR,1.75):settings.quality==='med'?Math.min(DPR,1.2):Math.min(DPR,1)*0.85);
+let GPU='';
+try{ const gl=renderer.getContext(), dbg=gl.getExtension('WEBGL_debug_renderer_info'); GPU=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):''; }catch(e){}
+if(!settings.quality){ const weak=/Intel|Mali|Adreno|PowerVR|Apple GPU|SwiftShader|llvmpipe|Radeon\(TM\) Graphics|Radeon Graphics/i.test(GPU); settings.quality=isTouch?'low':weak?'med':'high'; }
+const BASE_PR=settings.quality==='high'?Math.min(DPR,1.5):settings.quality==='med'?Math.min(DPR,1.0):Math.min(DPR,1)*0.8;
+let curPR=BASE_PR; renderer.setPixelRatio(curPR);
 renderer.setSize(innerWidth,innerHeight);
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.75;
 renderer.shadowMap.enabled=settings.quality!=='low'; renderer.shadowMap.type=THREE.PCFShadowMap;
@@ -87,7 +91,7 @@ let nightF=0;
 function applyTime(t){
   const city=W&&W.kind==='city';
   if(t==='day'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-40),THREE.MathUtils.degToRad(140)); sun.color.set(0xfff1dc); sun.intensity=2.6; hemi.intensity=0.75; hemi.color.set(0xcfe3ff); hemi.groundColor.set(0x4a6a35);
-    U.turbidity.value=3; U.rayleigh.value=1.2; U.mieCoefficient.value=0.004; sky.visible=true; scene.background=null; scene.fog.color.set(0xc9d9e8); scene.fog.near=city?160:260; scene.fog.far=city?950:1300; renderer.toneMappingExposure=city?0.6:0.72; nightF=0; }
+    U.turbidity.value=3; U.rayleigh.value=1.2; U.mieCoefficient.value=0.004; sky.visible=true; scene.background=null; scene.fog.color.set(0xc9d9e8); scene.fog.near=city?320:300; scene.fog.far=city?1500:1400; renderer.toneMappingExposure=city?0.6:0.72; nightF=0; }
   else if(t==='dusk'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-6),THREE.MathUtils.degToRad(250)); sun.color.set(0xffa860); sun.intensity=1.7; hemi.intensity=0.42; hemi.color.set(0xffc9a0); hemi.groundColor.set(0x3a3040);
     U.turbidity.value=7; U.rayleigh.value=2.6; U.mieCoefficient.value=0.006; sky.visible=true; scene.background=null; scene.fog.color.set(0xd59c7c); scene.fog.near=120; scene.fog.far=850; renderer.toneMappingExposure=0.72; nightF=0.55; }
   else { sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-45),THREE.MathUtils.degToRad(200)); sun.color.set(0x8fa8ff); sun.intensity=0.28; hemi.intensity=0.16; hemi.color.set(0x5068a0); hemi.groundColor.set(0x101418);
@@ -100,7 +104,7 @@ function applyTime(t){
   else { scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.08; }
   for(const k in worlds) if(worlds[k].city) worlds[k].city.setNight(nightF);
   fleet.night=nightF>0.5; headlightsOn=nightF>0.5;
-  if(bloom){ bloom.strength=nightF===1?0.85:nightF>0?0.5:0.28; bloom.threshold=nightF===1?0.75:0.88; }
+  if(bloom){ bloom.enabled=nightF>0; bloom.strength=nightF===1?0.7:0.22; bloom.threshold=nightF===1?0.8:1.0; }
 }
 
 // ---------------- local car ----------------
@@ -372,12 +376,12 @@ function carEffects(dt){
 
 // ---------------- camera ----------------
 const camPos=new THREE.Vector3(), camLook=new THREE.Vector3(); let camInit=false, orbit=0;
-function parkShowcase(){ if(W.kind==='track'){ const g=gridPos(0); phys.reset(g.x,g.y,g.a); phys.hint=g.i; } else { phys.reset(4*CP+38,5*CP+LANES[1],0); } }
+function parkShowcase(){ if(W.kind==='track'){ const g=gridPos(0); phys.reset(g.x,g.y,g.a); phys.hint=g.i; } else { phys.reset(3*CP+50,6*CP+31,0.25); } }
 function updateCamera(dt){
   const c=phys; const ca=Math.cos(c.a), sa=Math.sin(c.a);
   if(mode==='menu'||mode==='lobby'){
     orbit+=dt*0.15; camera.fov=45;
-    camera.position.set(c.x+Math.cos(orbit)*8.5, 2.2, c.y+Math.sin(orbit)*8.5); camera.lookAt(c.x,0.8,c.y); camera.updateProjectionMatrix(); camInit=false; model.interior.visible=false; return;
+    camera.position.set(c.x+Math.cos(orbit)*7.5, 2.0, c.y+Math.sin(orbit)*7.5); camera.lookAt(c.x,0.8,c.y); camera.updateProjectionMatrix(); camInit=false; return;
   }
   const sh=shake; shake=Math.max(0,shake-dt*3);
   const rx=(Math.random()-.5)*sh*0.12, ry=(Math.random()-.5)*sh*0.12;
@@ -399,7 +403,6 @@ function updateCamera(dt){
     camInit=false;
   }
   camera.updateProjectionMatrix();
-  model.interior.visible = camMode===1;
 }
 
 // ---------------- HUD ----------------
@@ -452,7 +455,10 @@ useWorld(settings.map); parkShowcase(); updateMenuLabels();
 function frame(t){
   requestAnimationFrame(frame);
   const fdt=Math.min(0.1,Math.max(0,(t-last)/1000)); last=t; frameNo++;
-  fpsN++; if(t-fpsT>1000){ fps=Math.round(fpsN*1000/(t-fpsT)); fpsN=0; fpsT=t; }
+  fpsN++; if(t-fpsT>1000){ fps=Math.round(fpsN*1000/(t-fpsT)); fpsN=0; fpsT=t;
+    // keep it smooth: lower the render resolution when the GPU struggles, raise it again when there is headroom
+    if(document.visibilityState==='visible' && fps>5){ let pr=curPR; if(fps<42) pr=Math.max(BASE_PR*0.6,curPR-0.08); else if(fps>57 && curPR<BASE_PR) pr=Math.min(BASE_PR,curPR+0.04);
+      if(pr!==curPR){ curPR=pr; renderer.setPixelRatio(curPR); if(composer) composer.setPixelRatio(curPR); } } }
   handleEdges(); if(respawnCool>0) respawnCool-=fdt;
   const inp=readInput();
   const driving=mode==='race'||mode==='countdown'||mode==='free';
@@ -510,7 +516,6 @@ function frame(t){
     r.vx=fdt>0?(r.x-ox)/fdt:0; r.vy=fdt>0?(r.y-oy)/fdt:0;
     r.steer+=(r.sr-r.steer)*k; r.wheel+=r.v/CAR.wheelR*fdt;
     placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt);
-    r.model.interior.visible=false;
     const dist=Math.hypot(r.x-phys.x,r.y-phys.y); audio.horn(id,r.hn&&dist<150,Math.max(0.05,1-dist/150));
   }
   sun.position.set(phys.x+sunDir.x*200, sunDir.y*200, phys.y+sunDir.z*200); sun.target.position.set(phys.x,0,phys.y);
@@ -521,7 +526,7 @@ function frame(t){
   if(driving) updateHud();
   // render
   renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
-  if(composer) composer.render(); else renderer.render(scene,camera);
+  if(composer && nightF>0) composer.render(); else renderer.render(scene,camera);
   if(driving && camMode===1){
     const w=Math.round(innerWidth*0.26), h=Math.round(w/3.4), x=Math.round((innerWidth-w)/2), y=innerHeight-h-Math.round(innerHeight*0.035);
     const p=worldOf(model,0.3,1.2,0), back=worldOf(model,-20,0.9,0);
@@ -535,4 +540,4 @@ function frame(t){
 requestAnimationFrame(frame);
 // test hook
 const BOT=new URLSearchParams(location.search).has('bot');
-window.__game={phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};
+window.__game={GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};
