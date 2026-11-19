@@ -89,6 +89,12 @@ export const cityWorld = {
   }
 };
 
+// ---------- photo textures ----------
+const IMG = {};
+export async function loadCityImages(base = 'assets/') {
+  const load = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = base + src; });
+  [IMG.brick, IMG.brickBump, IMG.grass] = await Promise.all(['brick.jpg', 'brick_bump.jpg', 'grass.jpg'].map(load));
+}
 // ---------- textures ----------
 function tex(w, h, draw, opts = {}) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h);
   const t = new THREE.CanvasTexture(c); if (!opts.linear) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; }
@@ -100,7 +106,7 @@ function facade(style) {
   const draw = (g, emissive) => {
     if (emissive) { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
     else if (style === 'glass') { const gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, '#5f8fa8'); gr.addColorStop(0.5, '#2c4f66'); gr.addColorStop(1, '#4b7690'); g.fillStyle = gr; g.fillRect(0, 0, W, H); }
-    else if (style === 'brick') { g.fillStyle = '#8a4433'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 8) for (let x = (y / 8) % 2 ? 0 : 10; x < W; x += 20) { g.fillStyle = `rgba(${90 + Math.random() * 60},${40 + Math.random() * 25},${30 + Math.random() * 20},.55)`; g.fillRect(x, y, 18, 6); } }
+    else if (style === 'brick') { if (IMG.brick) { for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 3; tx++) g.drawImage(IMG.brick, tx * W / 3, ty * H / 3, W / 3 + 1, H / 3 + 1); } else { g.fillStyle = '#8a4433'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 8) for (let x = (y / 8) % 2 ? 0 : 10; x < W; x += 20) { g.fillStyle = `rgba(${90 + Math.random() * 60},${40 + Math.random() * 25},${30 + Math.random() * 20},.55)`; g.fillRect(x, y, 18, 6); } } }
     else noise(g, W, H, style === 'office' ? '#b9bcc0' : style === 'beige' ? '#d8c6a3' : style === 'white' ? '#e8e8e4' : '#a9a49c', 0.12, 6000, 3);
     for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
       const x = c * fx, y = r * fy; const on = lit[r * 4 + c] ??= Math.random() < 0.38;
@@ -121,7 +127,17 @@ function facade(style) {
     if (style === 'office' && !emissive) { g.fillStyle = 'rgba(0,0,0,.15)'; for (let r = 0; r < 4; r++) g.fillRect(0, r * fy + fy * 0.8, W, 4); }
   };
   const map = tex(W, H, g => draw(g, false)), em = tex(W, H, g => draw(g, true));
-  return { map, em };
+  // bump: wall at mid height, windows recessed, sills/frames proud
+  const bump = tex(W, H, g => {
+    if (style === 'brick' && IMG.brickBump) { for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 3; tx++) g.drawImage(IMG.brickBump, tx * W / 3, ty * H / 3, W / 3 + 1, H / 3 + 1); }
+    else { g.fillStyle = '#9a9a9a'; g.fillRect(0, 0, W, H); for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? 0 : 255},${0},${0},0)`; } }
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { const x = c * fx, y = r * fy; let wx, wy, ww, wh;
+      if (style === 'glass') { wx = x + 3; wy = y + 3; ww = fx - 6; wh = fy - 6; } else if (style === 'office') { wx = x; wy = y + fy * 0.3; ww = fx; wh = fy * 0.5; }
+      else if (style === 'white') { wx = x + fx * 0.08; wy = y + fy * 0.18; ww = fx * 0.84; wh = fy * 0.66; } else { wx = x + fx * 0.22; wy = y + fy * 0.2; ww = fx * 0.56; wh = fy * 0.6; }
+      if (style !== 'glass') { g.fillStyle = '#e6e6e6'; g.fillRect(wx - 5, wy + wh, ww + 10, 7); }   // sill
+      g.fillStyle = style === 'glass' ? '#7a7a7a' : '#2a2a2a'; g.fillRect(wx, wy, ww, wh); }
+  }, { linear: true });
+  return { map, em, bump };
 }
 const SHOP_NAMES = [['MARKET','CAFE'],['ECZANE','FIRIN'],['KUAFÖR','BANKA'],['LOKANTA','OPTİK'],['KİTAP','BUTİK'],['DÖNER','TEKNOLOJİ'],['PASTANE','ÇİÇEKÇİ'],['KASAP','SPOR']];
 function shopTex(variant = 0) {
@@ -169,18 +185,18 @@ export function buildCity(scene, quality, fleet) {
   const F = {}; for (const s of styles) F[s] = facade(s);
   const SHOPS = 4; const shops = []; for (let v = 0; v < SHOPS; v++) shops.push(shopTex(v));
   const mats = {}, bufs = {};
-  for (const s of styles) { mats[s] = new THREE.MeshStandardMaterial({ map: F[s].map, emissiveMap: F[s].em, emissive: 0xffffff, emissiveIntensity: 0, roughness: s === 'glass' ? 0.12 : 0.85, metalness: s === 'glass' ? 0.75 : 0.05, envMapIntensity: s === 'glass' ? 1.3 : 0.6 }); bufs[s] = new GeoBuf(); }
+  for (const s of styles) { mats[s] = new THREE.MeshStandardMaterial({ map: F[s].map, emissiveMap: F[s].em, bumpMap: F[s].bump, bumpScale: s === 'brick' ? 2.2 : 1.6, emissive: 0xffffff, emissiveIntensity: 0, roughness: s === 'glass' ? 0.12 : 0.85, metalness: s === 'glass' ? 0.75 : 0.05, envMapIntensity: s === 'glass' ? 1.3 : 0.6 }); bufs[s] = new GeoBuf(); }
   for (let v = 0; v < SHOPS; v++) { mats['shop' + v] = new THREE.MeshStandardMaterial({ map: shops[v].map, emissiveMap: shops[v].em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, metalness: 0.2 }); bufs['shop' + v] = new GeoBuf(); }
   const roofTex = tex(256, 256, (g, w, h) => noise(g, w, h, '#57585a', 0.25, 9000, 2));
   mats.roof = new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.95 }); bufs.roof = new GeoBuf();
   // ground: grass outside, asphalt for the city
-  const grassTex = tex(512, 512, (g, w, h) => { noise(g, w, h, '#4f7d35', 0.18, 40000, 2); for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? '30,60,20' : '110,150,60'},${Math.random() * .22})`; g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 14, 0, 7); g.fill(); } });
-  grassTex.repeat.set(220, 220);
+  const grassTex = IMG.grass ? (() => { const t = new THREE.Texture(IMG.grass); t.needsUpdate = true; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })() : tex(512, 512, (g, w, h) => { noise(g, w, h, '#4f7d35', 0.18, 40000, 2); for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? '30,60,20' : '110,150,60'},${Math.random() * .22})`; g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 14, 0, 7); g.fill(); } });
+  grassTex.repeat.set(300, 300);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.position.set(SIZE / 2, -0.02, SIZE / 2); ground.receiveShadow = true; group.add(ground);
   const asphaltTex = tex(512, 512, (g, w, h) => { noise(g, w, h, '#3c3e42', 0.2, 30000, 2); for (let i = 0; i < 30; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .12})`; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 60, 10 + Math.random() * 30, Math.random() * 3, 0, 7); g.fill(); } g.strokeStyle = 'rgba(15,15,15,.35)'; g.lineWidth = 1.5; for (let i = 0; i < 12; i++) { g.beginPath(); let x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - .5) * 40; y += (Math.random() - .5) * 40; g.lineTo(x, y); } g.stroke(); } });
   asphaltTex.repeat.set((SIZE + ROAD) / 9, (SIZE + ROAD) / 9);
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(SIZE + ROAD, SIZE + ROAD), new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.9 }));
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(SIZE + ROAD, SIZE + ROAD), new THREE.MeshStandardMaterial({ map: asphaltTex, bumpMap: asphaltTex, bumpScale: 1.2, roughness: 0.88 }));
   road.rotation.x = -Math.PI / 2; road.position.set(SIZE / 2, 0, SIZE / 2); road.receiveShadow = true; group.add(road);
 
   // ---- road markings (vertex coloured quads) ----
@@ -216,7 +232,7 @@ export function buildCity(scene, quality, fleet) {
   }
   const curbMat = new THREE.MeshStandardMaterial({ color: 0xbdbab3, roughness: 0.8 });
   const addM = (buf, mat, recv = true, cast = false) => { const m = new THREE.Mesh(buf.build(), mat); m.receiveShadow = recv; m.castShadow = cast; group.add(m); return m; };
-  addM(slab, new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.85 })); addM(curbB, curbMat);
+  addM(slab, new THREE.MeshStandardMaterial({ map: tileTex, bumpMap: tileTex, bumpScale: 1.5, roughness: 0.85 })); addM(curbB, curbMat);
   const g2 = grassTex.clone(); g2.repeat.set(1, 1); g2.needsUpdate = true; addM(grassB, new THREE.MeshStandardMaterial({ map: g2, roughness: 1 }));
   const a2 = asphaltTex.clone(); a2.repeat.set(1, 1); a2.needsUpdate = true; addM(lotB, new THREE.MeshStandardMaterial({ map: a2, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1 }));
 
@@ -359,7 +375,7 @@ export function buildCity(scene, quality, fleet) {
 
   // ---- night ----
   const windowMats = styles.map(s => mats[s]), shopMats = [0, 1, 2, 3].map(v => mats['shop' + v]);
-  function setNight(f) { for (const m of windowMats) m.emissiveIntensity = f * 1.1; for (const m of shopMats) m.emissiveIntensity = f * 0.6; headMat.emissiveIntensity = f * 4; }
+  function setNight(f) { for (const m of windowMats) m.emissiveIntensity = f * f * 1.1; for (const m of shopMats) m.emissiveIntensity = f * 0.6; headMat.emissiveIntensity = f * 4; }
 
   return { group, lamps, updateLights, setNight, parked };
 }

@@ -5,13 +5,15 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { TP, N, WORLD, buildTrack, drawMinimapTrack, nearest, trackWorld } from './track.js';
-import { buildCar, dentCar, repairCar, drawGauges, CAR, makeFleet } from './car.js';
+import { buildCar, dentCar, repairCar, drawGauges, CAR, makeFleet, loadCarModel } from './car.js';
 import { Car } from './physics.js';
 import { CarAudio } from './audio.js';
 import { Particles, SkidMarks } from './effects.js';
 import { Net } from './net.js';
-import { buildCity, cityWorld, streetName, district, nearestLane, cityMapCanvas, SIZE, P as CP, LANES } from './city.js';
+import { loadCityImages, buildCity, cityWorld, streetName, district, nearestLane, cityMapCanvas, SIZE, P as CP, LANES } from './city.js';
 import { Traffic, Pedestrians } from './traffic.js';
 
 const $=id=>document.getElementById(id);
@@ -37,7 +39,7 @@ if(!settings.quality){ const weak=/Intel|Mali|Adreno|PowerVR|Apple GPU|SwiftShad
 const BASE_PR=settings.quality==='high'?Math.min(DPR,1.5):settings.quality==='med'?Math.min(DPR,1.0):Math.min(DPR,1)*0.8;
 let curPR=BASE_PR, lastModeT=0; renderer.setPixelRatio(curPR);
 renderer.setSize(innerWidth,innerHeight);
-renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.75;
+renderer.toneMapping=THREE.NeutralToneMapping; renderer.toneMappingExposure=0.9;
 renderer.shadowMap.enabled=settings.quality!=='low'; renderer.shadowMap.type=THREE.PCFShadowMap;
 document.body.prepend(renderer.domElement); renderer.domElement.id='c';
 const scene=new THREE.Scene();
@@ -61,11 +63,13 @@ const stars=(()=>{ const g=new THREE.BufferGeometry(), n=1500, p=new Float32Arra
 let composer=null, bloom=null;
 if(settings.quality==='high'){
   composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,camera));
+  try{ const ao=new GTAOPass(scene,camera,innerWidth,innerHeight); ao.updateGtaoMaterial({radius:0.6,distanceExponent:1.4,thickness:1,scale:1.1,samples:12}); ao.blendIntensity=0.85; composer.addPass(ao); }catch(e){ console.warn('AO yok',e); }
   bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth/2,innerHeight/2),0.35,0.5,0.88); composer.addPass(bloom); composer.addPass(new OutputPass());
 }
 
 // ---------------- worlds (built lazily) ----------------
 const worlds={};
+await Promise.all([loadCarModel(), loadCityImages()]);
 const fleet=makeFleet(scene,260,settings.quality);
 function ensureWorld(map){
   if(worlds[map]) return worlds[map];
@@ -86,22 +90,26 @@ function useWorld(map){
 }
 function fleetVisible(v){ scene.traverse(o=>{ if(o.isInstancedMesh && o.userData.fleet) o.visible=v; }); }
 
+// ---------------- HDR environments (Poly Haven, CC0) ----------------
+const ENV_FILES={day:'pedestrian_overpass_1k.hdr',dusk:'venice_sunset_1k.hdr',night:'moonless_golf_1k.hdr'}, envCache={};
+const hdr=new HDRLoader();
+function loadEnv(t){ if(envCache[t]) return envCache[t];
+  envCache[t]=hdr.loadAsync('assets/'+ENV_FILES[t]).then(tex=>{ tex.mapping=THREE.EquirectangularReflectionMapping; const e=pmrem.fromEquirectangular(tex).texture; tex.dispose(); return e; }).catch(()=>null); return envCache[t]; }
 // ---------------- time of day ----------------
 let nightF=0;
 function applyTime(t){
   const city=W&&W.kind==='city';
   if(t==='day'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-40),THREE.MathUtils.degToRad(140)); sun.color.set(0xfff1dc); sun.intensity=2.6; hemi.intensity=0.75; hemi.color.set(0xcfe3ff); hemi.groundColor.set(0x4a6a35);
-    U.turbidity.value=3; U.rayleigh.value=1.2; U.mieCoefficient.value=0.004; sky.visible=true; scene.background=null; scene.fog.color.set(0xc9d9e8); scene.fog.near=city?320:300; scene.fog.far=city?1500:1400; renderer.toneMappingExposure=city?0.6:0.72; nightF=0; }
+    U.turbidity.value=3; U.rayleigh.value=1.2; U.mieCoefficient.value=0.004; sky.visible=true; scene.background=null; scene.fog.color.set(0xc9d9e8); scene.fog.near=city?320:300; scene.fog.far=city?1500:1400; renderer.toneMappingExposure=city?0.82:0.9; nightF=0; }
   else if(t==='dusk'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-6),THREE.MathUtils.degToRad(250)); sun.color.set(0xffa860); sun.intensity=1.7; hemi.intensity=0.42; hemi.color.set(0xffc9a0); hemi.groundColor.set(0x3a3040);
-    U.turbidity.value=7; U.rayleigh.value=2.6; U.mieCoefficient.value=0.006; sky.visible=true; scene.background=null; scene.fog.color.set(0xd59c7c); scene.fog.near=120; scene.fog.far=850; renderer.toneMappingExposure=0.72; nightF=0.55; }
+    U.turbidity.value=7; U.rayleigh.value=2.6; U.mieCoefficient.value=0.006; sky.visible=true; scene.background=null; scene.fog.color.set(0xd59c7c); scene.fog.near=120; scene.fog.far=850; renderer.toneMappingExposure=0.85; nightF=0.55; }
   else { sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-45),THREE.MathUtils.degToRad(200)); sun.color.set(0x8fa8ff); sun.intensity=0.28; hemi.intensity=0.16; hemi.color.set(0x5068a0); hemi.groundColor.set(0x101418);
-    sky.visible=false; scene.background=new THREE.Color(0x060a16); scene.fog.color.set(0x0a1020); scene.fog.near=60; scene.fog.far=650; renderer.toneMappingExposure=0.95; nightF=1; }
+    sky.visible=false; scene.background=new THREE.Color(0x060a16); scene.fog.color.set(0x0a1020); scene.fog.near=60; scene.fog.far=650; renderer.toneMappingExposure=1.15; nightF=1; }
   U.sunPosition.value.copy(sunDir); if(U.cloudCoverage){ U.cloudCoverage.value=0.35; U.cloudDensity.value=0.35; }
   stars.visible=nightF===1;
-  // reflections: environment from the sky (day/dusk) or a dim room (night)
-  if(nightF<1){ const tmp=new THREE.Scene(); const s2=new Sky(); s2.scale.setScalar(1000); Object.assign(s2.material.uniforms.turbidity,{value:U.turbidity.value}); s2.material.uniforms.rayleigh.value=U.rayleigh.value; s2.material.uniforms.sunPosition.value.copy(sunDir); if(s2.material.uniforms.cloudCoverage) s2.material.uniforms.cloudCoverage.value=0; tmp.add(s2);
-    scene.environment=pmrem.fromScene(tmp,0).texture; scene.environmentIntensity=t==='day'?0.45:0.4; }
-  else { scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.08; }
+  // reflections & ambient light from a real HDR photo of the sky
+  scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=t==='night'?0.06:0.35;
+  const want=t; loadEnv(t).then(e=>{ if(e && settings.time===want){ scene.environment=e; scene.environmentIntensity=t==='day'?0.9:t==='dusk'?0.85:0.9; } });
   for(const k in worlds) if(worlds[k].city) worlds[k].city.setNight(nightF);
   fleet.night=nightF>0.5; headlightsOn=nightF>0.5;
   if(bloom){ bloom.enabled=nightF>0; bloom.strength=nightF===1?0.7:0.22; bloom.threshold=nightF===1?0.8:1.0; }
@@ -110,7 +118,7 @@ function applyTime(t){
 // ---------------- local car ----------------
 const phys=new Car(); phys.manual=settings.manual; phys.assists=settings.assists; phys.world=trackWorld;
 const model=buildCar(settings.color); scene.add(model.root);
-const headSpot=new THREE.SpotLight(0xfff2d8,0,90,0.55,0.45,1.2); headSpot.position.set(1.9,0.75,0); model.body.add(headSpot);
+const headSpot=new THREE.SpotLight(0xfff2d8,0,90,0.55,0.45,1.2); headSpot.position.set(2.1,0.7,0); model.body.add(headSpot);
 const headTarget=new THREE.Object3D(); headTarget.position.set(25,-1.5,0); model.body.add(headTarget); headSpot.target=headTarget;
 let headlightsOn=false;
 function setMyColor(c){ settings.color=c; model.paint.color.set(c); }
@@ -349,12 +357,13 @@ function handleEdges(){
 
 // ---------------- visuals ----------------
 const _v=new THREE.Vector3();
-function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0){
+function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=headlightsOn){
   m.root.position.set(x,0,y); m.root.rotation.y=-a;
-  m.body.rotation.set(-roll,0,-pitch); m.body.position.y=0.02+bump;
-  for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; }
-  m.steer.rotation.x=steer*12;
-  m.brakeMat.emissiveIntensity=brake?5:(headlightsOn?1.5:0.6);
+  m.body.rotation.set(-roll,0,-pitch); m.body.position.y=(m.setPose?0:0.02)+bump;
+  if(m.setPose) m.setPose(steer,wheelAng);
+  else { for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; } m.steer.rotation.x=steer*12; }
+  m.brakeMat.emissiveIntensity=brake?6:(lights?1.6:0.5);
+  if(m.headMat) m.headMat.emissiveIntensity=lights?3.5:0.15;
   for(const f of m.flames){ f.visible=nitro; if(nitro){ const s=0.8+Math.random()*0.5; f.scale.set(s,1,1); } }
 }
 function worldOf(m,lx,ly,lz){ _v.set(lx,ly,lz); return m.body.localToWorld(_v); }
@@ -395,9 +404,9 @@ function updateCamera(dt){
     camLook.set(c.x+ca*2.5,0.9,c.y+sa*2.5); camera.lookAt(camLook);
     camera.fov=60+Math.min(18,c.speed*0.22);
   } else {
-    const local = camMode===1 ? [-0.22,1.13,-0.38] : [0.55,1.33,0];
+    const local = camMode===1 ? (model.cockpit||[-0.22,1.13,-0.38]) : (model.hood||[0.55,1.33,0]);
     const p=worldOf(model,...local); camera.position.set(p.x+rx*0.3,p.y+ry*0.3,p.z);
-    const look=camMode===1?worldOf(model,6,0.88,-0.38+phys.steer*2.5):worldOf(model,8,1.0,0);
+    const cl=model.cockpitLook||[6,0.88,-0.38]; const look=camMode===1?worldOf(model,cl[0],cl[1],cl[2]+phys.steer*2.5):worldOf(model,8,1.0,0);
     camera.lookAt(look);
     camera.fov=camMode===1?(70+Math.min(10,c.speed*0.12)):(66+Math.min(14,c.speed*0.18));
     camInit=false;
@@ -515,7 +524,7 @@ function frame(t){
     let da=r.ta-r.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI; r.a+=da*k;
     r.vx=fdt>0?(r.x-ox)/fdt:0; r.vy=fdt>0?(r.y-oy)/fdt:0;
     r.steer+=(r.sr-r.steer)*k; r.wheel+=r.v/CAR.wheelR*fdt;
-    placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt);
+    placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt,0,r.hl);
     const dist=Math.hypot(r.x-phys.x,r.y-phys.y); audio.horn(id,r.hn&&dist<150,Math.max(0.05,1-dist/150));
   }
   sun.position.set(phys.x+sunDir.x*200, sunDir.y*200, phys.y+sunDir.z*200); sun.target.position.set(phys.x,0,phys.y);
@@ -526,10 +535,10 @@ function frame(t){
   if(driving) updateHud();
   // render
   renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
-  if(composer && nightF>0) composer.render(); else renderer.render(scene,camera);
+  if(composer) composer.render(); else renderer.render(scene,camera);
   if(driving && camMode===1){
     const w=Math.round(innerWidth*0.26), h=Math.round(w/3.4), x=Math.round((innerWidth-w)/2), y=innerHeight-h-Math.round(innerHeight*0.035);
-    const p=worldOf(model,0.3,1.2,0), back=worldOf(model,-20,0.9,0);
+    const mp=model.mirror||[0.3,1.2,0]; const p=worldOf(model,mp[0],mp[1],mp[2]), back=worldOf(model,-20,0.9,0);
     mirrorCam.position.copy(p); mirrorCam.lookAt(back); mirrorCam.aspect=w/h; mirrorCam.updateProjectionMatrix();
     model.root.visible=false;
     renderer.setScissorTest(true); renderer.setScissor(x,y,w,h); renderer.setViewport(x,y,w,h); renderer.render(scene,mirrorCam);
