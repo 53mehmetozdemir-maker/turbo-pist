@@ -457,7 +457,7 @@ function frame(t){
   const fdt=Math.min(0.1,Math.max(0,(t-last)/1000)); last=t; frameNo++;
   fpsN++; if(t-fpsT>1000){ fps=Math.round(fpsN*1000/(t-fpsT)); fpsN=0; fpsT=t;
     // keep it smooth: lower the render resolution when the GPU struggles, raise it again when there is headroom
-    if(document.visibilityState==='visible' && fps>5 && t-lastModeT>3000){ let pr=curPR; if(fps<42) pr=Math.max(BASE_PR*0.6,curPR-0.08); else if(fps>56 && curPR<BASE_PR) pr=Math.min(BASE_PR,curPR+0.06);
+    if(document.visibilityState==='visible' && document.hasFocus() && fps>14 && t-lastModeT>3000){ let pr=curPR; if(fps<42) pr=Math.max(BASE_PR*0.6,curPR-0.08); else if(fps>56 && curPR<BASE_PR) pr=Math.min(BASE_PR,curPR+0.06);
       if(pr!==curPR){ curPR=pr; renderer.setPixelRatio(curPR); if(composer) composer.setPixelRatio(curPR); } } }
   handleEdges(); if(respawnCool>0) respawnCool-=fdt;
   const inp=readInput();
@@ -540,4 +540,4 @@ function frame(t){
 requestAnimationFrame(frame);
 // test hook
 const BOT=new URLSearchParams(location.search).has('bot');
-window.__game={GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};
+window.__game={camera,GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};
