@@ -35,7 +35,7 @@ let GPU='';
 try{ const gl=renderer.getContext(), dbg=gl.getExtension('WEBGL_debug_renderer_info'); GPU=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):''; }catch(e){}
 if(!settings.quality){ const weak=/Intel|Mali|Adreno|PowerVR|Apple GPU|SwiftShader|llvmpipe|Radeon\(TM\) Graphics|Radeon Graphics/i.test(GPU); settings.quality=isTouch?'low':weak?'med':'high'; }
 const BASE_PR=settings.quality==='high'?Math.min(DPR,1.5):settings.quality==='med'?Math.min(DPR,1.0):Math.min(DPR,1)*0.8;
-let curPR=BASE_PR; renderer.setPixelRatio(curPR);
+let curPR=BASE_PR, lastModeT=0; renderer.setPixelRatio(curPR);
 renderer.setSize(innerWidth,innerHeight);
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.75;
 renderer.shadowMap.enabled=settings.quality!=='low'; renderer.shadowMap.type=THREE.PCFShadowMap;
@@ -78,7 +78,7 @@ function ensureWorld(map){
 }
 let W=null;   // active world
 function useWorld(map){
-  W=ensureWorld(map);
+  W=ensureWorld(map); lastModeT=performance.now();
   for(const k in worlds){ const on=worlds[k]===W; worlds[k].group.visible=on; if(worlds[k].peds) for(const m of [worlds[k].peds.legs,worlds[k].peds.torso,worlds[k].peds.head,worlds[k].peds.arms]) m.visible=on; }
   for(const k of ['body','glass','dark','head','tail']) {}   // fleet only used in the city
   fleetVisible(map==='city');
@@ -253,7 +253,7 @@ function startFree(){
   const k=Math.floor(Math.random()*8); const i=1+Math.floor(Math.random()*8);
   const sp=[{x:i*CP+30,y:k*CP+LANES[1],a:0},{x:k*CP-LANES[1],y:i*CP+30,a:Math.PI/2}][Math.random()<0.5?0:1];
   phys.reset(sp.x,sp.y,sp.a); phys.manual=settings.manual; phys.assists=settings.assists;
-  mode='free'; show(null); hud(true); camInit=false;
+  mode='free'; show(null); hud(true); camInit=false; lastModeT=performance.now();
   toast(`Şehirde serbest sürüş · ${CAM_NAMES[camMode]} (C) · Korna (H) · Esc menü`,4000);
   if(online) net.set({...myPres(), st:'free', ready:false, raceId:null, map:net.isHost?'city':undefined});
 }
@@ -457,7 +457,7 @@ function frame(t){
   const fdt=Math.min(0.1,Math.max(0,(t-last)/1000)); last=t; frameNo++;
   fpsN++; if(t-fpsT>1000){ fps=Math.round(fpsN*1000/(t-fpsT)); fpsN=0; fpsT=t;
     // keep it smooth: lower the render resolution when the GPU struggles, raise it again when there is headroom
-    if(document.visibilityState==='visible' && fps>5){ let pr=curPR; if(fps<42) pr=Math.max(BASE_PR*0.6,curPR-0.08); else if(fps>57 && curPR<BASE_PR) pr=Math.min(BASE_PR,curPR+0.04);
+    if(document.visibilityState==='visible' && fps>5 && t-lastModeT>3000){ let pr=curPR; if(fps<42) pr=Math.max(BASE_PR*0.6,curPR-0.08); else if(fps>56 && curPR<BASE_PR) pr=Math.min(BASE_PR,curPR+0.06);
       if(pr!==curPR){ curPR=pr; renderer.setPixelRatio(curPR); if(composer) composer.setPixelRatio(curPR); } } }
   handleEdges(); if(respawnCool>0) respawnCool-=fdt;
   const inp=readInput();
