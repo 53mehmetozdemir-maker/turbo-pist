@@ -86,7 +86,7 @@ export class CarAudio {
       this.lfoG.gain.setTargetAtTime(0,t,0.1); this.exhaust.g.gain.setTargetAtTime(0,t,0.1); this.popBurst=0; this.lastThr=car.throttle; this._tail(car,dt,t); return; }
     const voice=VOICES[pr.kind]||VOICES.v8;
     if(this.wk){ if(this.wkVoice!==voice){ this.wkVoice=voice; this.wk.port.postMessage(voice); }
-      const P=this.wk.parameters, thr=car.throttle, load=Math.min(1,thr*(0.55+0.45*Math.min(1,car.rpm/(pr.kind==='diesel'?3500:7000))));
+      const P=this.wk.parameters, thr=car.revHold?1:car.throttle, load=Math.min(1,thr*(0.55+0.45*Math.min(1,car.rpm/(pr.kind==='diesel'?3500:7000))));
       P.get('rpm').setTargetAtTime(Math.max(300,car.rpm),t,0.012); P.get('load').setTargetAtTime(load,t,0.03);
       P.get('gain').setTargetAtTime((pr.kind==='diesel'?0.75:0.6)*(0.55+0.45*load)+(car.nitroOn?0.12:0),t,0.03);
       P.get('cut').setValueAtTime(car.cutEvent && car.cutEvent!==this.lastCutW ? 1 : 0, t); if(car.cutEvent!==this.lastCutW){ this.lastCutW=car.cutEvent; P.get('cut').setValueAtTime(0,t+0.035); }
@@ -95,7 +95,7 @@ export class CarAudio {
     } else for(const {gg,base} of this.oscs) gg.gain.setTargetAtTime(base,t,0.1);
     const f0=car.rpm/60*(pr.cyl/2);   // firing frequency (4-stroke)
     for(const {o,mul} of this.oscs) o.frequency.setTargetAtTime(f0*mul,t,0.012);
-    const thr=car.throttle, load=thr*(0.6+0.4*Math.min(1,car.rpm/7000));
+    const thr=car.revHold?1:car.throttle, load=thr*(0.6+0.4*Math.min(1,car.rpm/7000));
     if(!this.wk){ this.engLP.frequency.setTargetAtTime(420+load*3200+car.rpm*0.3,t,k);
     this.eng.gain.setTargetAtTime(0.08+load*0.24+(car.nitroOn?0.08:0),t,k);
     this.lfoG.gain.setTargetAtTime(car.rpm<2500?0.035:0.008,t,0.1); this.lfo.frequency.setTargetAtTime(car.rpm/60*0.5,t,0.1);
@@ -108,7 +108,7 @@ export class CarAudio {
     if(this.popBurst>0){ this.popBurst-=dt; if(this.popCool<=0 && Math.random()<0.35){ this.pop(0.5+Math.random()*0.6); this.popCool=0.05+Math.random()*0.1; } }
     if(car.gear!==this.lastGear && car.gear>this.lastGear && thr>0.5) this.pop(0.35); this.lastGear=car.gear;
     // rev limiter: every ignition cut = a sharp bark and a dip in the engine note
-    if(car.cutEvent && car.cutEvent!==this.lastCut){ this.lastCut=car.cutEvent; this.pop(0.7); if(!this.wk){ this.eng.gain.cancelScheduledValues(t); this.eng.gain.setValueAtTime(0.05,t); this.eng.gain.linearRampToValueAtTime(0.32,t+0.05); } }
+    if(car.cutEvent && car.cutEvent!==this.lastCut){ this.lastCut=car.cutEvent; this.pop(0.85); if(!this.wk){ this.eng.gain.cancelScheduledValues(t); this.eng.gain.setValueAtTime(0.05,t); this.eng.gain.linearRampToValueAtTime(0.32,t+0.05); } }
     this._tail(car,dt,t);
   }
   _tail(car,dt,t){

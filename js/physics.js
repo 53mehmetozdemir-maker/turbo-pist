@@ -54,7 +54,10 @@ export class Car {
     // burnout: gas + brake together at low speed -> front brakes hold, rear wheels spin
     this.burnout = !P.ev && P.drive==='rwd' && !this.reversing && thr>0.5 && brk>0.5 && Math.abs(vLong)<9;
     // launch / rev hold: handbrake + gas at standstill -> clutch in, engine bounces off the limiter
-    this.launch = !P.ev && !!inp.hand && thr>0.5 && speed<3 && !this.burnout;
+    // rev hold: any two of gas / brake / handbrake together -> clutch in, engine screams on the limiter (brap-brap), at any speed
+    const g0=inp.gas>0.5, b0=inp.brake>0.5, h0=!!inp.hand;
+    this.revHold = !P.ev && ((g0&&b0)||(g0&&h0)||(b0&&h0));
+    this.launch = this.revHold && !this.burnout;
     // steering: speed-sensitive lock, rate-limited (keyboard) or direct (analog)
     const lock = 0.62/(1+speed*(this.assists?0.06:0.075));
     let target = inp.steer*lock;
@@ -91,13 +94,14 @@ export class Car {
     }
     // free-revving at standstill / clutch slip in 1st
     if(!P.ev && wheelRpm*ratio<P.idle+600) rpm = rpm + (P.idle+thr*3500 - rpm)*0.5;
-    if(this.burnout||this.launch) rpm = P.idle+thr*(P.redline-P.idle);           // wheels spinning / clutch in: engine revs freely
+    if(this.burnout) rpm = P.idle+thr*(P.redline+200-P.idle);                      // wheels spinning: engine revs freely onto the limiter
+    if(this.launch) rpm = P.redline+200;                                              // clutch in, foot down: straight onto the limiter
     if(!P.ev && thr>0.3 && wheelRpm*ratio>=P.redline-60) rpm = P.redline+80;   // pushing against the limiter in gear
     // rev limiter: hitting redline cuts the ignition briefly, the needle bounces
     this.cutT=Math.max(0,(this.cutT||0)-dt);
     if(this.cutT>0){ this.rpm-=(this.burnout||this.launch?9000:4500)*dt; }
     else { this.rpm += (Math.min(rpm,P.redline+60)-this.rpm)*Math.min(1,dt*((this.burnout||this.launch)?16:20));
-      if(CUT() && this.rpm>=P.redline && thr>0.3){ this.cutT=0.06; this.cutEvent=(this.cutEvent||0)+1; this.cutsInGear=(this.cutsInGear||0)+1; } }
+      if(CUT() && this.rpm>=P.redline && (thr>0.3||this.launch)){ this.cutT=0.06; this.cutEvent=(this.cutEvent||0)+1; this.cutsInGear=(this.cutsInGear||0)+1; } }
     this.rpm=Math.max(P.idle*0.9,this.rpm);
     this.nitroOn = inp.nitro && this.nitro>0 && thr>0.3 && !this.reversing;
     if(this.nitroOn) this.nitro=Math.max(0,this.nitro-dt/4.5); else this.nitro=Math.min(1,this.nitro+dt/30);
