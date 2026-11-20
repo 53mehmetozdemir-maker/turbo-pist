@@ -261,7 +261,7 @@ const bfGlowTex=(()=>{ const c=document.createElement('canvas'); c.width=c.heigh
 const bfLight=new THREE.PointLight(0xff8a30,0,5,2); scene.add(bfLight);
 const flameGeo=new THREE.PlaneGeometry(1,1,1,1).translate(-0.5,0,0);   // x: 0 at the pipe .. -1 at the tip, y: -0.5..0.5 across
 const FLAME_VS=`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
-const FLAME_FS=`uniform float uTime, uLife, uSeed; varying vec2 vUv;
+const FLAME_FS=`uniform float uTime, uLife, uSeed, uNitro; varying vec2 vUv;
   float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7))+uSeed*13.7)*43758.5453); }
   float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
   float fbm(vec2 p){ float v=0.0, a=0.5; for(int i=0;i<4;i++){ v+=a*n(p); p*=2.03; a*=0.5; } return v; }
@@ -281,10 +281,11 @@ const FLAME_FS=`uniform float uTime, uLife, uSeed; varying vec2 vUv;
     col=mix(col,vec3(1.0,0.86,0.45),smoothstep(0.35,0.7,heat));
     col=mix(col,vec3(1.0,0.97,0.88),smoothstep(0.75,1.0,heat));
     col=mix(col,vec3(0.45,0.6,1.0),(1.0-smoothstep(0.0,0.09,x))*0.8);   // blue root at the pipe lip
+    vec3 nc=mix(vec3(0.15,0.25,1.0),vec3(0.35,0.75,1.0),smoothstep(0.1,0.55,heat)); nc=mix(nc,vec3(0.9,0.97,1.0),smoothstep(0.7,1.0,heat)); col=mix(col,nc,uNitro);   // nitrous: blue jet
     if(a<0.01) discard; gl_FragColor=vec4(col*a*1.6,a); }`;
 function ensureBackfire(m){ if(m.backfire) return m.backfire; m.backfire=(m.flames||[]).map((f,i)=>{ const g=new THREE.Group(); g.position.copy(f.position); g.rotation.copy(f.rotation);
     f.geometry.computeBoundingBox(); g.position.x+=f.geometry.boundingBox.max.x*0.9;   // nitro cones are centred on the pipe: start the flame at the pipe lip
-    const mat=new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uLife:{value:1},uSeed:{value:i*1.7}},vertexShader:FLAME_VS,fragmentShader:FLAME_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false});
+    const mat=new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uLife:{value:1},uSeed:{value:i*1.7},uNitro:{value:0}},vertexShader:FLAME_VS,fragmentShader:FLAME_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false});
     const fl=new THREE.Mesh(flameGeo,mat); fl.frustumCulled=false;
     const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:bfGlowTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,opacity:0.5})); glow.scale.set(0.3,0.3,1); glow.position.x=-0.03;
     g.add(fl,glow); g.visible=false; f.parent.add(g); g.userData={fl,mat,glow}; return g; }); m.bfT=0; return m.backfire; }
@@ -304,9 +305,14 @@ function backfire(m,v){ if(!m||!m.flames||!m.flames.length) return; if(Math.rand
 let lastCutVis=0;
 function updateBackfire(dt){
   if(phys.cutEvent && phys.cutEvent!==lastCutVis){ lastCutVis=phys.cutEvent; if(mode==='free'||mode==='race') backfire(model,0.85); }
-  for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=window.__bfHold?(m.bfLife||0.1)*0.6:Math.max(0,(m.bfT||0)-dt); const on=m.bfT>0, life=on?m.bfT/(m.bfLife||0.1):0;
-    for(const g of m.backfire){ g.visible=on; if(!on) continue; const u=g.userData; u.mat.uniforms.uTime.value=performance.now()/1000; u.mat.uniforms.uLife.value=life;
-      const grow=Math.min(1,(1-life)*6+0.25);                                       // shoots out fast, then pulls back
+  if(model&&model.flames&&model.flames.length){ ensureBackfire(model); for(const f of model.flames) f.visible=false; }
+  for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=window.__bfHold?(m.bfLife||0.1)*0.6:Math.max(0,(m.bfT||0)-dt);
+    const nit=phys.nitroOn&&(mode==='free'||mode==='race'); m.nitK=(m.nitK||0)+((nit?1:0)-(m.nitK||0))*Math.min(1,dt*12);
+    if(m.nitK>0.02 && m.bfT<=0){ m.bfT=0.0001; m.bfLife=0.0001; }
+    const on=m.bfT>0||m.nitK>0.02, life=m.nitK>0.02?Math.max(m.nitK,0.6):(on?m.bfT/(m.bfLife||0.1):0);
+    if(m.nitK>0.02) m.bfLen=0.75+Math.random()*0.15;
+    for(const g of m.backfire){ g.visible=on; if(!on) continue; const u=g.userData; u.mat.uniforms.uTime.value=performance.now()/1000; u.mat.uniforms.uLife.value=life; u.mat.uniforms.uNitro.value=m.nitK>0.02?1:0;
+      const grow=m.nitK>0.02?m.nitK:Math.min(1,(1-life)*6+0.25);                                       // shoots out fast, then pulls back
       const L=m.bfLen*grow*(0.9+Math.random()*0.2); u.fl.scale.set(L,L*0.42,1);
       // axial billboard: spin the quad about its own x axis so its face points at the camera
       g.updateWorldMatrix(true,false); g.getWorldQuaternion(_q); _iq.copy(_q).invert(); _cp.copy(camera.position); g.worldToLocal(_cp); u.fl.rotation.x=Math.atan2(-_cp.y,_cp.z); u.glow.material.opacity=0.45*life; } }

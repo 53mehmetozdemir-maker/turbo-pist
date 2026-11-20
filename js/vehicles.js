@@ -40,6 +40,7 @@ export const VEHICLES = {
     tailDiscs: [{ c: [-2.021, 0.648, -0.528], n: [-1, -0.03, -0.07], r: 0.08 }], darken: ['F40_GridD', 'F40_Grid', 'F40_Vehiclelight'],
   },
   model3: {
+    exhaust: { y: 0.33, z: [-0.35, 0.35], ev: true },
     name: 'Tesla Model 3 Performance', short: 'Model 3', info: 'Elektrik · 2 motor · 460 PS · 660 Nm · dört çeker',
     file: 'assets/cars/model3.glb', length: 4.694, front: '+z', sound: { kind: 'ev' },
     credit: 'Tesla Model 3: David_Holiday (Sketchfab, CC-BY-4.0)',
@@ -55,18 +56,19 @@ export const VEHICLES = {
     backTrim: true, cabin: [[-1.95, 0.3, 0], [1.0, 1.45, 0.95]],
     kit: { hide: [[-1.9, 0.2, -0.7], [1.02, 1.26, 0.7]], opt: { xDash: 1.1, xFace: 0.66, yTop: 0.93, yFloor: 0.3, halfW: 0.72, zDrv: -0.37, seatX: -0.42, seatY: 0.56, back: 0.28, roofY: 1.42, xVisor: null,
       doorZ: 0.83, xDoorF: 0.8, xDoorR: -0.4, rear: { x: -1.25, y: 0.6, w: 1.32 }, cluster: null, screen: { c: [0.668, 0.972, -0.01], w: 0.3, h: 0.18, tilt: -0.233, stand: true },
-      sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.185 }, shifter: 'none', trimKind: 'black', shelf: { x0: -1.98, x1: -1.5, y: 0.98 }, col: { dash: 0x1a1b1d, low: 0x121314, seat: 0x17181a, ins: '#25262a', stitch: '#4a4c52', amb: 0xffffff } } },
+      sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.185 }, shifter: 'none', trimKind: 'carbon', style: 'tesla', roofBar: { x: -0.32, y: 1.37 }, shelf: { x0: -1.98, x1: -1.5, y: 0.98 }, col: { dash: 0x1a1b1d, low: 0x121314, seat: 0x17181a, ins: '#25262a', stitch: '#4a4c52', amb: 0xffffff } } },
     dash: [{ c: [0.655, 0.975, -0.01], n: [-0.97, 0.23, 0], w: 0.3, h: 0.18, kind: 'tesla' }],
   },
   e2008: {
+    exhaust: { y: 0.38, z: [-0.38, 0.38], ev: true },
     name: 'Peugeot e-2008', short: 'e-2008', info: 'Elektrik · 136 PS · 260 Nm · önden çekiş · 150 km/sa',
     file: 'assets/cars/e2008.glb', length: 4.3, front: '+z', sound: { kind: 'ev' },
     credit: 'Peugeot e-2008: David_Holiday (Sketchfab, CC-BY-4.0)',
     spec: { mass: 1623, inertia: 2700, a: 1.04, b: 1.565, cgH: 0.58, r: 0.334, ev: true,
       gears: [8.6], reverse: 8.6, final: 1, idle: 0, redline: 10500, shiftUp: 99999, shiftDown: 0, eff: 0.92,
       tq: evCurve(260, 100, 10500), drag: 0.475, downforce: 0, brakeForce: 24000, drive: 'fwd', vmax: 150, regen: 70, grip: 0.82, hl: 2.13, hw: 0.88 },
-    lightBoxes: [{ mat: '2020_Peugeot_e-2008_black', min: [-9, 0.98, 0.42], max: [-1.75, 1.2, 0.8], as: 'tail' }, { mat: '2020_Peugeot_e-2008_black', min: [1.6, 0.78, 0.5], max: [9, 0.95, 0.8], as: 'head' }, { mat: '2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7', min: [1.5, 0.55, 0.15], max: [9, 1.1, 0.95], as: 'head' }, { mat: '2020_Peugeot_e-2008_chrome_0', min: [-1.5, 0.45, 0], max: [1.05, 1.3, 0.74], as: 'e2trim' }, { mat: '2020_Peugeot_e-2008_wheel_black', min: [-1.6, 0.45, 0], max: [1.1, 1.35, 0.76], as: 'e2dash' }],
-    mats: { paint: ['Bianca_White'], tail: [], head: [], glass: ['2020_Peugeot_e-2008_glass_clear', '2020_Peugeot_e-2008_vitres_exterieur'] },
+    lightBoxes: [{ mat: '2020_Peugeot_e-2008_black', min: [-9, 0.98, 0.42], max: [-1.75, 1.2, 0.8], as: 'tail' }, { mat: '2020_Peugeot_e-2008_glass_clear', min: [-9, 0.98, 0.35], max: [-1.8, 1.15, 0.8], as: 'tail' }, { mat: '2020_Peugeot_e-2008_black', min: [1.6, 0.78, 0.5], max: [9, 0.95, 0.8], as: 'head' }, { mat: '2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7', min: [1.5, 0.55, 0.15], max: [9, 1.1, 0.95], as: 'head' }, { mat: '2020_Peugeot_e-2008_chrome_0', min: [-1.5, 0.45, 0], max: [1.05, 1.3, 0.74], as: 'e2trim' }, { mat: '2020_Peugeot_e-2008_wheel_black', min: [-1.6, 0.45, 0], max: [1.1, 1.35, 0.76], as: 'e2dash' }],
+    mats: { paint: ['Bianca_White'], tail: ['2020_Peugeot_e-2008_rouge_vitre'], head: [], glass: ['2020_Peugeot_e-2008_glass_clear', '2020_Peugeot_e-2008_vitres_exterieur'] },
     navs: [{ c: [0.582, 1.045, 0.035], n: [-0.97, 0.15, -0.18], w: 0.235, h: 0.1 }],
     tint: { '2020_Peugeot_e-2008_int': [0x2e2f33, 0, 0.75], '2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7': [0x45474c, 0.4, 0.45], e2trim: [0x6a6d73, 0.7, 0.35], e2dash: [0x34363a, 0, 0.7], Color_M08: [0x2a2b2e, 0, 0.6] },
     wheelMats: /wheel_tire_01_dm|wheel_black/,
@@ -214,7 +216,7 @@ export function buildVehicle(id, color) {
   for (const nv of V.navs || []) { const n = new THREE.Vector3(...nv.n).normalize(); const u = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), n).normalize(), w = new THREE.Vector3().crossVectors(n, u);
     const sm = new THREE.Mesh(new THREE.PlaneGeometry(nv.w, nv.h), new THREE.MeshBasicMaterial({ map: navTex(), toneMapped: false, color: 0xd8d8d8 })); sm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, w, n)); sm.position.set(...nv.c).addScaledVector(n, 0.004); body.add(sm); }
   if (V.kit) { const cab = buildCabin(V.kit.opt); body.add(cab.group); swG = cab.swG; swAxis = cab.swAxis; }
-  const flames = []; if (V.exhaust) { const fm = new THREE.MeshBasicMaterial({ color: 0x66b3ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flames = []; if (V.exhaust) { const fm = new THREE.MeshBasicMaterial({ color: V.exhaust.ev ? 0x8f7bff : 0x66b3ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
     for (const z of V.exhaust.z) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.55, 10).rotateZ(Math.PI / 2), fm); f.position.set(T.rearX - 0.22, V.exhaust.y, z); f.visible = false; body.add(f); flames.push(f); } }
   for (const td of V.tailDiscs || []) for (const s of [1, -1]) { const n = new THREE.Vector3(td.n[0], td.n[1], td.n[2] * s).normalize(); const d = new THREE.Mesh(new THREE.CircleGeometry(td.r, 28), brakeMat);
     d.position.set(td.c[0], td.c[1], td.c[2] * s).addScaledVector(n, 0.012); d.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n); body.add(d); }
@@ -245,15 +247,16 @@ function drawDash(D, rpm, kmh, gear, nitro) {
     g.fillStyle = '#ddd'; g.font = 'bold 15px Inter,sans-serif'; g.fillText(d.kind === 'tach' ? 'RPM x1000' : 'km/h', c, c + 52);
     g.save(); g.translate(c, c); g.rotate(A(val)); g.fillStyle = '#ff7a10'; g.beginPath(); g.moveTo(-14, -4); g.lineTo(R - 18, -1.5); g.lineTo(R - 18, 1.5); g.lineTo(-14, 4); g.fill(); g.restore();
     g.fillStyle = '#222'; g.beginPath(); g.arc(c, c, 14, 0, 7); g.fill(); D.tex.needsUpdate = true; return; }
-  if (d.kind === 'tesla') { g.fillStyle = '#f3f4f6'; g.fillRect(0, 0, W, H); g.fillStyle = '#111'; g.font = `800 ${H * 0.34 | 0}px Inter,sans-serif`; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText(String(kmh), W * 0.06, H * 0.42);
-    g.font = `600 ${H * 0.08 | 0}px Inter,sans-serif`; g.fillStyle = '#666'; g.fillText('km/h', W * 0.06, H * 0.52);
-    ['P', 'R', 'N', 'D'].forEach((k, i) => { g.fillStyle = k === gear ? '#111' : '#bbb'; g.font = `700 ${H * 0.09 | 0}px Inter,sans-serif`; g.fillText(k, W * 0.06 + i * W * 0.045, H * 0.66); });
-    // simple car-and-road visualisation
-    g.fillStyle = '#d9dce1'; g.beginPath(); g.moveTo(W * 0.42, H); g.lineTo(W * 0.6, H * 0.12); g.lineTo(W * 0.66, H * 0.12); g.lineTo(W * 0.98, H); g.fill();
-    g.strokeStyle = '#fff'; g.lineWidth = 3; g.setLineDash([12, 12]); g.lineDashOffset = -(performance.now() / 1000 * kmh) % 24; g.beginPath(); g.moveTo(W * 0.7, H); g.lineTo(W * 0.63, H * 0.12); g.stroke(); g.setLineDash([]);
-    g.fillStyle = '#9aa0a8'; g.beginPath(); g.roundRect(W * 0.6, H * 0.62, W * 0.12, H * 0.28, 10); g.fill();
-    g.fillStyle = '#3b82f6'; g.fillRect(W * 0.06, H * 0.78, W * 0.3 * 0.82, H * 0.035); g.strokeStyle = '#999'; g.lineWidth = 2; g.strokeRect(W * 0.06, H * 0.78, W * 0.3, H * 0.035);
-    g.fillStyle = '#444'; g.font = `600 ${H * 0.06 | 0}px Inter,sans-serif`; g.fillText('82%  ·  402 km', W * 0.06, H * 0.9); D.tex.needsUpdate = true; return; }
+  if (d.kind === 'tesla') { // real Model 3 layout: left third = driving visualisation + speed/gear, right = map
+    const L = W * 0.36; g.fillStyle = '#16181c'; g.fillRect(0, 0, L, H); g.drawImage(navTex().image, L, 0, W - L, H);
+    g.fillStyle = '#f2f3f5'; g.font = `700 ${H * 0.2 | 0}px Inter,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillText(String(kmh), L * 0.5, H * 0.26);
+    g.font = `500 ${H * 0.055 | 0}px Inter,sans-serif`; g.fillStyle = '#8a9099'; g.fillText('KM/H', L * 0.5, H * 0.33);
+    ['P', 'R', 'N', 'D'].forEach((k, i) => { g.fillStyle = k === gear ? '#f2f3f5' : '#4b5058'; g.font = `700 ${H * 0.06 | 0}px Inter,sans-serif`; g.fillText(k, L * 0.32 + i * L * 0.12, H * 0.08); });
+    g.fillStyle = '#2b2e34'; g.beginPath(); g.moveTo(L * 0.18, H); g.lineTo(L * 0.44, H * 0.4); g.lineTo(L * 0.56, H * 0.4); g.lineTo(L * 0.82, H); g.fill();
+    g.strokeStyle = '#6b7079'; g.lineWidth = 2; g.setLineDash([10, 10]); g.lineDashOffset = -(performance.now() / 1000 * kmh) % 20; for (const sx of [0.32, 0.68]) { g.beginPath(); g.moveTo(L * sx, H); g.lineTo(L * (0.5 + (sx - 0.5) * 0.25), H * 0.42); g.stroke(); } g.setLineDash([]);
+    g.fillStyle = '#d8dbe0'; g.beginPath(); g.roundRect(L * 0.42, H * 0.66, L * 0.16, H * 0.24, 8); g.fill(); g.fillStyle = '#9aa0a8'; g.fillRect(L * 0.44, H * 0.72, L * 0.12, H * 0.06);
+    g.fillStyle = '#3ddc84'; g.fillRect(L * 0.08, H * 0.94, L * 0.22, H * 0.02); g.fillStyle = '#8a9099'; g.font = `500 ${H * 0.045 | 0}px Inter,sans-serif`; g.textAlign = 'left'; g.fillText('82%', L * 0.33, H * 0.965);
+    g.fillStyle = 'rgba(10,12,16,.85)'; g.fillRect(0, H * 0.985, W, H * 0.015); D.tex.needsUpdate = true; return; }
   if (d.kind === 'peugeot') { g.fillStyle = '#06080c'; g.fillRect(0, 0, W, H); const pw = Math.max(-0.3, Math.min(1, rpm / 10500));
     g.strokeStyle = '#1a2a3a'; g.lineWidth = H * 0.1; g.beginPath(); g.arc(W * 0.22, H * 0.62, H * 0.38, Math.PI * 0.8, Math.PI * 2.2); g.stroke();
     g.strokeStyle = '#2ec4ff'; g.beginPath(); g.arc(W * 0.22, H * 0.62, H * 0.38, Math.PI * 0.8, Math.PI * (0.8 + 1.4 * pw)); g.stroke();

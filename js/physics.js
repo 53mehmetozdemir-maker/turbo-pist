@@ -104,7 +104,7 @@ export class Car {
       if(CUT() && this.rpm>=P.redline && (thr>0.3||this.launch)){ this.cutT=0.06; this.cutEvent=(this.cutEvent||0)+1; this.cutsInGear=(this.cutsInGear||0)+1; } }
     this.rpm=Math.max(P.idle*0.9,this.rpm);
     this.nitroOn = inp.nitro && this.nitro>0 && thr>0.3 && !this.reversing;
-    if(this.nitroOn) this.nitro=Math.max(0,this.nitro-dt/4.5); else this.nitro=Math.min(1,this.nitro+dt/30);
+    if(this.nitroOn) this.nitro=Math.max(0,this.nitro-dt/6); else this.nitro=Math.min(1,this.nitro+dt/20);
     let Te = thr*torqueAt(this.rpm) * (this.nitroOn?2.1:1) * (1-this.damage*0.0025);
     if(this.cutT>0) Te=0;                               // limiter cut
     if(wheelRpm*ratio>=P.redline-20) Te=Math.min(Te,0);  // engine at the limiter: no more drive, the car can't go faster in this gear
