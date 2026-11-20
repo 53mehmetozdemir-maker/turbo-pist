@@ -52,9 +52,10 @@ export const VEHICLES = {
     wheelMats: null,
     cam: { cockpit: [-0.2, 1.27, -0.37], look: [6, 1.06, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
     mirrors: { in: { c: [0.62, 1.335, 0.0], n: [-0.99, -0.05, -0.12], w: 0.22, h: 0.055, housing: true }, L: { c: [0.52, 1.005, -0.952], n: [-0.89, 0, 0.46], w: 0.14, h: 0.085 } },
-    kit: { hide: [[-1.9, 0.27, -0.7], [1.02, 1.26, 0.7]], opt: { xDash: 1.1, xFace: 0.66, yTop: 0.93, yFloor: 0.3, halfW: 0.72, zDrv: -0.37, seatX: -0.42, seatY: 0.56, back: 0.28, roofY: 1.42, xVisor: null,
-      doors: false, doorZ: 0.79, xDoorF: 0.78, xDoorR: -0.38, rear: { x: -1.25, y: 0.6, w: 1.32 }, cluster: null, screen: { c: [0.668, 0.972, -0.01], w: 0.3, h: 0.18, tilt: -0.233, stand: true },
-      sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.18, flat: true }, shifter: 'none', trimKind: 'black', pillars: [{ x: -0.3, y0: 0.92, y1: 1.36, z: 0.7, w: 0.16 }], col: { dash: 0x1a1b1d, low: 0x121314, seat: 0x17181a, ins: '#25262a', stitch: '#4a4c52', amb: 0xffffff } } },
+    backTrim: true, cabin: [[-1.95, 0.3, 0], [1.0, 1.45, 0.95]],
+    kit: { hide: [[-1.9, 0.2, -0.7], [1.02, 1.26, 0.7]], opt: { xDash: 1.1, xFace: 0.66, yTop: 0.93, yFloor: 0.3, halfW: 0.72, zDrv: -0.37, seatX: -0.42, seatY: 0.56, back: 0.28, roofY: 1.42, xVisor: null,
+      doorZ: 0.83, xDoorF: 0.8, xDoorR: -0.4, rear: { x: -1.25, y: 0.6, w: 1.32 }, cluster: null, screen: { c: [0.668, 0.972, -0.01], w: 0.3, h: 0.18, tilt: -0.233, stand: true },
+      sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.185 }, shifter: 'none', trimKind: 'black', shelf: { x0: -1.98, x1: -1.5, y: 0.98 }, col: { dash: 0x1a1b1d, low: 0x121314, seat: 0x17181a, ins: '#25262a', stitch: '#4a4c52', amb: 0xffffff } } },
     dash: [{ c: [0.655, 0.975, -0.01], n: [-0.97, 0.23, 0], w: 0.3, h: 0.18, kind: 'tesla' }],
   },
   e2008: {
@@ -200,7 +201,12 @@ export function buildVehicle(id, color) {
   tints.cabtrim = tints.cabtrim || new THREE.MeshStandardMaterial({ color: V.trimColor || 0x1f2023, roughness: 0.92, envMapIntensity: 0.1 });
   const pick = mat => { const n = mat.name || ''; if (tints[n]) return tints[n]; if (V.darken && V.darken.includes(n)) return darkM; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
   const envMats = new Set([paint, glass, headMat, ...Object.values(tints)]);
-  for (const p of T.body) { const m = new THREE.Mesh(p.geo, p.role === 'tail' ? brakeMat : p.role === 'head' ? headMat : (p.role && tints[p.role]) ? tints[p.role] : pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m); }
+  // single-sided shell panels vanish when seen from inside (you'd see the sky through the roof and doors): give them a dark back face
+  const glassIn = new THREE.MeshPhysicalMaterial({ color: 0x1a2026, roughness: 0.05, transparent: true, opacity: 0.14, side: THREE.BackSide, depthWrite: false, envMapIntensity: 0.6 });   // faint tint/reflection seen from inside
+  const backTrim = new THREE.MeshStandardMaterial({ color: V.trimColor || 0x1c1d20, roughness: 0.92, side: THREE.BackSide, envMapIntensity: 0.1 });
+  for (const p of T.body) { const m = new THREE.Mesh(p.geo, p.role === 'tail' ? brakeMat : p.role === 'head' ? headMat : (p.role && tints[p.role]) ? tints[p.role] : pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m);
+    if (m.material === glass) { const gi = new THREE.Mesh(p.geo, glassIn); gi.renderOrder = 1; body.add(gi); }
+    const mm = m.material; if (V.backTrim && mm !== glass && mm !== brakeMat && mm !== headMat && !mm.transparent && (mm.side ?? 0) === THREE.FrontSide && !mm.isMeshBasicMaterial) { const bk = new THREE.Mesh(p.geo, backTrim); bk.receiveShadow = true; body.add(bk); } }
   const unsprung = new THREE.Group(); root.add(unsprung);
   const pivots = T.wheels.map((w, i) => { const steerG = new THREE.Group(), spin = new THREE.Group(); steerG.add(spin); if (w.c) steerG.position.copy(w.c); unsprung.add(steerG);
     for (const p of w.list) { const m = new THREE.Mesh(p.geo, pick(p.mat)); m.castShadow = true; spin.add(m); } return { steerG, spin, front: i < 2 }; });

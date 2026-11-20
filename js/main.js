@@ -647,12 +647,12 @@ function updateCamera(dt){
   const sh=shake; shake=Math.max(0,shake-dt*3);
   const rx=(Math.random()-.5)*sh*0.12, ry=(Math.random()-.5)*sh*0.12;
   if(camMode===0){
-    const bk=(model.bike?0.62:1)*look.zoom, back=(6.4+c.speed*0.012)*bk, up=(model.bike?1.65:2.2)*Math.sqrt(look.zoom);
+    const bk=(model.bike?0.62:1)*look.zoom, back=6.6*bk, up=(model.bike?1.65:2.2)*Math.sqrt(look.zoom);
     const va=c.speed>4?Math.atan2(c.vy,c.vx):c.a; let da=va-c.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI; const ha=c.a+da*0.35;
-    const tx=c.x-Math.cos(ha)*back, tz=c.y-Math.sin(ha)*back;
-    if(!camInit){ camPos.set(tx,up,tz); camInit=true; }
-    const k=1-Math.exp(-dt*10); camPos.x+=(tx-camPos.x)*k; camPos.z+=(tz-camPos.z)*k; camPos.y+=(up-camPos.y)*k;
-    { const dx=camPos.x-c.x, dz=camPos.z-c.y, d=Math.hypot(dx,dz), maxD=back+0.8, minD=back-1.2; if(d>maxD){ camPos.x=c.x+dx/d*maxD; camPos.z=c.y+dz/d*maxD; } else if(d<minD&&d>0.01){ camPos.x=c.x+dx/d*minD; camPos.z=c.y+dz/d*minD; } }
+    // the camera keeps a fixed distance behind the car (it only lags in angle), so hard acceleration / nitro never pulls it back
+    if(!camInit){ headG.x=ha; camPos.y=up; camInit=true; }
+    let dh=ha-headG.x; while(dh>Math.PI) dh-=2*Math.PI; while(dh<-Math.PI) dh+=2*Math.PI; headG.x+=dh*(1-Math.exp(-dt*7));
+    camPos.x=c.x-Math.cos(headG.x)*back; camPos.z=c.y-Math.sin(headG.x)*back; camPos.y+=(up-camPos.y)*(1-Math.exp(-dt*8));
     const vib=(Math.random()-.5)*(c.rough||0)*2;
     let px=camPos.x, py=camPos.y, pz=camPos.z;
     if(look.yaw||look.pitch){ const dx=px-c.x, dz=pz-c.y, cy=Math.cos(-look.yaw), sy=Math.sin(-look.yaw), d=Math.hypot(dx,dz);
@@ -661,7 +661,7 @@ function updateCamera(dt){
     const lw=Math.min(1,(Math.abs(look.yaw)+Math.abs(look.pitch))*2.5);
     camLook.set(c.x+ca*2.5*(1-lw),model.bike?0.85:0.9,c.y+sa*2.5*(1-lw)); camera.lookAt(camLook);
     camera.rotateZ(model.bike?-model.leanG.rotation.x*0.25:-(c.ayPrev||0)*0.004);
-    camera.fov=60+Math.min(18,c.speed*0.22)+(c.nitroOn?6:0);
+    camera.fov=60+Math.min(10,c.speed*0.12);
   } else {
     const local = camMode===1 ? (model.cockpit||[-0.22,1.13,-0.38]) : (model.hood||[0.55,1.33,0]);
     headG.x+=((-(c.axPrev||0)*0.012)-headG.x)*Math.min(1,dt*6); headG.z+=(((c.ayPrev||0)*-0.01)-headG.z)*Math.min(1,dt*6);

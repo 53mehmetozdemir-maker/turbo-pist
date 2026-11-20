@@ -137,6 +137,7 @@ export function buildCabin(o) {
   add(new THREE.BoxGeometry(xFace - (o.rear ? o.rear.x - 0.4 : o.seatX - 0.5), 0.012, halfW * 2).translate((xFace + (o.rear ? o.rear.x - 0.4 : o.seatX - 0.5)) / 2, yFloor + 0.006, 0), rubber);
   if (o.xVisor) { for (const s of [-1, 1]) add(rb(0.2, 0.022, 0.36, 0.01).translate(o.xVisor, o.roofY - 0.04, s * 0.37), new THREE.MeshStandardMaterial({ color: 0x8a8c90, roughness: 0.9 }));
     add(rb(0.16, 0.035, 0.22, 0.015).translate(o.xVisor - 0.05, o.roofY - 0.035, 0), lowM); }
+  if (o.shelf) add(new THREE.BoxGeometry(o.shelf.x1 - o.shelf.x0, 0.02, halfW * 2 + 0.1).translate((o.shelf.x0 + o.shelf.x1) / 2, o.shelf.y, 0), lowM);   // parcel shelf
   for (const pl of o.pillars || []) for (const s of [-1, 1]) add(rb(pl.w, pl.y1 - pl.y0, 0.03, 0.012).translate(pl.x, (pl.y0 + pl.y1) / 2, s * pl.z), lowM);   // pillar trims
   return { group: G, swG, swAxis: swn };
 }
