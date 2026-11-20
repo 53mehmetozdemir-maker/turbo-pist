@@ -144,9 +144,9 @@ export function buildCaddy(color) {
   add(panel(1.5, 0.008, rx - 0.003, 1.08), black);                  // tailgate shut line
   add(box(0.06, 0.02, 0.12, rx - 0.02, 0.78, 0), chrome);                  // tailgate handle
   // ---- mirrors ----
-  for (const s of [-1, 1]) { const h = new RoundedBoxGeometry(0.1, 0.16, 0.25, 4, 0.04); h.translate(0.995, 1.17, s * 1.0); add(h, paint); add(new THREE.BoxGeometry(0.01, 0.145, 0.235).translate(0.947, 1.17, s * 1.0), black);
+  for (const s of [-1, 1]) { const h = new RoundedBoxGeometry(0.1, 0.16, 0.25, 4, 0.04); h.translate(0.995, 1.17, s * 1.0); add(h, paint); add(new RoundedBoxGeometry(0.012, 0.142, 0.232, 4, 0.034).translate(0.946, 1.17, s * 1.0), black);
     add(box(0.06, 0.04, 0.12, 1.06, 1.1, s * 0.93), black); }
-  const mdefs = { in: { c: [0.56, 1.645, 0], n: [-0.99, -0.08, 0], w: 0.25, h: 0.065, housing: true }, L: { c: [0.941, 1.17, -1.0], n: [-1, 0, 0], w: 0.215, h: 0.13, fixed: true } };
+  const mdefs = { in: { c: [0.56, 1.645, 0], n: [-0.99, -0.08, 0], w: 0.25, h: 0.065, housing: true }, L: { c: [0.94, 1.17, -1.0], n: [-1, 0, 0], w: 0.21, h: 0.124, fixed: true, rad: 46 } };
   // ---- wheel arches, underbody ----
   for (const ax of [AX, -AX]) for (const s of [-1, 1]) add(new THREE.CylinderGeometry(ARCH + 0.005, ARCH + 0.005, 0.28, 24, 1, true, -Math.PI / 2, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).rotateY(0).translate(ax, RW, s * 0.78), plastic, body, false);
   add(box(4.3, 0.02, 1.7, 0.04, 0.26, 0), plastic, body, false);

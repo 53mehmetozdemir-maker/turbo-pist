@@ -204,16 +204,16 @@ function makeVehicleModel(id,color){ return (!VEHICLES[id]||VEHICLES[id].builtin
 let lastFdt=1/60;
 let model=makeVehicleModel(settings.vehicle,settings.color); scene.add(model.root);
 let mirrorPlane=null; const mirrorPlanes=[];
-function mirrorMesh(w,h,u0,u1,v0,v1,rad){ const g=new THREE.PlaneGeometry(w,h); const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,u1-uv.getX(i)*(u1-u0),v0+uv.getY(i)*(v1-v0));
+function mirrorMesh(w,h,u0,u1,v0,v1,rad,mask=null){ const g=new THREE.PlaneGeometry(w,h); const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,u1-uv.getX(i)*(u1-u0),v0+uv.getY(i)*(v1-v0));
   const am=document.createElement('canvas'); am.width=256; am.height=Math.round(256*h/w); const c=am.getContext('2d'); c.fillStyle='#000'; c.fillRect(0,0,am.width,am.height); c.fillStyle='#fff'; c.beginPath(); c.roundRect(3,3,250,am.height-6,rad); c.fill();
-  const ag=new THREE.CanvasTexture(am); // alpha mask uses the plane's own (unremapped) coords
+  const ag=new THREE.CanvasTexture(mask||am); // alpha mask uses the plane's own (unremapped) coords
   const mat=new THREE.MeshBasicMaterial({map:mirrorRT.texture,fog:false,transparent:false}); mat.onBeforeCompile=s=>{ s.vertexShader=s.vertexShader.replace('#include <uv_pars_vertex>','#include <uv_pars_vertex>\nattribute vec2 uv2m; varying vec2 vMk;').replace('#include <uv_vertex>','#include <uv_vertex>\nvMk=uv2m;');
     s.uniforms.mk={value:ag}; s.fragmentShader=s.fragmentShader.replace('#include <map_pars_fragment>','#include <map_pars_fragment>\nuniform sampler2D mk; varying vec2 vMk;').replace('#include <alphatest_fragment>','if(texture2D(mk,vMk).r<0.5) discard;'); };
   const base=new THREE.PlaneGeometry(w,h).attributes.uv; g.setAttribute('uv2m',base.clone()); const mesh=new THREE.Mesh(g,mat); mesh.visible=false; return mesh; }
 function attachMirrors(){ mirrorPlane=null; mirrorPlanes.length=0;
   const D=model.mirrorDefs; if(model.vid){ if(!D) return;
     const place=(def,u0,u1,rad,inner)=>{ const n=new THREE.Vector3(...def.n).normalize(); const u=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),n).normalize(), w=new THREE.Vector3().crossVectors(n,u);
-      const mm=mirrorMesh(def.w,def.h,u0,u1,inner?0.15:0.08,inner?0.85:0.95,rad); mm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u,w,n)); mm.position.set(...def.c).addScaledVector(n,0.004); model.body.add(mm); mirrorPlanes.push(mm);
+      const mm=mirrorMesh(def.w,def.h,u0,u1,inner?0.15:0.08,inner?0.85:0.95,rad,def.mask||null); mm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u,w,n)); mm.position.set(...def.c).addScaledVector(n,0.004); model.body.add(mm); mirrorPlanes.push(mm);
       if(def.housing){ const fr=def.frame??0.025, hb=new THREE.Mesh(new RoundedBoxGeometry(def.w+fr,def.h+fr,0.022,3,Math.min(0.012,(def.h+fr)/2-0.001)),new THREE.MeshStandardMaterial({color:0x121212,roughness:0.6})); hb.quaternion.copy(mm.quaternion); hb.position.set(...def.c).addScaledVector(n,-0.012); model.body.add(hb);
         const al=def.arm??0.08, arm=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.007,al,8),hb.material); arm.position.set(def.c[0]+0.015,def.c[1]+def.h/2+al/2,def.c[2]); model.body.add(arm); }
       return mm; };
@@ -224,14 +224,21 @@ function attachMirrors(){ mirrorPlane=null; mirrorPlanes.length=0;
       model.body.traverse(o=>{ if(!o.isMesh||!o.geometry.attributes.position||o.material.transparent||mirrorPlanes.includes(o)) return; const P=o.geometry.attributes.position, I=o.geometry.index; const mw=new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld);
         const cnt=I?I.count:P.count; for(let t=0;t<cnt;t+=3){ const ia=I?I.getX(t):t, ib=I?I.getX(t+1):t+1, ic=I?I.getX(t+2):t+2; A.fromBufferAttribute(P,ia).applyMatrix4(mw); if(A.distanceTo(c)>0.3) continue; B.fromBufferAttribute(P,ib).applyMatrix4(mw); C.fromBufferAttribute(P,ic).applyMatrix4(mw);
           N.subVectors(B,A).cross(C.clone().sub(A)); const ar=N.length(); if(ar<1e-9) continue; N.divideScalar(ar); M.copy(A).add(B).add(C).divideScalar(3); if(M.distanceTo(c)>0.22) continue;
-          const d=Math.abs(N.dot(n)); if(d<0.75) continue; faces.push({o:M.clone().sub(c).dot(n), pts:[A.clone(),B.clone(),C.clone()], ar}); } });
-      if(faces.length<4)return def; const hist=new Map(); for(const f of faces){ const k=Math.round(f.o/0.01); hist.set(k,(hist.get(k)||0)+f.ar); } let bk=0,ba=-1; for(const [k,a] of hist){ const a3=a+(hist.get(k-1)||0)+(hist.get(k+1)||0); if(a3>ba){ ba=a3; bk=k; } } const top=bk*0.01+0.015; const sel=faces.filter(f=>Math.abs(f.o-bk*0.01)<0.02); if(sel.length<2)return def;
+          const d=Math.abs(N.dot(n)); if(d<0.6) continue; faces.push({o:M.clone().sub(c).dot(n), pts:[A.clone(),B.clone(),C.clone()], ar}); } });
+      if(faces.length<4)return def; const hist=new Map(); for(const f of faces){ const k=Math.round(f.o/0.01); hist.set(k,(hist.get(k)||0)+f.ar); } let bk=0,ba=-1; for(const [k,a] of hist){ const a3=a+(hist.get(k-1)||0)+(hist.get(k+1)||0); if(a3>ba){ ba=a3; bk=k; } } const top=bk*0.01+0.015; const sel=faces.filter(f=>Math.abs(f.o-bk*0.01)<0.035); if(sel.length<2)return def;
       let u0=1e9,u1=-1e9,w0=1e9,w1=-1e9; for(const f of sel) for(const q of f.pts){ const d=q.clone().sub(c); const a=d.dot(u), b=d.dot(w); u0=Math.min(u0,a); u1=Math.max(u1,a); w0=Math.min(w0,b); w1=Math.max(w1,b); }
-      const W=(u1-u0)*0.86, H=(w1-w0)*0.84; if(W<0.06||H<0.04||W>0.4||H>0.3)return def;
-      const cc=c.clone().addScaledVector(u,(u0+u1)/2).addScaledVector(w,(w0+w1)/2).addScaledVector(n,top+0.003);
-      return {...def,c:cc.toArray(),w:W,h:H}; };
+      const W=u1-u0, H=w1-w0; if(W<0.06||H<0.04||W>0.45||H>0.32) return def;
+      // trace the housing's real outline into the glass mask, then erode it a little so a thin rim of housing frames the glass
+      const MW=256, MH=Math.max(32,Math.round(256*H/W)), cv=document.createElement('canvas'); cv.width=MW; cv.height=MH; const g=cv.getContext('2d'); g.fillStyle='#000'; g.fillRect(0,0,MW,MH); g.fillStyle='#fff';
+      const px=q=>{ const d=q.clone().sub(c); return [(d.dot(u)-u0)/W*MW,(1-(d.dot(w)-w0)/H)*MH]; };
+      for(const f of sel){ const P=f.pts.map(px); g.beginPath(); g.moveTo(...P[0]); g.lineTo(...P[1]); g.lineTo(...P[2]); g.closePath(); g.fill(); g.strokeStyle='#fff'; g.lineWidth=1.2; g.stroke(); }
+      const er=Math.max(3,Math.round(MW*0.022/W*0.1*10)); const src=document.createElement('canvas'); src.width=MW; src.height=MH; src.getContext('2d').drawImage(cv,0,0);
+      g.globalCompositeOperation='destination-in'; for(let k=0;k<12;k++){ const t=k/12*Math.PI*2; g.drawImage(src,Math.cos(t)*er,Math.sin(t)*er); } g.globalCompositeOperation='source-over';
+      const oMax=Math.max(...sel.map(f=>f.o));
+      const cc=c.clone().addScaledVector(u,(u0+u1)/2).addScaledVector(w,(w0+w1)/2).addScaledVector(n,oMax+0.0025);
+      return {...def,c:cc.toArray(),w:W,h:H,mask:cv}; };
     if(D.in) mirrorPlane=place(D.in,0.18,0.82,26,true);
-    if(D.L){ const R={...D.L,c:[D.L.c[0],D.L.c[1],-D.L.c[2]],n:[D.L.n[0],D.L.n[1],-D.L.n[2]]}; place(D.L.fixed?D.L:fit(D.L),0.6,1.0,40,false); place(D.L.fixed?R:fit(R),0.0,0.4,40,false); }
+    if(D.L){ const R={...D.L,c:[D.L.c[0],D.L.c[1],-D.L.c[2]],n:[D.L.n[0],D.L.n[1],-D.L.n[2]]}; place(D.L.fixed?D.L:fit(D.L),0.6,1.0,D.L.rad||40,false); place(D.L.fixed?R:fit(R),0.0,0.4,D.L.rad||40,false); }
     return; }
   mirrorPlane=mirrorMesh(0.228,0.058,0.18,0.82,0.15,0.85,26); mirrorPlane.geometry.rotateY(-Math.PI/2); mirrorPlane.position.set(0.471,1.0925,-0.007); mirrorPlane.rotation.y=-0.14; model.body.add(mirrorPlane); mirrorPlanes.push(mirrorPlane);
   for(const s of [-1,1]){ const n=new THREE.Vector3(-0.9,0.01,-s*0.44).normalize(); const u=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),n).normalize(), w=new THREE.Vector3().crossVectors(n,u);
