@@ -14,7 +14,7 @@ export class Particles {
     const mat=new THREE.ShaderMaterial({ transparent:true, depthWrite:false, vertexColors:true,
       uniforms:{ scale:{value:600}, lit:{value:1}, maxPx:{value:400} },
       vertexShader:`attribute float size; attribute float alpha; varying float vA; varying vec3 vC; uniform float scale;
-        uniform float maxPx; void main(){ vA=alpha; vC=color; vec4 mv=modelViewMatrix*vec4(position,1.0); float px=size*scale/max(0.1,-mv.z); vA*=clamp(maxPx/px,0.0,1.0); gl_PointSize=min(px,maxPx); gl_Position=projectionMatrix*mv; }`,
+        uniform float maxPx; void main(){ vA=alpha; vC=color; vec4 mv=modelViewMatrix*vec4(position,1.0); float px=size*scale/max(0.1,-mv.z); vA*=clamp(maxPx/px,0.0,1.0)*smoothstep(0.8,3.5,-mv.z); gl_PointSize=min(px,maxPx); gl_Position=projectionMatrix*mv; }`,
       fragmentShader:`varying float vA; varying vec3 vC; uniform float lit; void main(){ vec2 d=gl_PointCoord-0.5; float r=dot(d,d)*4.0; if(r>1.0) discard; float a=vA*exp(-r*3.2)*(1.0-r); vec3 c=vC; if(vC.r<0.95||vC.g<0.6) c*=lit; gl_FragColor=vec4(c,a); }` });
     this.points=new THREE.Points(g,mat); this.points.frustumCulled=false; scene.add(this.points); this.mat=mat;
   }

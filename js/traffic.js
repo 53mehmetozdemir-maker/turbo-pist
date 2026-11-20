@@ -96,7 +96,8 @@ export class Traffic {
         if (Math.hypot(px - c.x, py - c.y) > 15) { c.x = px; c.y = py; c.a = r[2]; }
         const ox = c.x, oy = c.y; c.x += (px - c.x) * k; c.y += (py - c.y) * k; let da = r[2] - c.a; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; c.a += da * k; c.brake = !!r[3]; c.vx = (c.x - ox); c.vy = (c.y - oy); c.v = r[4]; });
     }
-    for (const c of this.cars) f.set(c.id, c.x, c.y, c.a, c.brake);
+    const ah = this.remote ? 0 : (this.ahead || 0);
+    for (const c of this.cars) { const s = (c.v || 0) * ah; f.set(c.id, c.x + Math.cos(c.a) * s, c.y + Math.sin(c.a) * s, c.a, c.brake); }
   }
   // obstacles for the player's physics
   obstacles(dt) { return this.cars.map(c => ({ x: c.x, y: c.y, a: c.a, vx: Math.cos(c.a) * c.v, vy: Math.sin(c.a) * c.v })); }

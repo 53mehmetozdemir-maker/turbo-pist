@@ -45,8 +45,8 @@ document.body.prepend(renderer.domElement); renderer.domElement.id='c';
 const scene=new THREE.Scene();
 scene.fog=new THREE.Fog(0xc9d9e8,200,1100);
 const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.05,4000);
-const mirrorCam=new THREE.PerspectiveCamera(50,3.2,0.1,500);
-const mirrorRT=new THREE.WebGLRenderTarget(560,165,{type:THREE.HalfFloatType});
+const mirrorCam=new THREE.PerspectiveCamera(26,4.4,0.3,260);
+const mirrorRT=new THREE.WebGLRenderTarget(704,160,{type:THREE.HalfFloatType});
 const mirScene=new THREE.Scene(), mirOrtho=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 { const q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:mirrorRT.texture,depthTest:false,depthWrite:false,side:THREE.DoubleSide})); q.scale.x=-1; mirScene.add(q); }
 const pmrem=new THREE.PMREMGenerator(renderer);
@@ -84,12 +84,15 @@ function ensureWorld(map){
   return worlds[map];
 }
 let W=null;   // active world
+// compile every shader up front (hidden effects too) so nothing hitches the first time it appears
+function precompile(){ try{ const hidden=[]; scene.traverse(o=>{ if(!o.visible && !(o.isGroup&&Object.values(worlds).some(w=>w.group===o))){ hidden.push(o); o.visible=true; } });
+  renderer.compile(scene,camera); for(const o of hidden) o.visible=false; }catch(e){ console.warn('precompile',e); } }
 function useWorld(map){
   W=ensureWorld(map); lastModeT=performance.now();
   for(const k in worlds){ const on=worlds[k]===W; worlds[k].group.visible=on; if(worlds[k].peds) for(const m of worlds[k].peds.meshes) m.visible=on; }
   for(const k of ['body','glass','dark','head','tail']) {}   // fleet only used in the city
   fleetVisible(map==='city');
-  phys.world=W.phys; applyTime(settings.time); miniBg=null; $('mini').classList.toggle('sq',map==='track');
+  phys.world=W.phys; setTimeout(precompile,0); applyTime(settings.time); miniBg=null; $('mini').classList.toggle('sq',map==='track');
 }
 function fleetVisible(v){ scene.traverse(o=>{ if(o.isInstancedMesh && o.userData.fleet) o.visible=v; }); }
 
@@ -193,20 +196,32 @@ function applyWeather(wx){
 // ---------------- local car ----------------
 const phys=new Car(); phys.manual=settings.manual; phys.assists=settings.assists; phys.world=trackWorld;
 const model=buildCar(settings.color); scene.add(model.root);
-let mirrorPlane=null;
-if(model.setPose){ const mg=new THREE.PlaneGeometry(0.228,0.058); const uv=mg.attributes.uv; for(let i=0;i<uv.count;i++) uv.setX(i,1-uv.getX(i)); mg.rotateY(-Math.PI/2);
-  const am=document.createElement('canvas'); am.width=256; am.height=64; { const g=am.getContext('2d'); g.fillStyle='#000'; g.fillRect(0,0,256,64); g.fillStyle='#fff'; g.beginPath(); g.roundRect(3,3,250,58,26); g.fill(); }
-  mirrorPlane=new THREE.Mesh(mg,new THREE.MeshBasicMaterial({map:mirrorRT.texture,alphaMap:new THREE.CanvasTexture(am),alphaTest:0.5,fog:false})); mirrorPlane.position.set(0.471,1.0925,-0.007); mirrorPlane.rotation.y=-0.14; mirrorPlane.visible=false; model.body.add(mirrorPlane); }
+let mirrorPlane=null; const mirrorPlanes=[];
+function mirrorMesh(w,h,u0,u1,v0,v1,rad){ const g=new THREE.PlaneGeometry(w,h); const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,u1-uv.getX(i)*(u1-u0),v0+uv.getY(i)*(v1-v0));
+  const am=document.createElement('canvas'); am.width=256; am.height=Math.round(256*h/w); const c=am.getContext('2d'); c.fillStyle='#000'; c.fillRect(0,0,am.width,am.height); c.fillStyle='#fff'; c.beginPath(); c.roundRect(3,3,250,am.height-6,rad); c.fill();
+  const ag=new THREE.CanvasTexture(am); // alpha mask uses the plane's own (unremapped) coords
+  const mat=new THREE.MeshBasicMaterial({map:mirrorRT.texture,fog:false,transparent:false}); mat.onBeforeCompile=s=>{ s.vertexShader=s.vertexShader.replace('#include <uv_pars_vertex>','#include <uv_pars_vertex>\nattribute vec2 uv2m; varying vec2 vMk;').replace('#include <uv_vertex>','#include <uv_vertex>\nvMk=uv2m;');
+    s.uniforms.mk={value:ag}; s.fragmentShader=s.fragmentShader.replace('#include <map_pars_fragment>','#include <map_pars_fragment>\nuniform sampler2D mk; varying vec2 vMk;').replace('#include <alphatest_fragment>','if(texture2D(mk,vMk).r<0.5) discard;'); };
+  const base=new THREE.PlaneGeometry(w,h).attributes.uv; g.setAttribute('uv2m',base.clone()); const mesh=new THREE.Mesh(g,mat); mesh.visible=false; return mesh; }
+if(model.setPose){
+  mirrorPlane=mirrorMesh(0.228,0.058,0.18,0.82,0.15,0.85,26); mirrorPlane.geometry.rotateY(-Math.PI/2); mirrorPlane.position.set(0.471,1.0925,-0.007); mirrorPlane.rotation.y=-0.14; model.body.add(mirrorPlane); mirrorPlanes.push(mirrorPlane);
+  for(const s of [-1,1]){ const n=new THREE.Vector3(-0.9,0.01,-s*0.44).normalize(); const u=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),n).normalize(), w=new THREE.Vector3().crossVectors(n,u);
+    const sm=mirrorMesh(0.184,0.104,s<0?0.6:0.0,s<0?1.0:0.4,0.08,0.95,40); sm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u,w,n)); sm.position.set(0.611,0.859,s*1.033).addScaledVector(n,0.002); model.body.add(sm); mirrorPlanes.push(sm); } }
 const headSpot=new THREE.SpotLight(0xfff2d8,0,90,0.55,0.45,1.2); headSpot.position.set(2.1,0.7,0); model.body.add(headSpot);
 const headTarget=new THREE.Object3D(); headTarget.position.set(25,-1.5,0); model.body.add(headTarget); headSpot.target=headTarget;
 let headlightsOn=false;
 let cubeRT=null, cubeCam=null;
-if(settings.quality==='high' && model.setEnvMap){ cubeRT=new THREE.WebGLCubeRenderTarget(96,{type:THREE.HalfFloatType}); cubeCam=new THREE.CubeCamera(0.3,350,cubeRT); scene.add(cubeCam); }
+if(settings.quality==='high' && model.setEnvMap){ cubeRT=new THREE.WebGLCubeRenderTarget(96,{type:THREE.HalfFloatType}); cubeCam=new THREE.CubeCamera(0.3,220,cubeRT); scene.add(cubeCam); }
+let cubeFace=0;
 function updateReflections(){
   if(!cubeCam) return; const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false;
-  model.root.visible=false; rain.m.visible=false; cubeCam.position.set(phys.x,1.0,phys.y); cubeCam.update(renderer,scene);
+  model.root.visible=false; rain.m.visible=false;
+  if(!updateReflections.on){ cubeCam.position.set(phys.x,1.0,phys.y); cubeCam.update(renderer,scene); model.setEnvMap(cubeRT.texture); updateReflections.on=true; }
+  else { if(cubeFace===0){ cubeCam.position.set(phys.x,1.0,phys.y); cubeCam.updateMatrixWorld(true); }
+    const tex=cubeRT.texture, mau=tex.mipmapsAutoUpdate; tex.mipmapsAutoUpdate=cubeFace===5;
+    renderer.setRenderTarget(cubeRT,cubeFace); renderer.render(scene,cubeCam.children[cubeFace]); renderer.setRenderTarget(null); tex.mipmapsAutoUpdate=mau;
+    if(cubeFace===5) tex.needsPMREMUpdate=true; cubeFace=(cubeFace+1)%6; }
   model.root.visible=true; rain.m.visible=wet; renderer.shadowMap.autoUpdate=au;
-  if(!updateReflections.on){ model.setEnvMap(cubeRT.texture); updateReflections.on=true; }
 }
 function setMyColor(c){ settings.color=c; model.paint.color.set(c); }
 const smoke=new Particles(scene,settings.quality==='low'?250:700);
@@ -551,7 +566,7 @@ function renderMini(){
   const dot=(x,y,c,r)=>{ mctx.fillStyle=c; mctx.beginPath(); mctx.arc(mox+x*ms,moy+y*ms,r,0,7); mctx.fill(); mctx.strokeStyle='#000'; mctx.lineWidth=1.5; mctx.stroke(); };
   for(const r of remotes.values()) dot(r.x,r.y,r.color,4.5); dot(phys.x,phys.y,settings.color,6);
 }
-let frameNo=0, fps=0, fpsN=0, fpsT=performance.now();
+let frameNo=0, fps=0, fpsN=0, fpsT=performance.now(); const fpsHist=[]; let prT=0;
 // ---- instrument cluster (canvas): rev counter arc, needle, speed, gear, nitro, damage ----
 const gcv=$('gauge'), gdpr=Math.min(2,DPR); gcv.width=300*gdpr; gcv.height=220*gdpr; const gx=gcv.getContext('2d'); let gNeedle=0;
 function drawCluster(){
@@ -604,7 +619,7 @@ function updateHud(){
 }
 
 // ---------------- main loop ----------------
-const STEP=1/120; let acc=0, last=performance.now(), trafAcc=0, trafSend=0, lampT=0;
+const STEP=1/120; let interp=null; const pPrev={x:0,y:0,a:0}; let acc=0, last=performance.now(), trafAcc=0, trafSend=0, lampT=0;
 addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); if(composer){ composer.setSize(innerWidth,innerHeight); } });
 useWorld(settings.map); applyWeather(settings.weather); parkShowcase(); updateMenuLabels();
 
@@ -613,8 +628,10 @@ function frame(t){
   const fdt=Math.min(0.1,Math.max(0,(t-last)/1000)); last=t; frameNo++;
   fpsN++; if(t-fpsT>1000){ fps=Math.round(fpsN*1000/(t-fpsT)); fpsN=0; fpsT=t;
     // keep it smooth: lower the render resolution when the GPU struggles, raise it again when there is headroom
-    if(document.visibilityState==='visible' && document.hasFocus() && fps>14 && t-lastModeT>3000){ let pr=curPR; if(fps<42) pr=Math.max(BASE_PR*0.6,curPR-0.08); else if(fps>56 && curPR<BASE_PR) pr=Math.min(BASE_PR,curPR+0.06);
-      if(pr!==curPR){ curPR=pr; renderer.setPixelRatio(curPR); if(composer) composer.setPixelRatio(curPR); } } }
+    if(document.visibilityState==='visible' && document.hasFocus() && fps>14 && t-lastModeT>3000){ fpsHist.push(fps); if(fpsHist.length>4) fpsHist.shift();
+      const avg=fpsHist.reduce((s,v)=>s+v,0)/fpsHist.length; let pr=curPR;
+      if(fpsHist.length>=3 && avg<40 && t-prT>4000) pr=Math.max(BASE_PR*0.6,curPR-0.15); else if(fpsHist.length>=4 && avg>58 && curPR<BASE_PR && t-prT>8000) pr=Math.min(BASE_PR,curPR+0.1);
+      if(pr!==curPR){ curPR=pr; prT=t; fpsHist.length=0; renderer.setPixelRatio(curPR); if(composer) composer.setPixelRatio(curPR); } } else fpsHist.length=0; }
   handleEdges(); if(respawnCool>0) respawnCool-=fdt;
   const inp=readInput();
   const driving=mode==='race'||mode==='countdown'||mode==='free';
@@ -631,7 +648,7 @@ function frame(t){
   if(W.kind==='city'){
     const players=[{x:phys.x,y:phys.y,vx:phys.vx,vy:phys.vy,speed:phys.speed}]; for(const r of remotes.values()) players.push({x:r.x,y:r.y,vx:r.vx,vy:r.vy,speed:Math.abs(r.v)});
     const sim=!online||net.isHost;
-    if(sim){ trafAcc+=fdt; let n=0; while(trafAcc>=1/30 && n<4){ W.traffic.step(1/30,players); trafAcc-=1/30; n++; } W.traffic.remote=null; }
+    if(sim){ trafAcc+=fdt; let n=0; while(trafAcc>=1/30 && n<4){ W.traffic.step(1/30,players); trafAcc-=1/30; n++; } if(n>=4) trafAcc=0; W.traffic.remote=null; W.traffic.ahead=trafAcc; } else W.traffic.ahead=0;
     if(online && net.isHost){ trafSend+=fdt; if(trafSend>0.1){ trafSend=0; net.sendAll({t:'x',k:'tr',d:W.traffic.pack()}); } }
     fleet.cam.copy(camera.position); if(camMode===1&&mode!=='menu'&&mode!=='lobby') fleet.camDir.set(0,0,0); else camera.getWorldDirection(fleet.camDir); W.traffic.render(fdt); fleet.commit();
     W.peds.update(fdt,players);
@@ -647,14 +664,17 @@ function frame(t){
     acc+=fdt; const others=[...remotes.values()]; if(W.kind==='city') others.push(...W.traffic.obstacles());
     const drive = mode==='countdown' ? {steer:inp.steer,gas:inp.gas,brake:0,hand:false,nitro:false,analog:inp.analog}
                 : (mode==='race' && me.fin) ? {steer:0,gas:0,brake:0.6,hand:false,nitro:false} : inp;
+    if(interp && phys.x===interp.ix && phys.y===interp.iy && phys.a===interp.ia){ phys.x=interp.x; phys.y=interp.y; phys.a=interp.a; } interp=null;
     while(acc>=STEP){
-      const hx=phys.x,hy=phys.y,ha=phys.a;
+      const hx=phys.x,hy=phys.y,ha=phys.a; pPrev.x=hx; pPrev.y=hy; pPrev.a=ha;
       phys.step(STEP,drive,others);
       if(mode==='countdown'){ phys.x=hx; phys.y=hy; phys.a=ha; phys.vx=phys.vy=phys.yawRate=0; }
       if(phys.impact>4){ dentCar(model,phys.impactAt.lx,phys.impactAt.lz,Math.min(3,phys.impact/8)); audio.impact(phys.impact); shake=Math.min(1.5,shake+phys.impact*0.06); phys.impact=0; }
       acc-=STEP;
     }
     if(mode==='race') lapLogic();
+    { const al=Math.min(1,acc/STEP), da=phys.a-pPrev.a; if(Math.abs(da)<1 && Math.abs(phys.x-pPrev.x)+Math.abs(phys.y-pPrev.y)<3){ const ix=pPrev.x+(phys.x-pPrev.x)*al, iy=pPrev.y+(phys.y-pPrev.y)*al, ia=pPrev.a+da*al;
+        interp={x:phys.x,y:phys.y,a:phys.a,ix,iy,ia}; phys.x=ix; phys.y=iy; phys.a=ia; } }
     horn=!!inp.horn; audio.horn('me',horn,1);
     if(online) net.set({x:+phys.x.toFixed(2),y:+phys.y.toFixed(2),a:+phys.a.toFixed(3),v:+phys.vLong.toFixed(2),sr:+phys.steer.toFixed(3),bk:phys.brake>0.1||phys.hand>0,nt:phys.nitroOn,hn:horn,hl:headlightsOn,lap:me.lap,cp:me.cp,idx:me.idx,fin:me.fin,ft:Math.round(me.ft),best:Math.round(bestLap)});
     if(phys.kerb||phys.surfF===2) shake=Math.max(shake,Math.min(0.35,phys.speed*0.01));
@@ -681,16 +701,16 @@ function frame(t){
   if(model.shiftMat) model.shiftMat.emissiveIntensity=driving&&phys.rpm>6200?(phys.rpm>7300&&frameNo%6<3?0.3:4):0;
   if(driving && camMode===1 && frameNo%3===0) drawGauges(model,phys.rpm,phys.kmh,phys.gearLabel(),phys.nitro);
   if(driving) updateHud();
-  if(mirrorPlane) mirrorPlane.visible=driving&&camMode===1;
+  for(const mp of mirrorPlanes) mp.visible=driving&&camMode===1;
   drawDrops(fdt,driving&&camMode!==0&&wet&&!paused);
   // render
   renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
   if(composer) composer.render(); else renderer.render(scene,camera);
-  if(driving && frameNo%10===0) updateReflections();
+  if(driving) updateReflections();
   if(driving && camMode===1){
-    if(frameNo%2===0){
+    {
       const mp=model.mirror||[0.3,1.2,0]; const p=worldOf(model,mp[0],mp[1],mp[2]), back=worldOf(model,-20,0.9,0);
-      mirrorCam.position.copy(p); mirrorCam.lookAt(back); mirrorCam.aspect=mirrorPlane?0.228/0.058:3.4; mirrorCam.fov=mirrorPlane?22:50; mirrorCam.updateProjectionMatrix();
+      mirrorCam.position.copy(p); mirrorCam.lookAt(back); 
       const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false; model.root.visible=false; rain.m.visible=false;
       renderer.setRenderTarget(mirrorRT); renderer.render(scene,mirrorCam); renderer.setRenderTarget(null);
       model.root.visible=true; rain.m.visible=wet; renderer.shadowMap.autoUpdate=au;
