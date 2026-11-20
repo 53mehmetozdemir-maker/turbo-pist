@@ -260,24 +260,24 @@ const bfCore=new THREE.MeshBasicMaterial({color:0xfff0b0,transparent:true,opacit
 const bfGlowTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d'); const r=g.createRadialGradient(32,32,0,32,32,32); r.addColorStop(0,'rgba(255,230,160,1)'); r.addColorStop(0.35,'rgba(255,140,40,.7)'); r.addColorStop(1,'rgba(255,60,0,0)'); g.fillStyle=r; g.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
 const bfLight=new THREE.PointLight(0xff8a30,0,7,2); scene.add(bfLight);
 function ensureBackfire(m){ if(m.backfire) return m.backfire; m.backfire=(m.flames||[]).map(f=>{ const g=new THREE.Group(); g.position.copy(f.position); g.rotation.copy(f.rotation);
-    const outer=new THREE.Mesh(new THREE.ConeGeometry(0.075,0.5,12,1,true).rotateZ(Math.PI/2).translate(-0.2,0,0),bfMat); const core=new THREE.Mesh(new THREE.ConeGeometry(0.035,0.28,10,1,true).rotateZ(Math.PI/2).translate(-0.1,0,0),bfCore);
-    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:bfGlowTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); glow.scale.set(0.7,0.7,1); glow.position.x=-0.08;
+    const outer=new THREE.Mesh(new THREE.ConeGeometry(0.11,0.75,12,1,true).rotateZ(Math.PI/2).translate(-0.33,0,0),bfMat); const core=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.4,10,1,true).rotateZ(Math.PI/2).translate(-0.17,0,0),bfCore);
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:bfGlowTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); glow.scale.set(1.1,1.1,1); glow.position.x=-0.12;
     g.add(outer,core,glow); g.visible=false; f.parent.add(g); g.userData={outer,core,glow}; return g; }); m.bfT=0; return m.backfire; }
 const SPARKS=240, spPos=new Float32Array(SPARKS*3), spCol=new Float32Array(SPARKS*3), spV=new Float32Array(SPARKS*3), spLife=new Float32Array(SPARKS); let spNext=0;
 const spGeo=new THREE.BufferGeometry(); spGeo.setAttribute('position',new THREE.BufferAttribute(spPos,3)); spGeo.setAttribute('color',new THREE.BufferAttribute(spCol,3));
 const sparks=new THREE.Points(spGeo,new THREE.PointsMaterial({size:0.06,map:bfGlowTex,vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); sparks.frustumCulled=false; scene.add(sparks);
 const _bv=new THREE.Vector3(), _bd=new THREE.Vector3();
-function backfire(m,v){ if(!m||!m.flames||!m.flames.length) return; const bfs=ensureBackfire(m); m.bfT=0.07+v*0.06; m.bfV=v;
+function backfire(m,v){ if(!m||!m.flames||!m.flames.length) return; const bfs=ensureBackfire(m); m.bfT=0.13+v*0.08; m.bfV=v;
   for(const g of bfs){ g.getWorldPosition(_bv); _bd.set(-1,0,0).applyQuaternion(g.getWorldQuaternion(new THREE.Quaternion()));
     const n=Math.round(4+v*10); for(let k=0;k<n;k++){ const i=spNext; spNext=(spNext+1)%SPARKS; spPos[i*3]=_bv.x+_bd.x*0.1; spPos[i*3+1]=_bv.y; spPos[i*3+2]=_bv.z+_bd.z*0.1;
       const sp=3+Math.random()*6*v; spV[i*3]=_bd.x*sp+(Math.random()-.5)*1.6+phys.vx*0.9; spV[i*3+1]=Math.random()*1.8+0.3; spV[i*3+2]=_bd.z*sp+(Math.random()-.5)*1.6+phys.vy*0.9; spLife[i]=0.25+Math.random()*0.4; } }
-  bfs[0].getWorldPosition(bfLight.position); bfLight.intensity=6*v; }
+  bfs[0].getWorldPosition(bfLight.position); bfLight.intensity=10*v; }
 let lastCutVis=0;
 function updateBackfire(dt){
   if(phys.cutEvent && phys.cutEvent!==lastCutVis){ lastCutVis=phys.cutEvent; if(mode==='free'||mode==='race') backfire(model,0.85); }
   for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=Math.max(0,(m.bfT||0)-dt); const on=m.bfT>0;
-    for(const g of m.backfire){ g.visible=on; if(on){ const s=0.7+Math.random()*0.6*(m.bfV||0.6)+0.3; g.userData.outer.scale.set(s,0.8+Math.random()*0.5,0.8+Math.random()*0.5); g.userData.core.scale.set(s*0.9,1,1); const gl=0.5+Math.random()*0.5; g.userData.glow.scale.set(gl,gl,1); } } }
-  bfLight.intensity=Math.max(0,bfLight.intensity-dt*90);
+    for(const g of m.backfire){ g.visible=on; if(on){ const s=0.7+Math.random()*0.6*(m.bfV||0.6)+0.3; g.userData.outer.scale.set(s,0.8+Math.random()*0.5,0.8+Math.random()*0.5); g.userData.core.scale.set(s*0.9,1,1); const gl=0.9+Math.random()*0.6; g.userData.glow.scale.set(gl,gl,1); } } }
+  bfLight.intensity=Math.max(0,bfLight.intensity-dt*60);
   for(let i=0;i<SPARKS;i++){ if(spLife[i]<=0){ spCol[i*3]=spCol[i*3+1]=spCol[i*3+2]=0; continue; } spLife[i]-=dt; spV[i*3+1]-=9.8*dt;
     spPos[i*3]+=spV[i*3]*dt; spPos[i*3+1]=Math.max(0.02,spPos[i*3+1]+spV[i*3+1]*dt); spPos[i*3+2]+=spV[i*3+2]*dt; if(spPos[i*3+1]<=0.02){ spV[i*3+1]*=-0.3; spV[i*3]*=0.6; spV[i*3+2]*=0.6; }
     const l=Math.max(0,Math.min(1,spLife[i]/0.4)); spCol[i*3]=1*l; spCol[i*3+1]=(0.45+0.4*l)*l; spCol[i*3+2]=0.1*l*l; }
