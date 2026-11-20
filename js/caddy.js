@@ -135,7 +135,7 @@ export function buildCaddy(color) {
   // ---- mirrors ----
   for (const s of [-1, 1]) { const h = new THREE.SphereGeometry(1, 18, 12); h.scale(0.085, 0.09, 0.13); h.translate(1.02, 1.17, s * 1.0); add(h, paint);
     add(box(0.06, 0.04, 0.12, 1.06, 1.1, s * 0.93), black); }
-  const mdefs = { in: { c: [0.56, 1.645, 0], n: [-0.99, -0.08, 0], w: 0.25, h: 0.065, housing: true }, L: { c: [0.948, 1.16, -1.0], n: [-0.96, 0, 0.27], w: 0.16, h: 0.12 } };
+  const mdefs = { in: { c: [0.56, 1.645, 0], n: [-0.99, -0.08, 0], w: 0.25, h: 0.065, housing: true }, L: { c: [0.925, 1.17, -1.0], n: [-0.96, 0, 0.27], w: 0.16, h: 0.12 } };
   // ---- wheel arches, underbody ----
   for (const ax of [AX, -AX]) for (const s of [-1, 1]) add(new THREE.CylinderGeometry(ARCH + 0.005, ARCH + 0.005, 0.28, 24, 1, true, -Math.PI / 2, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).rotateY(0).translate(ax, RW, s * 0.78), plastic, body, false);
   add(box(4.3, 0.02, 1.7, 0.04, 0.26, 0), plastic, body, false);
