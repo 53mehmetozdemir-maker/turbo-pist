@@ -44,7 +44,8 @@ export class Car {
       if(!this.reversing && brk>0.5 && thr<0.1 && vLong<0.6) this.reversing=true;
       if(this.reversing && thr>0.1 && vLong>-0.6) this.reversing=false;
     }
-    if(this.reversing){ const t=thr; thr=brk; brk=t; }
+    // automatic: S drives backwards in reverse; manual: R is a real gear, W drives and S brakes
+    if(this.reversing && !this.manual){ const t=thr; thr=brk; brk=t; }
     this.throttle=thr; this.brake=brk; this.hand=inp.hand?1:0;
     // burnout: gas + brake together at low speed -> front brakes hold, rear wheels spin
     this.burnout = !this.reversing && thr>0.5 && brk>0.5 && Math.abs(vLong)<9;
@@ -93,6 +94,7 @@ export class Car {
     if(this.nitroOn) this.nitro=Math.max(0,this.nitro-dt/4.5); else this.nitro=Math.min(1,this.nitro+dt/30);
     let Te = thr*torqueAt(this.rpm) * (this.nitroOn?1.55:1) * (1-this.damage*0.0025);
     if(this.cutT>0) Te=0;                               // limiter cut
+    if(wheelRpm*ratio>=P.redline-20) Te=Math.min(Te,0);  // engine at the limiter: no more drive, the car can't go faster in this gear
     Te -= (1-thr)*45*(this.rpm/7000);                   // engine braking
     let Fdrive = (this.shiftT>0||this.launch) ? 0 : Te*ratio*P.eff/P.r;
     if(this.reversing) Fdrive=-Fdrive;
