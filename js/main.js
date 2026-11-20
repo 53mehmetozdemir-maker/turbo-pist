@@ -272,7 +272,9 @@ function backfire(m,v){ if(!m||!m.flames||!m.flames.length) return; const bfs=en
     const n=Math.round(4+v*10); for(let k=0;k<n;k++){ const i=spNext; spNext=(spNext+1)%SPARKS; spPos[i*3]=_bv.x+_bd.x*0.1; spPos[i*3+1]=_bv.y; spPos[i*3+2]=_bv.z+_bd.z*0.1;
       const sp=3+Math.random()*6*v; spV[i*3]=_bd.x*sp+(Math.random()-.5)*1.6+phys.vx*0.9; spV[i*3+1]=Math.random()*1.8+0.3; spV[i*3+2]=_bd.z*sp+(Math.random()-.5)*1.6+phys.vy*0.9; spLife[i]=0.25+Math.random()*0.4; } }
   bfs[0].getWorldPosition(bfLight.position); bfLight.intensity=6*v; }
+let lastCutVis=0;
 function updateBackfire(dt){
+  if(phys.cutEvent && phys.cutEvent!==lastCutVis){ lastCutVis=phys.cutEvent; if(mode==='free'||mode==='race') backfire(model,0.85); }
   for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=Math.max(0,(m.bfT||0)-dt); const on=m.bfT>0;
     for(const g of m.backfire){ g.visible=on; if(on){ const s=0.7+Math.random()*0.6*(m.bfV||0.6)+0.3; g.userData.outer.scale.set(s,0.8+Math.random()*0.5,0.8+Math.random()*0.5); g.userData.core.scale.set(s*0.9,1,1); const gl=0.5+Math.random()*0.5; g.userData.glow.scale.set(gl,gl,1); } } }
   bfLight.intensity=Math.max(0,bfLight.intensity-dt*90);

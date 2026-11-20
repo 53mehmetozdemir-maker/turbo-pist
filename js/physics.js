@@ -54,9 +54,9 @@ export class Car {
     // burnout: gas + brake together at low speed -> front brakes hold, rear wheels spin
     this.burnout = !P.ev && P.drive==='rwd' && !this.reversing && thr>0.5 && brk>0.5 && Math.abs(vLong)<9;
     // launch / rev hold: handbrake + gas at standstill -> clutch in, engine bounces off the limiter
-    // rev hold: any two of gas / brake / handbrake together -> clutch in, engine screams on the limiter (brap-brap), at any speed
+    // rev hold: gas + brake or gas + handbrake together -> clutch in, engine screams on the limiter (brap-brap), at any speed
     const g0=inp.gas>0.5, b0=inp.brake>0.5, h0=!!inp.hand;
-    this.revHold = !P.ev && ((g0&&b0)||(g0&&h0)||(b0&&h0));
+    this.revHold = !P.ev && ((g0&&b0)||(g0&&h0));
     this.launch = this.revHold && !this.burnout;
     // steering: speed-sensitive lock, rate-limited (keyboard) or direct (analog)
     const lock = 0.62/(1+speed*(this.assists?0.06:0.075));
