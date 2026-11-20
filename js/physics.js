@@ -103,12 +103,14 @@ export class Car {
     else { this.rpm += (Math.min(rpm,P.redline+60)-this.rpm)*Math.min(1,dt*((this.burnout||this.launch)?16:20));
       if(CUT() && this.rpm>=P.redline && (thr>0.3||this.launch)){ this.cutT=0.06; this.cutEvent=(this.cutEvent||0)+1; this.cutsInGear=(this.cutsInGear||0)+1; } }
     this.rpm=Math.max(P.idle*0.9,this.rpm);
-    this.nitroOn = inp.nitro && this.nitro>0 && thr>0.3 && !this.reversing;
+    // empty bottle locks nitro until it has refilled to 30%
+    if(this.nitro<=0.001) this.nitroLock=true; else if(this.nitro>=0.3) this.nitroLock=false;
+    this.nitroOn = !!inp.nitro && !this.nitroLock && this.nitro>0.001 && thr>0.3 && !this.reversing;
     if(this.nitroOn) this.nitro=Math.max(0,this.nitro-dt/6); else this.nitro=Math.min(1,this.nitro+dt/20);
-    let Te = thr*torqueAt(this.rpm) * (this.nitroOn?2.1:1) * (1-this.damage*0.0025);
+    let Te = thr*torqueAt(this.rpm) * (this.nitroOn?3.2:1) * (1-this.damage*0.0025);
     if(this.cutT>0) Te=0;                               // limiter cut
     if(wheelRpm*ratio>=P.redline-20) Te=Math.min(Te,0);  // engine at the limiter: no more drive, the car can't go faster in this gear
-    if(P.vmax && Math.abs(vLong)*3.6>=P.vmax*(this.nitroOn?1.12:1)) Te=Math.min(Te,0);
+    if(P.vmax && Math.abs(vLong)*3.6>=P.vmax*(this.nitroOn?1.24:1)) Te=Math.min(Te,0);
     if(this.reversing && Math.abs(vLong)*3.6>=(P.ev?30:45)) Te=Math.min(Te,0);   // reverse speed limit   // electronic top-speed limiter
     if(P.ev) Te -= (1-thr)*P.regen*Math.min(1,Math.abs(vLong)/3);   // regenerative braking when you lift
     else Te -= (1-thr)*45*(this.rpm/7000);              // engine braking

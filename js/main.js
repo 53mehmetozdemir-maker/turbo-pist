@@ -599,14 +599,49 @@ function handleEdges(){
 const _v=new THREE.Vector3();
 function groundUnder(c){ const w=W&&W.phys; if(!w||!w.ground) return {f:c.surfF===3?0.15:0,r:c.surfR===3?0.15:0};
   const ca=Math.cos(c.a), sa=Math.sin(c.a); return {f:w.ground(c.x+ca*SPEC.a,c.y+sa*SPEC.a), r:w.ground(c.x-ca*SPEC.b,c.y-sa*SPEC.b)}; }
-function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=headlightsOn,gh=null){
+// ---- lamp glow: every head/tail lamp gets a soft halo sprite with a hot core, scaled by its real state ----
+const lampTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'); const r=g.createRadialGradient(64,64,0,64,64,64);
+  r.addColorStop(0,'rgba(255,255,255,1)'); r.addColorStop(0.08,'rgba(255,255,255,.95)'); r.addColorStop(0.2,'rgba(255,255,255,.35)'); r.addColorStop(0.5,'rgba(255,255,255,.08)'); r.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=r; g.fillRect(0,0,128,128); return new THREE.CanvasTexture(c); })();
+const _li=new THREE.Matrix4(), _lv=new THREE.Vector3();
+// find the lamp clusters of a model: group the vertices of every brake-/head-lamp mesh by side and take each side's centre and size
+function lampClusters(m,mat){ m.root.updateMatrixWorld(true); _li.copy(m.body.matrixWorld).invert(); const pts=[];
+  m.body.traverse(o=>{ if(!o.isMesh||o.material!==mat||!o.geometry.attributes.position) return; let p=o; while(p&&p!==m.body){ if(p.visible===false) return; p=p.parent; } const P=o.geometry.attributes.position; const step=Math.max(1,Math.floor(P.count/1500));
+    for(let i=0;i<P.count;i+=step) pts.push(_lv.fromBufferAttribute(P,i).applyMatrix4(o.matrixWorld).applyMatrix4(_li).clone()); });
+  // connected components on a 6 cm grid: each separate lamp (or lamp segment) becomes its own cluster
+  const C=0.06, cell=new Map(), key=(x,y,z)=>x+','+y+','+z; for(const v of pts){ const k=key(Math.floor(v.x/C),Math.floor(v.y/C),Math.floor(v.z/C)); (cell.get(k)||cell.set(k,[]).get(k)).push(v); }
+  const seen=new Set(), out=[];
+  for(const k0 of cell.keys()){ if(seen.has(k0)) continue; const st=[k0], vs=[]; seen.add(k0);
+    while(st.length){ const k=st.pop(); vs.push(...cell.get(k)); const [x,y,z]=k.split(',').map(Number); for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++){ const n=key(x+dx,y+dy,z+dz); if(cell.has(n)&&!seen.has(n)){ seen.add(n); st.push(n); } } }
+    if(vs.length<4) continue; const mn=new THREE.Vector3(1e9,1e9,1e9), mx=new THREE.Vector3(-1e9,-1e9,-1e9); for(const v of vs){ mn.min(v); mx.max(v); }
+    const sz=Math.max(mx.z-mn.z,mx.y-mn.y); if(sz<0.02) continue; out.push({c:mn.clone().add(mx).multiplyScalar(0.5),mn,mx,n:vs.length,sz}); }
+  out.sort((a,b)=>b.sz-a.sz); return out.slice(0,8); }
+function ensureLamps(m){ if(m.lamps) return m.lamps; const L=m.lamps={tail:[],head:[],rev:[]};
+  const mk=(col,parent,pos)=>{ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:lampTex,color:col,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,opacity:0})); sp.position.copy(pos); sp.renderOrder=3; parent.add(sp); return sp; };
+  const tc=lampClusters(m,m.brakeMat).filter(c=>c.c.x<0), hc=m.headMat?lampClusters(m,m.headMat).filter(c=>c.c.x>0):[];
+  for(const t of tc){ const w=Math.max(0.05,Math.min(0.45,t.sz)); const s=mk(0xff1a0a,m.body,new THREE.Vector3(t.mn.x-0.015,t.c.y,t.c.z)); s.userData.w=w; L.tail.push(s); }
+  if(!m.bike){ const sides=[-1,1]; for(const sd of sides){ const cand=tc.filter(t=>Math.sign(t.c.z)===sd&&Math.abs(t.c.z)>0.3&&t.c.y<1.4).sort((a,b)=>b.sz-a.sz)[0]; if(!cand) continue;
+      const r=mk(0xf4f8ff,m.body,new THREE.Vector3(cand.mn.x-0.02,cand.c.y-0.01,cand.c.z-sd*Math.min(0.1,(cand.mx.z-cand.mn.z)*0.25))); r.userData.w=0.1; L.rev.push(r); } }
+  for(const h of hc){ const s=mk(0xfff4e2,m.body,new THREE.Vector3(h.mx.x+0.015,h.c.y,h.c.z)); s.userData.w=Math.max(0.05,Math.min(0.4,h.sz)); L.head.push(s); }
+  m.lampInfo=tc.length+'/'+hc.length;
+  return L; }
+let lampLight=null;
+function updateLamps(m,brake,lights,rev,isMe){ if(isMe&&window.__brk) brake=true; const L=ensureLamps(m); const t=performance.now();
+  for(const s of L.tail){ const w=s.userData.w, k=brake?1:lights?0.38:0; s.material.opacity=k*(brake?0.95:0.7); const sz=Math.min(1.1,w*(brake?3.0:1.9)+0.12); s.scale.set(sz,sz,1); s.visible=k>0; }
+  for(const s of L.rev){ s.material.opacity=rev?0.9:0; s.visible=rev; s.scale.set(0.42,0.42,1); }
+  for(const s of L.head){ const w=s.userData.w, k=lights?1:0.22; s.material.opacity=lights?0.85:0.45; const sz=Math.min(1.4,w*(lights?3.4:1.5)+0.1); s.scale.set(sz,sz,1); s.visible=k>0; }
+  if(isMe){ if(!lampLight){ lampLight=new THREE.PointLight(0xff2010,0,6,2); scene.add(lampLight); }
+    if(L.tail.length){ L.tail[0].parent.localToWorld(_lv.set((L.tail[0].position.x-0.6),0.5,0)); lampLight.position.copy(_lv); }
+    const want=(brake?2.2:lights?0.5:0)+(rev?0:0); lampLight.color.set(rev&&!brake?0xe8eeff:0xff2010); lampLight.intensity+=((rev&&!brake?1.6:want)-lampLight.intensity)*0.35; } }
+function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=headlightsOn,gh=null,rev=false,isMe=false){
   m.root.position.set(x,0,y); m.root.rotation.order='YXZ'; m.root.rotation.y=-a;
   if(gh){ m.gY=(m.gY||0)+(((gh.f+gh.r)/2)-(m.gY||0))*0.35; m.gS=(m.gS||0)+(Math.atan2(gh.f-gh.r,SPEC.a+SPEC.b)-(m.gS||0))*0.35; m.root.position.y=m.gY; m.root.rotation.z=m.gS; }
   if(m.bike){ m.setLean(m.leanT||0,lastFdt); m.body.rotation.set(0,0,-pitch*0.6); m.body.position.y=bump; } else { m.body.rotation.set(-roll,0,-pitch); m.body.position.y=(m.setPose?0:0.02)+bump; }
   if(m.setPose) m.setPose(steer,wheelAng);
   else { for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; } m.steer.rotation.x=steer*12; }
-  m.brakeMat.emissiveIntensity=brake?(m.vid?3.2:6):(lights?(m.vid?1.3:2.2):0.35); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
-  if(m.headMat) m.headMat.emissiveIntensity=lights?3.5:0.15;
+  m.brakeMat.emissiveIntensity=brake?(m.vid?4.5:7):(lights?(m.vid?1.1:1.8):0.12); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
+  if(m.headMat) m.headMat.emissiveIntensity=lights?3.5:0.9;   // LED daytime running lights stay on
+  updateLamps(m,brake,lights,rev,isMe);
   for(const f of m.flames){ f.visible=nitro; if(nitro){ const s=0.8+Math.random()*0.5; f.scale.set(s,1,1); } }
 }
 function worldOf(m,lx,ly,lz){ _v.set(lx,ly,lz); return m.body.localToWorld(_v); }
@@ -746,7 +781,7 @@ function drawCluster(){
   g.fillStyle='rgba(8,10,14,.72)'; g.beginPath(); g.roundRect(bx-6,by-16,104,62,10); g.fill();
   g.fillStyle='rgba(255,255,255,.6)'; g.font='700 9px Inter,sans-serif'; g.fillText('NİTRO',bx,by-3);
   g.fillStyle='rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(bx,by+2,90,7,3.5); g.fill();
-  const ng=g.createLinearGradient(bx,0,bx+90,0); ng.addColorStop(0,'#3a7bd5'); ng.addColorStop(1,'#66e0ff'); g.fillStyle=phys.nitroOn?'#a6f0ff':ng; g.beginPath(); g.roundRect(bx,by+2,Math.max(0.01,90*phys.nitro),7,3.5); g.fill();
+  const ng=g.createLinearGradient(bx,0,bx+90,0); ng.addColorStop(0,'#3a7bd5'); ng.addColorStop(1,'#66e0ff'); g.fillStyle=phys.nitroOn?'#a6f0ff':phys.nitroLock?'#5b6270':ng; g.beginPath(); g.roundRect(bx,by+2,Math.max(0.01,90*phys.nitro),7,3.5); g.fill();
   const dmg=Math.round(phys.damage); g.fillStyle='rgba(255,255,255,.6)'; g.fillText('HASAR',bx,by+25);
   g.fillStyle=dmg>60?'#ff6b5a':dmg>25?'#ffd32a':'#9ee6a8'; g.font='800 13px Inter,sans-serif'; g.textAlign='right'; g.fillText(dmg+'%',bx+90,by+26);
   g.fillStyle='rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(bx,by+31,90,4,2); g.fill(); g.fillStyle=dmg>60?'#ff6b5a':dmg>25?'#ffd32a':'#9ee6a8'; g.beginPath(); g.roundRect(bx,by+31,Math.max(0.01,0.9*dmg),4,2); g.fill();
@@ -825,7 +860,7 @@ function frame(t){
     carEffects(fdt);
   } else if(paused){ acc=0; }
   lastFdt=fdt; if(model.bike){ const parked=!driving||phys.speed<0.3&&phys.throttle===0; model.leanT=parked&&!driving?-0.13:Math.max(-0.95,Math.min(0.95,Math.atan(phys.vLong*phys.yawRate/9.81))); model.rider.visible=driving&&camMode!==1; if(model.stand) model.stand.visible=!driving; }
-  placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,(phys.brake>0.1&&!phys.burnout)||phys.hand>0,phys.nitroOn,phys.bump*0.25,headlightsOn,groundUnder(phys));
+  placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,(phys.brake>0.1&&!phys.burnout)||phys.hand>0,phys.nitroOn,phys.bump*0.25,headlightsOn,groundUnder(phys),phys.reversing&&phys.speed>0.05||phys.reversing&&phys.throttle>0,true);
   headSpot.intensity=headlightsOn&&driving?(nightF>0.5?260:120):0;
   // remote players
   const now=performance.now(), k=1-Math.exp(-fdt*16);
@@ -837,7 +872,7 @@ function frame(t){
     r.vx=fdt>0?(r.x-ox)/fdt:0; r.vy=fdt>0?(r.y-oy)/fdt:0;
     r.steer+=(r.sr-r.steer)*k; r.wheel+=r.v/CAR.wheelR*fdt;
     if(r.model.bike) r.model.leanT=Math.max(-0.95,Math.min(0.95,Math.atan(r.v*r.v*Math.tan(r.steer)/(1.469*9.81))));
-    placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt,0,r.hl);
+    placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt,0,r.hl,null,r.v<-0.3);
     const dist=Math.hypot(r.x-phys.x,r.y-phys.y); audio.horn(id,r.hn&&dist<150,Math.max(0.05,1-dist/150));
   }
   sun.position.set(phys.x+sunDir.x*200, sunDir.y*200, phys.y+sunDir.z*200); sun.target.position.set(phys.x,0,phys.y);
