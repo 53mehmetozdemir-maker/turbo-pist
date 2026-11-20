@@ -127,7 +127,9 @@ export function buildCabin(o) {
   // ---- steering wheel (wheel pivots about its column) ----
   const swc = new THREE.Vector3(...o.sw.c), swn = new THREE.Vector3(...o.sw.n).normalize(), R0 = o.sw.r || 0.185;
   const swG = new THREE.Group(); swG.position.copy(swc); G.add(swG); const inner = new THREE.Group(); swG.add(inner); swG.userData.inner = inner;
-  const orient = new THREE.Group(); orient.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), swn); inner.add(orient);
+  // build the wheel's frame explicitly so its spokes sit level (a shortest-arc rotation would leave the wheel twisted about the column)
+  const orient = new THREE.Group(); { const xa = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), swn).normalize(); const ya = new THREE.Vector3().crossVectors(swn, xa).normalize();
+    orient.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xa, ya, swn)); } inner.add(orient);
   const wheelM = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.5 });
   if (o.sw.flat) { const pts = []; for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2; let x = Math.cos(a) * R0, y = Math.sin(a) * R0; if (y < -R0 * 0.78) y = -R0 * 0.78; pts.push(new THREE.Vector3(x, y, 0)); }
     add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 96, 0.018, 10, true), wheelM, orient); }
