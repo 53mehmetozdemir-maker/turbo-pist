@@ -15,7 +15,7 @@ export const VEHICLES = {
     spec: { mass: 1505, inertia: 2550, a: 1.42, b: 1.24, cgH: 0.44, r: 0.345,
       gears: [3.08, 2.19, 1.63, 1.29, 1.03, 0.84, 0.69], reverse: 2.9, final: 4.44, idle: 1000, redline: 9000, shiftUp: 8600, shiftDown: 4300, shiftTime: 0.09,
       tq: [[0, 250], [1000, 300], [2000, 380], [3000, 450], [4000, 495], [5000, 525], [6000, 540], [7000, 532], [8000, 500], [9000, 445], [9400, 300]],
-      drag: 0.355, downforce: 0.45, brakeForce: 32000, drive: 'rwd', hl: 2.26, hw: 0.95 },
+      drag: 0.33, downforce: 0.45, brakeForce: 32000, drive: 'rwd', hl: 2.26, hw: 0.95 },
   },
   f40: {
     name: 'Ferrari F40', short: 'F40', info: '2.9 çift turbo V8 · 478 PS · 577 Nm · 5 ileri · arkadan itiş',
@@ -24,7 +24,7 @@ export const VEHICLES = {
     spec: { mass: 1255, inertia: 2050, a: 1.42, b: 1.03, cgH: 0.42, r: 0.33,
       gears: [2.769, 1.947, 1.512, 1.2, 0.966], reverse: 2.7, final: 3.08, idle: 1000, redline: 7750, shiftUp: 7400, shiftDown: 3800, shiftTime: 0.22,
       tq: [[0, 170], [1500, 230], [2500, 300], [3200, 420], [3800, 540], [4000, 577], [5000, 565], [6000, 545], [7000, 505], [7750, 450], [8100, 300]],
-      drag: 0.325, downforce: 0.3, brakeForce: 26000, drive: 'rwd', hl: 2.18, hw: 0.97 },
+      drag: 0.30, downforce: 0.3, brakeForce: 26000, drive: 'rwd', grip: 0.97, hl: 2.18, hw: 0.97 },
     mats: { paint: ['material'], tail: ['super_brakelight'], head: ['super_headlight', 'F40_Headlights'], glass: ['F40_Glass', 'F40_Glass.001', 'F40_Window', 'F40_Window.001'] },
     wheelMats: /Rrims|Brake|Scene_-_Root\.002/i,
     cam: { cockpit: [-0.12, 1.0, -0.36], look: [6, 0.82, -0.36], hood: [0.55, 1.12, 0], mirror: [0.3, 1.02, 0] },
@@ -39,7 +39,7 @@ export const VEHICLES = {
     credit: 'Tesla Model 3: David_Holiday (Sketchfab, CC-BY-4.0)',
     spec: { mass: 1919, inertia: 3300, a: 1.5, b: 1.375, cgH: 0.5, r: 0.341, ev: true,
       gears: [9.04], reverse: 9.04, final: 1, idle: 0, redline: 18400, shiftUp: 99999, shiftDown: 0, eff: 0.92,
-      tq: evCurve(660, 340, 18400), drag: 0.306, downforce: 0.1, brakeForce: 30000, drive: 'awd', awdFront: 0.4, vmax: 261, regen: 120, hl: 2.33, hw: 0.92 },
+      tq: evCurve(660, 340, 18400), drag: 0.306, downforce: 0.1, brakeForce: 30000, drive: 'awd', awdFront: 0.4, vmax: 261, regen: 120, grip: 0.92, hl: 2.33, hw: 0.92 },
     mats: { paint: ['CAR_PAINT'], tail: ['Material.002'], head: [], glass: ['Material.017', 'Material.016'] },
     wheelMats: null,
     cam: { cockpit: [-0.15, 1.22, -0.37], look: [6, 1.04, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
@@ -53,7 +53,7 @@ export const VEHICLES = {
     credit: 'Peugeot e-2008: David_Holiday (Sketchfab, CC-BY-4.0)',
     spec: { mass: 1623, inertia: 2700, a: 1.04, b: 1.565, cgH: 0.58, r: 0.334, ev: true,
       gears: [8.6], reverse: 8.6, final: 1, idle: 0, redline: 10500, shiftUp: 99999, shiftDown: 0, eff: 0.92,
-      tq: evCurve(260, 100, 10500), drag: 0.475, downforce: 0, brakeForce: 24000, drive: 'fwd', vmax: 150, regen: 70, grip: 0.92, hl: 2.13, hw: 0.88 },
+      tq: evCurve(260, 100, 10500), drag: 0.475, downforce: 0, brakeForce: 24000, drive: 'fwd', vmax: 150, regen: 70, grip: 0.82, hl: 2.13, hw: 0.88 },
     mats: { paint: ['Bianca_White'], tail: ['2020_Peugeot_e-2008_rouge_vitre'], head: ['2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7'], glass: ['2020_Peugeot_e-2008_glass_clear', '2020_Peugeot_e-2008_vitres_exterieur'] },
     wheelMats: /wheel_tire_01_dm|wheel_black/,
     cam: { cockpit: [-0.1, 1.27, -0.37], look: [6, 1.07, -0.37], hood: [0.9, 1.45, 0], mirror: [0.55, 1.3, 0] },
@@ -65,10 +65,10 @@ export const VEHICLES = {
 VEHICLES.rr1000 = {
   name: 'Süper Spor 1000 RR', short: 'RR 1000', info: 'Motosiklet · 999 cc sıralı 4 · 210 PS · 113 Nm · 6 ileri · 197 kg',
   proc: 'bike', sound: { cyl: 4, kind: 'i4' }, credit: 'Süper Spor 1000 RR: Turbo Pist için özel tasarım',
-  spec: { mass: 272, inertia: 95, a: 0.70, b: 0.757, cgH: 0.62, r: 0.32, track: 0,
+  spec: { mass: 272, inertia: 300, muRear: 1.6, Bf: 9, a: 0.70, b: 0.757, cgH: 0.62, r: 0.32, track: 0,
     gears: [2.647, 2.091, 1.727, 1.5, 1.36, 1.261], reverse: 2.647, final: 4.373, eff: 0.9, idle: 1300, redline: 14600, shiftUp: 14200, shiftDown: 8200, shiftTime: 0.05,
     tq: [[0, 40], [2000, 55], [4000, 72], [6000, 85], [8000, 98], [10000, 110], [11000, 113], [12000, 112], [13500, 109], [14600, 100], [15000, 60]],
-    drag: 0.19, roll: 3, downforce: 0.03, brakeForce: 3300, brakeBias: 0.78, drive: 'rwd', vmax: 303, grip: 1.1, hl: 1.05, hw: 0.35 },
+    drag: 0.19, roll: 3, downforce: 0.03, brakeForce: 3300, brakeBias: 0.78, drive: 'rwd', vmax: 303, grip: 1.05, hl: 1.05, hw: 0.35 },
 };
 export const VEHICLE_IDS = Object.keys(VEHICLES);
 
