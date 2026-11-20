@@ -5,19 +5,23 @@
 import { CAR } from './car.js';
 
 const G = 9.81;
-const P = {
+const BASE = {
   mass: 1350, inertia: 2350, a: CAR.a, b: CAR.b, cgH: 0.44, r: CAR.wheelR,
   gears: [3.38, 2.36, 1.78, 1.39, 1.12, 0.92], reverse: 3.2, final: 3.85, eff: 0.88,
   idle: 950, redline: 7600, shiftUp: 7150, shiftDown: 3300, shiftTime: 0.16,
   brakeForce: 32000, brakeBias: 0.68, drag: 0.39, roll: 14, downforce: 0.7,
-  Bf: 10.5, Br: 11.5, C: 1.6, muRear: 1.15,
+  Bf: 10.5, Br: 11.5, C: 1.6, muRear: 1.15, drive: 'rwd', awdFront: 0.4, ev: false, vmax: 0, grip: 1, hl: 2.2, hw: 0.92, regen: 0,
+  tq: [[0,200],[1000,260],[2500,390],[4000,490],[5200,530],[6200,515],[7000,470],[7600,420],[8000,300]],
 };
-// torque curve [rpm, Nm]
-const TQ = [[0,200],[1000,260],[2500,390],[4000,490],[5200,530],[6200,515],[7000,470],[7600,420],[8000,300]];
+export const P = { ...BASE };
+let TQ = BASE.tq;
+// switch the simulated car (real-world figures live in vehicles.js)
+export function setSpec(spec){ for(const k of Object.keys(P)) delete P[k]; Object.assign(P, BASE, spec||{}); TQ = P.tq; }
 function torqueAt(rpm){ for(let i=1;i<TQ.length;i++) if(rpm<=TQ[i][0]){ const [r0,t0]=TQ[i-1],[r1,t1]=TQ[i]; return t0+(t1-t0)*(rpm-r0)/(r1-r0); } return 0; }
 const SURF = [ {mu:1.12, drag:0}, {mu:1.0, drag:0}, {mu:0.55, drag:3.2}, {mu:0.95, drag:0.3}, {mu:0.62, drag:1.6} ];   // asphalt, kerb, gravel, sidewalk(curb), grass
 export const OPTS = { forceSurface: null, wet: false };
 const pac = (s,B) => Math.sin(P.C*Math.atan(B*s));
+const CUT = () => !P.ev;
 
 export class Car {
   constructor(){ this.reset(0,0,0); this.manual=false; this.assists=true; }
@@ -28,9 +32,9 @@ export class Car {
       impact:0, impactAt:null, scrape:0, bump:0, bumpV:0, hitV:0, kerb:0, speed:0, vLong:0, vLat:0, pitch:0, rollA:0, reversing:false });
   }
   get kmh(){ return Math.round(Math.abs(this.vLong)*3.6); }
-  gearLabel(){ return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 && this.gear===1 ? 'N' : String(this.gear)); }
+  gearLabel(){ if(P.ev) return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 ? 'P' : 'D'); return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 && this.gear===1 ? 'N' : String(this.gear)); }
   shift(d){ if(this.reversing) { if(d>0){ this.reversing=false; this.gear=1; } return; }
-    const g=this.gear+d; if(g<1 && Math.abs(this.vLong)<2){ this.reversing=true; return; }
+    const g=this.gear+d; if(g<1 && Math.abs(this.vLong)<2){ this.reversing=true; return; } if(P.ev) return;
     if(g>=1 && g<=P.gears.length && this.shiftT<=0){ this.gear=g; this.shiftT=P.shiftTime; } }
 
   step(dt, inp, others){
@@ -48,9 +52,9 @@ export class Car {
     if(this.reversing && !this.manual){ const t=thr; thr=brk; brk=t; }
     this.throttle=thr; this.brake=brk; this.hand=inp.hand?1:0;
     // burnout: gas + brake together at low speed -> front brakes hold, rear wheels spin
-    this.burnout = !this.reversing && thr>0.5 && brk>0.5 && Math.abs(vLong)<9;
+    this.burnout = !P.ev && P.drive==='rwd' && !this.reversing && thr>0.5 && brk>0.5 && Math.abs(vLong)<9;
     // launch / rev hold: handbrake + gas at standstill -> clutch in, engine bounces off the limiter
-    this.launch = !!inp.hand && thr>0.5 && speed<3 && !this.burnout;
+    this.launch = !P.ev && !!inp.hand && thr>0.5 && speed<3 && !this.burnout;
     // steering: speed-sensitive lock, rate-limited (keyboard) or direct (analog)
     const lock = 0.62/(1+speed*(this.assists?0.06:0.075));
     let target = inp.steer*lock;
@@ -67,12 +71,13 @@ export class Car {
     // ---- surfaces under each axle ----
     const fx=this.x+ca*P.a, fy=this.y+sa*P.a, rx=this.x-ca*P.b, ry=this.y-sa*P.b;
     this.surfF=OPTS.forceSurface??this.world.surface(fx,fy,this); this.surfR=OPTS.forceSurface??this.world.surface(rx,ry,this);
-    const wetK=OPTS.wet?0.74:1; const muF=SURF[this.surfF].mu*wetK, muR=SURF[this.surfR].mu*P.muRear*wetK;
+    const wetK=(OPTS.wet?0.74:1)*P.grip; const muF=SURF[this.surfF].mu*wetK, muR=SURF[this.surfR].mu*P.muRear*wetK;
     this.kerb=(this.surfF===1||this.surfR===1)?1:0;
     if(this.prevSurfF!=null && this.prevSurfF!==this.surfF && (this.prevSurfF===3||this.surfF===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfF=this.surfF;
     if(this.prevSurfR!=null && this.prevSurfR!==this.surfR && (this.prevSurfR===3||this.surfR===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfR=this.surfR;
 
     // ---- engine & gearbox ----
+    if(this.gear>P.gears.length) this.gear=P.gears.length;
     const ratio=(this.reversing?P.reverse:P.gears[this.gear-1])*P.final;
     const wheelRpm=Math.abs(vLong)/P.r*60/(2*Math.PI);
     let rpm=Math.max(P.idle, wheelRpm*ratio);
@@ -82,20 +87,22 @@ export class Car {
       else if(this.gear>1){ const lower=wheelRpm*P.gears[this.gear-2]*P.final; if(rpm<P.shiftDown && lower<P.shiftUp-500){ this.gear--; this.shiftT=P.shiftTime*0.7; } }
     }
     // free-revving at standstill / clutch slip in 1st
-    if(wheelRpm*ratio<P.idle+600) rpm = rpm + (P.idle+thr*3500 - rpm)*0.5;
-    if(this.burnout||this.launch) rpm = P.idle+thr*7800;           // wheels spinning / clutch in: engine revs freely
+    if(!P.ev && wheelRpm*ratio<P.idle+600) rpm = rpm + (P.idle+thr*3500 - rpm)*0.5;
+    if(this.burnout||this.launch) rpm = P.idle+thr*(P.redline-P.idle);           // wheels spinning / clutch in: engine revs freely
     // rev limiter: hitting redline cuts the ignition briefly, the needle bounces
     this.cutT=Math.max(0,(this.cutT||0)-dt);
     if(this.cutT>0){ this.rpm-=(this.burnout||this.launch?9000:2500)*dt; }
     else { this.rpm += (Math.min(rpm,P.redline+60)-this.rpm)*Math.min(1,dt*((this.burnout||this.launch)?16:20));
-      if(this.rpm>=P.redline && thr>0.3){ this.cutT=0.05; this.cutEvent=(this.cutEvent||0)+1; } }
+      if(CUT() && this.rpm>=P.redline && thr>0.3){ this.cutT=0.05; this.cutEvent=(this.cutEvent||0)+1; } }
     this.rpm=Math.max(P.idle*0.9,this.rpm);
     this.nitroOn = inp.nitro && this.nitro>0 && thr>0.3 && !this.reversing;
     if(this.nitroOn) this.nitro=Math.max(0,this.nitro-dt/4.5); else this.nitro=Math.min(1,this.nitro+dt/30);
     let Te = thr*torqueAt(this.rpm) * (this.nitroOn?1.55:1) * (1-this.damage*0.0025);
     if(this.cutT>0) Te=0;                               // limiter cut
     if(wheelRpm*ratio>=P.redline-20) Te=Math.min(Te,0);  // engine at the limiter: no more drive, the car can't go faster in this gear
-    Te -= (1-thr)*45*(this.rpm/7000);                   // engine braking
+    if(P.vmax && Math.abs(vLong)*3.6>=P.vmax) Te=Math.min(Te,0);   // electronic top-speed limiter
+    if(P.ev) Te -= (1-thr)*P.regen*Math.min(1,Math.abs(vLong)/3);   // regenerative braking when you lift
+    else Te -= (1-thr)*45*(this.rpm/7000);              // engine braking
     let Fdrive = (this.shiftT>0||this.launch) ? 0 : Te*ratio*P.eff/P.r;
     if(this.reversing) Fdrive=-Fdrive;
 
@@ -115,13 +122,16 @@ export class Car {
     let lockF = !this.assists && brk*P.brakeForce*P.brakeBias > muF*Wf*LB;
     if(this.hand){ Fbr=Math.max(Fbr, muR*Wr*0.95); }
     // rear: drive minus brake, limited by grip (traction control when assists on)
-    let Fxr = Fdrive - Fbr*sgn;
+    const fs = P.drive==='fwd' ? 1 : P.drive==='awd' ? P.awdFront : 0;   // share of drive on the front axle
+    const FdR = Fdrive*(1-fs), FdF = Fdrive*fs;
+    let Fxr = FdR - Fbr*sgn;
     const maxR = muR*Wr*(this.assists?0.88:1.0);
-    const spin = Math.abs(Fdrive)>maxR && !this.hand;
-    this.spinR = spin ? Math.min(1,(Math.abs(Fdrive)-maxR)/maxR) : 0;
-    const lim=muR*Wr*(Fdrive*sgn<0||brk>0?LB:1); if(Math.abs(Fxr)>lim) Fxr=Math.sign(Fxr)*lim;
-    let Fxf = -Fbf*sgn;
-    if(sgn===0){ Fxf=0; if(Math.abs(Fdrive)<1) Fxr=0; }
+    const spin = Math.abs(FdR)>maxR && !this.hand;
+    this.spinR = spin ? Math.min(1,(Math.abs(FdR)-maxR)/maxR) : 0;
+    const lim=muR*Wr*(FdR*sgn<0||brk>0?LB:1); if(Math.abs(Fxr)>lim) Fxr=Math.sign(Fxr)*lim;
+    let Fxf = FdF - Fbf*sgn;
+    if(fs>0){ const limF=muF*Wf*(brk>0?LB:(this.assists?0.9:1)); if(Math.abs(Fxf)>limF) Fxf=Math.sign(Fxf)*limF; }
+    if(sgn===0){ if(Math.abs(FdF)<1) Fxf=0; if(Math.abs(FdR)<1) Fxr=0; }
     if(this.burnout){ Fxr=muR*Wr*0.7*thr; Fxf=-Math.min(muF*Wf, Fxr*0.97); this.spinR=1; }   // fronts hold, rears smoke, slow creep
 
     // ---- lateral forces (tyre slip angles) ----
@@ -181,7 +191,7 @@ export class Car {
     const c2=Math.cos(this.a), s2=Math.sin(this.a);
     this.vLong=this.vx*c2+this.vy*s2; this.vLat=-this.vx*s2+this.vy*c2; this.speed=Math.hypot(this.vx,this.vy);
     const wv=this.vLong/P.r;
-    for(let i=0;i<4;i++){ let w=wv; if(i>=2){ if(this.hand && (Math.abs(this.vLong)>1||this.launch)) w=0; else if(this.burnout) w=this.rpm/((P.gears[0]*P.final))*2*Math.PI/60; else if(spin) w+=Math.sign(Fdrive)*this.spinR*60; } if(lockF && i<2) w=0; this.wheelSpin[i]=w; this.wheelAng[i]+=w*dt; }
+    for(let i=0;i<4;i++){ let w=wv; if(i>=2){ if(this.hand && (Math.abs(this.vLong)>1||this.launch)) w=0; else if(this.burnout) w=this.rpm/((P.gears[0]*P.final))*2*Math.PI/60; else if(spin) w+=Math.sign(FdR)*this.spinR*60; } if(lockF && i<2) w=0; this.wheelSpin[i]=w; this.wheelAng[i]+=w*dt; }
     // suspension bounce (visual)
     this.bumpV += (-this.bump*180 - this.bumpV*14)*dt; this.bump += this.bumpV*dt;
     // body pitch/roll (visual)
@@ -194,7 +204,7 @@ export class Car {
     this.rough=(this.kerb?0.012:0)+((this.surfF===2||this.surfF===4)?0.02:0)+speed*0.00006;
   }
 
-  corners(){ const ca=Math.cos(this.a), sa=Math.sin(this.a), hl=2.2, hw=0.92;
+  corners(){ const ca=Math.cos(this.a), sa=Math.sin(this.a), hl=P.hl, hw=P.hw;
     return [[hl,-hw],[hl,hw],[-hl,-hw],[-hl,hw],[0,-hw],[0,hw],[hl+0.05,0],[-hl-0.05,0]].map(([lx,lz])=>({lx,lz,x:this.x+ca*lx-sa*lz,y:this.y+sa*lx+ca*lz})); }
 
   collideWalls(dt){ this.world.collide(this); }
