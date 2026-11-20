@@ -42,6 +42,12 @@ export function surfaceAt(x, y) {
   if (lx < SW || ly < SW || lx > BL - SW || ly > BL - SW) return 3;
   if (b.type === 'park') return 4; if (b.type === 'lot') return 0; return 3;
 }
+export function groundAt(x, y) {   // top of the raised block slab (sidewalks, lots, parks) or road level
+  if (!inCity(x, y) || onRoadAxis(x) || onRoadAxis(y)) return 0;
+  const b = blockAt(x, y); if (!b) return 0;
+  const lx = x - b.x0, ly = y - b.y0; const inner = !(lx < SW || ly < SW || lx > BL - SW || ly > BL - SW);
+  return CURB + (inner && b.type === 'lot' ? 0.005 : inner && b.type === 'park' ? 0.01 : 0);
+}
 export function streetName(x, y) {
   const kx = Math.round(x / P), ky = Math.round(y / P);
   const onV = Math.abs(x - kx * P) < ROAD / 2 + SW && kx >= 0 && kx <= NB, onH = Math.abs(y - ky * P) < ROAD / 2 + SW && ky >= 0 && ky <= NB;
@@ -69,6 +75,7 @@ export function lightState(axis, t = Date.now() / 1000) {
 function addBox(b, x0, y0, x1, y1) { b.boxes.push([x0, y0, x1, y1]); }
 export const cityWorld = {
   surface(x, y, car) { return surfaceAt(x, y); },
+  ground(x, y) { return groundAt(x, y); },
   collide(car) {
     for (const c of car.corners()) {
       if (c.x < BOUND.min) car.contact(c, -1, 0, BOUND.min - c.x); else if (c.x > BOUND.max) car.contact(c, 1, 0, c.x - BOUND.max);

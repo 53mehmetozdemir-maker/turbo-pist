@@ -15,7 +15,7 @@ const P = {
 // torque curve [rpm, Nm]
 const TQ = [[0,200],[1000,260],[2500,390],[4000,490],[5200,530],[6200,515],[7000,470],[7600,420],[8000,300]];
 function torqueAt(rpm){ for(let i=1;i<TQ.length;i++) if(rpm<=TQ[i][0]){ const [r0,t0]=TQ[i-1],[r1,t1]=TQ[i]; return t0+(t1-t0)*(rpm-r0)/(r1-r0); } return 0; }
-const SURF = [ {mu:1.0, drag:0}, {mu:0.93, drag:0}, {mu:0.55, drag:3.2}, {mu:0.95, drag:0.3}, {mu:0.62, drag:1.6} ];   // asphalt, kerb, gravel, sidewalk(curb), grass
+const SURF = [ {mu:1.12, drag:0}, {mu:1.0, drag:0}, {mu:0.55, drag:3.2}, {mu:0.95, drag:0.3}, {mu:0.62, drag:1.6} ];   // asphalt, kerb, gravel, sidewalk(curb), grass
 export const OPTS = { forceSurface: null, wet: false };
 const pac = (s,B) => Math.sin(P.C*Math.atan(B*s));
 
@@ -51,7 +51,7 @@ export class Car {
     // launch / rev hold: handbrake + gas at standstill -> clutch in, engine bounces off the limiter
     this.launch = !!inp.hand && thr>0.5 && speed<3 && !this.burnout;
     // steering: speed-sensitive lock, rate-limited (keyboard) or direct (analog)
-    const lock = 0.6/(1+speed*(this.assists?0.13:0.10));
+    const lock = 0.62/(1+speed*(this.assists?0.06:0.075));
     let target = inp.steer*lock;
     if(this.assists && speed>5){   // keep the front tyres near peak grip instead of past it
       const thetaF=Math.atan2(vLat+this.yawRate*P.a, Math.max(Math.abs(vLong),1));
@@ -59,7 +59,7 @@ export class Car {
     }
     if(inp.analog) this.steer += (target-this.steer)*Math.min(1,dt*14);
     else { const back=(Math.abs(target)<Math.abs(this.steer)||Math.sign(target)!==Math.sign(this.steer));
-      const rate=Math.max(0.35,lock*(back?6:3.2)); const d=target-this.steer; this.steer+=Math.sign(d)*Math.min(Math.abs(d),rate*dt); }
+      const rate=Math.max(0.6,lock*(back?7:4.5)); const d=target-this.steer; this.steer+=Math.sign(d)*Math.min(Math.abs(d),rate*dt); }
     // damage pulls the steering a little
     const delta=this.steer + this.damage*0.0004;
 
@@ -155,7 +155,7 @@ export class Car {
     // stability control (assists): pull yaw toward the driver's intent, not while handbraking
     if(this.hand) this.escFade=0; else this.escFade=Math.min(1,(this.escFade||0)+dt*0.8);
     if(this.assists && speed>6){
-      let yawDes = vLong*delta/(L+0.0022*vLong*vLong); const yawMax=0.92*Math.min(muF,muR)*G*(1+down/(P.mass*G))/Math.max(speed,1); yawDes=Math.max(-yawMax,Math.min(yawMax,yawDes));
+      let yawDes = vLong*delta/(L+0.0012*vLong*vLong); const yawMax=0.92*Math.min(muF,muR)*G*(1+down/(P.mass*G))/Math.max(speed,1); yawDes=Math.max(-yawMax,Math.min(yawMax,yawDes));
       const err=this.yawRate-yawDes, beta=Math.atan2(vLat,Math.max(Math.abs(vLong),1));
       if(Math.abs(err)>0.08 || Math.abs(beta)>0.08) this.yawRate -= err*Math.min(1,dt*4.5)*this.escFade;
     }
