@@ -200,6 +200,7 @@ function applyWeather(wx){
 // ---------------- local car ----------------
 const phys=new Car(); phys.manual=settings.manual; phys.assists=settings.assists; phys.world=trackWorld;
 function makeVehicleModel(id,color){ return (!VEHICLES[id]||VEHICLES[id].builtin||!vehicleReady(id)) ? buildCar(color) : buildVehicle(id,color); }
+let lastFdt=1/60;
 let model=makeVehicleModel(settings.vehicle,settings.color); scene.add(model.root);
 let mirrorPlane=null; const mirrorPlanes=[];
 function mirrorMesh(w,h,u0,u1,v0,v1,rad){ const g=new THREE.PlaneGeometry(w,h); const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,u1-uv.getX(i)*(u1-u0),v0+uv.getY(i)*(v1-v0));
@@ -208,7 +209,16 @@ function mirrorMesh(w,h,u0,u1,v0,v1,rad){ const g=new THREE.PlaneGeometry(w,h); 
   const mat=new THREE.MeshBasicMaterial({map:mirrorRT.texture,fog:false,transparent:false}); mat.onBeforeCompile=s=>{ s.vertexShader=s.vertexShader.replace('#include <uv_pars_vertex>','#include <uv_pars_vertex>\nattribute vec2 uv2m; varying vec2 vMk;').replace('#include <uv_vertex>','#include <uv_vertex>\nvMk=uv2m;');
     s.uniforms.mk={value:ag}; s.fragmentShader=s.fragmentShader.replace('#include <map_pars_fragment>','#include <map_pars_fragment>\nuniform sampler2D mk; varying vec2 vMk;').replace('#include <alphatest_fragment>','if(texture2D(mk,vMk).r<0.5) discard;'); };
   const base=new THREE.PlaneGeometry(w,h).attributes.uv; g.setAttribute('uv2m',base.clone()); const mesh=new THREE.Mesh(g,mat); mesh.visible=false; return mesh; }
-function attachMirrors(){ mirrorPlane=null; mirrorPlanes.length=0; if(model.vid) return;   // real mirror glass is mapped for the 458 only; other cars use the overlay mirror
+function attachMirrors(){ mirrorPlane=null; mirrorPlanes.length=0;
+  const D=model.mirrorDefs; if(model.vid){ if(!D) return;
+    const place=(def,u0,u1,rad,inner)=>{ const n=new THREE.Vector3(...def.n).normalize(); const u=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),n).normalize(), w=new THREE.Vector3().crossVectors(n,u);
+      const mm=mirrorMesh(def.w,def.h,u0,u1,inner?0.15:0.08,inner?0.85:0.95,rad); mm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u,w,n)); mm.position.set(...def.c).addScaledVector(n,0.004); model.body.add(mm); mirrorPlanes.push(mm);
+      if(def.housing){ const hb=new THREE.Mesh(new THREE.BoxGeometry(def.w+0.025,def.h+0.025,0.03),new THREE.MeshStandardMaterial({color:0x121212,roughness:0.6})); hb.quaternion.copy(mm.quaternion); hb.position.set(...def.c).addScaledVector(n,-0.014); model.body.add(hb);
+        const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.08,6),hb.material); arm.position.set(def.c[0]+0.02,def.c[1]+def.h/2+0.04,def.c[2]); model.body.add(arm); }
+      return mm; };
+    if(D.in) mirrorPlane=place(D.in,0.18,0.82,26,true);
+    if(D.L){ place(D.L,0.6,1.0,40,false); place({...D.L,c:[D.L.c[0],D.L.c[1],-D.L.c[2]],n:[D.L.n[0],D.L.n[1],-D.L.n[2]]},0.0,0.4,40,false); }
+    return; }
   mirrorPlane=mirrorMesh(0.228,0.058,0.18,0.82,0.15,0.85,26); mirrorPlane.geometry.rotateY(-Math.PI/2); mirrorPlane.position.set(0.471,1.0925,-0.007); mirrorPlane.rotation.y=-0.14; model.body.add(mirrorPlane); mirrorPlanes.push(mirrorPlane);
   for(const s of [-1,1]){ const n=new THREE.Vector3(-0.9,0.01,-s*0.44).normalize(); const u=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),n).normalize(), w=new THREE.Vector3().crossVectors(n,u);
     const sm=mirrorMesh(0.184,0.104,s<0?0.6:0.0,s<0?1.0:0.4,0.08,0.95,40); sm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u,w,n)); sm.position.set(0.611,0.859,s*1.033).addScaledVector(n,0.002); model.body.add(sm); mirrorPlanes.push(sm); } }
@@ -493,11 +503,11 @@ function handleEdges(){
 // ---------------- visuals ----------------
 const _v=new THREE.Vector3();
 function groundUnder(c){ const w=W&&W.phys; if(!w||!w.ground) return {f:c.surfF===3?0.15:0,r:c.surfR===3?0.15:0};
-  const ca=Math.cos(c.a), sa=Math.sin(c.a); return {f:w.ground(c.x+ca*CAR.a,c.y+sa*CAR.a), r:w.ground(c.x-ca*CAR.b,c.y-sa*CAR.b)}; }
+  const ca=Math.cos(c.a), sa=Math.sin(c.a); return {f:w.ground(c.x+ca*SPEC.a,c.y+sa*SPEC.a), r:w.ground(c.x-ca*SPEC.b,c.y-sa*SPEC.b)}; }
 function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=headlightsOn,gh=null){
   m.root.position.set(x,0,y); m.root.rotation.order='YXZ'; m.root.rotation.y=-a;
-  if(gh){ m.gY=(m.gY||0)+(((gh.f+gh.r)/2)-(m.gY||0))*0.35; m.gS=(m.gS||0)+(Math.atan2(gh.f-gh.r,CAR.a+CAR.b)-(m.gS||0))*0.35; m.root.position.y=m.gY; m.root.rotation.z=m.gS; }
-  m.body.rotation.set(-roll,0,-pitch); m.body.position.y=(m.setPose?0:0.02)+bump;
+  if(gh){ m.gY=(m.gY||0)+(((gh.f+gh.r)/2)-(m.gY||0))*0.35; m.gS=(m.gS||0)+(Math.atan2(gh.f-gh.r,SPEC.a+SPEC.b)-(m.gS||0))*0.35; m.root.position.y=m.gY; m.root.rotation.z=m.gS; }
+  if(m.bike){ m.setLean(m.leanT||0,lastFdt); m.body.rotation.set(0,0,-pitch*0.6); m.body.position.y=bump; } else { m.body.rotation.set(-roll,0,-pitch); m.body.position.y=(m.setPose?0:0.02)+bump; }
   if(m.setPose) m.setPose(steer,wheelAng);
   else { for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; } m.steer.rotation.x=steer*12; }
   m.brakeMat.emissiveIntensity=brake?6:(lights?2.2:0.35); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
@@ -507,7 +517,7 @@ function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=he
 function worldOf(m,lx,ly,lz){ _v.set(lx,ly,lz); return m.body.localToWorld(_v); }
 function carEffects(dt){
   const c=phys; const ca=Math.cos(c.a), sa=Math.sin(c.a);
-  const wheelsXY=[[CAR.a,-CAR.track],[CAR.a,CAR.track],[-CAR.b,-CAR.track],[-CAR.b,CAR.track]].map(([lx,lz])=>[c.x+ca*lx-sa*lz,c.y+sa*lx+ca*lz]);
+  const TR=SPEC.track??0.83; const wheelsXY=[[SPEC.a,-TR],[SPEC.a,TR],[-SPEC.b,-TR],[-SPEC.b,TR]].map(([lx,lz])=>[c.x+ca*lx-sa*lz,c.y+sa*lx+ca*lz]);
   const slideR=Math.max(0,Math.abs(c.slipR)-0.11)*5 + c.spinR + (c.hand&&c.speed>3?0.7:0);
   const slideF=Math.max(0,Math.abs(c.slipF)-0.16)*4;
   for(let i=0;i<4;i++){
@@ -536,7 +546,7 @@ function updateCamera(dt){
   const sh=shake; shake=Math.max(0,shake-dt*3);
   const rx=(Math.random()-.5)*sh*0.12, ry=(Math.random()-.5)*sh*0.12;
   if(camMode===0){
-    const back=6.4+c.speed*0.012, up=2.2;
+    const bk=model.bike?0.62:1, back=(6.4+c.speed*0.012)*bk, up=model.bike?1.65:2.2;
     const va=c.speed>4?Math.atan2(c.vy,c.vx):c.a; let da=va-c.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI; const ha=c.a+da*0.35;
     const tx=c.x-Math.cos(ha)*back, tz=c.y-Math.sin(ha)*back;
     if(!camInit){ camPos.set(tx,up,tz); camInit=true; }
@@ -544,8 +554,8 @@ function updateCamera(dt){
     { const dx=camPos.x-c.x, dz=camPos.z-c.y, d=Math.hypot(dx,dz), maxD=back+0.8, minD=back-1.2; if(d>maxD){ camPos.x=c.x+dx/d*maxD; camPos.z=c.y+dz/d*maxD; } else if(d<minD&&d>0.01){ camPos.x=c.x+dx/d*minD; camPos.z=c.y+dz/d*minD; } }
     const vib=(Math.random()-.5)*(c.rough||0)*2;
     camera.position.set(camPos.x+rx,camPos.y+ry+vib,camPos.z);
-    camLook.set(c.x+ca*2.5,0.9,c.y+sa*2.5); camera.lookAt(camLook);
-    camera.rotateZ(-(c.ayPrev||0)*0.004);
+    camLook.set(c.x+ca*2.5,model.bike?0.85:0.9,c.y+sa*2.5); camera.lookAt(camLook);
+    camera.rotateZ(model.bike?-model.leanG.rotation.x*0.25:-(c.ayPrev||0)*0.004);
     camera.fov=60+Math.min(18,c.speed*0.22)+(c.nitroOn?6:0);
   } else {
     const local = camMode===1 ? (model.cockpit||[-0.22,1.13,-0.38]) : (model.hood||[0.55,1.33,0]);
@@ -555,6 +565,7 @@ function updateCamera(dt){
     const cl=model.cockpitLook||[6,0.88,-0.38]; const look=camMode===1?worldOf(model,cl[0],cl[1],cl[2]+phys.steer*2.5):worldOf(model,8,1.0,0);
     camera.lookAt(look);
     camera.fov=camMode===1?(70+Math.min(10,c.speed*0.12)):(66+Math.min(14,c.speed*0.18));
+    if(model.bike) camera.rotateZ(-model.leanG.rotation.x*0.55);
     camInit=false;
   }
   camera.updateProjectionMatrix();
@@ -701,6 +712,7 @@ function frame(t){
     if(phys.kerb||phys.surfF===2) shake=Math.max(shake,Math.min(0.35,phys.speed*0.01));
     carEffects(fdt);
   } else if(paused){ acc=0; }
+  lastFdt=fdt; if(model.bike){ model.leanT=Math.max(-0.95,Math.min(0.95,Math.atan(phys.vLong*phys.yawRate/9.81))); model.rider.visible=!(driving&&camMode===1); }
   placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,(phys.brake>0.1&&!phys.burnout)||phys.hand>0,phys.nitroOn,phys.bump*0.25,headlightsOn,groundUnder(phys));
   headSpot.intensity=headlightsOn&&driving?(nightF>0.5?260:120):0;
   // remote players
@@ -712,6 +724,7 @@ function frame(t){
     let da=r.ta-r.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI; r.a+=da*k;
     r.vx=fdt>0?(r.x-ox)/fdt:0; r.vy=fdt>0?(r.y-oy)/fdt:0;
     r.steer+=(r.sr-r.steer)*k; r.wheel+=r.v/CAR.wheelR*fdt;
+    if(r.model.bike) r.model.leanT=Math.max(-0.95,Math.min(0.95,Math.atan(r.v*r.v*Math.tan(r.steer)/(1.457*9.81))));
     placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt,0,r.hl);
     const dist=Math.hypot(r.x-phys.x,r.y-phys.y); audio.horn(id,r.hn&&dist<150,Math.max(0.05,1-dist/150));
   }
@@ -720,7 +733,7 @@ function frame(t){
   updateCamera(fdt);
   smoke.update(fdt,renderer.domElement.height); skids.update(); updateRain(fdt); if(frameNo%2===0) updateStreaks();
   if(model.shiftMat) model.shiftMat.emissiveIntensity=driving&&phys.rpm>6200?(phys.rpm>7300&&frameNo%6<3?0.3:4):0;
-  if(driving && camMode===1 && frameNo%3===0) drawGauges(model,phys.rpm,phys.kmh,phys.gearLabel(),phys.nitro);
+  if(driving && camMode===1 && frameNo%3===0){ if(model.drawDash) model.drawDash(phys.rpm,phys.kmh,phys.gearLabel(),phys.nitro); else drawGauges(model,phys.rpm,phys.kmh,phys.gearLabel(),phys.nitro); }
   if(driving) updateHud();
   for(const mp of mirrorPlanes) mp.visible=driving&&camMode===1;
   drawDrops(fdt,driving&&camMode!==0&&wet&&!paused);
@@ -730,13 +743,13 @@ function frame(t){
   if(driving) updateReflections();
   if(driving && camMode===1){
     {
-      const ca=Math.cos(phys.a), sa=Math.sin(phys.a), gy=model.root.position.y; const p=new THREE.Vector3(phys.x+ca*0.45,gy+1.1,phys.y+sa*0.45), back=new THREE.Vector3(phys.x-ca*20,gy+0.95,phys.y-sa*20);   // steady: ignores body pitch so braking/accelerating doesn't tip the view into the sky
+      const ca=Math.cos(phys.a), sa=Math.sin(phys.a), gy=model.root.position.y; const mh=(model.mirror&&model.mirror[1])||1.1; const p=new THREE.Vector3(phys.x+ca*0.45,gy+mh,phys.y+sa*0.45), back=new THREE.Vector3(phys.x-ca*20,gy+mh-0.15,phys.y-sa*20);   // steady: ignores body pitch so braking/accelerating doesn't tip the view into the sky
       mirrorCam.position.copy(p); mirrorCam.lookAt(back); 
       const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false; model.root.visible=false; rain.m.visible=false;
       renderer.setRenderTarget(mirrorRT); renderer.render(scene,mirrorCam); renderer.setRenderTarget(null);
       model.root.visible=true; rain.m.visible=wet; renderer.shadowMap.autoUpdate=au;
     }
-    if(!mirrorPlane){ const w=Math.round(innerWidth*0.26), h=Math.round(w/3.4), x=Math.round((innerWidth-w)/2), y=innerHeight-h-Math.round(innerHeight*0.035);
+    if(!mirrorPlane && !model.bike){ const w=Math.round(innerWidth*0.26), h=Math.round(w/3.4), x=Math.round((innerWidth-w)/2), y=innerHeight-h-Math.round(innerHeight*0.035);
       renderer.setScissorTest(true); renderer.setScissor(x,y,w,h); renderer.setViewport(x,y,w,h); renderer.render(mirScene,mirOrtho);
       renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
       $('mirrorFrame').style.cssText=`display:block;left:${x-4}px;top:${innerHeight-y-h-4}px;width:${w+8}px;height:${h+8}px`; }
