@@ -29,14 +29,14 @@ export const VEHICLES = {
       drag: 0.30, downforce: 0.3, brakeForce: 26000, drive: 'rwd', grip: 0.97, hl: 2.18, hw: 0.97 },
     mats: { paint: ['material'], tail: ['super_brakelight'], head: ['super_headlight', 'F40_Headlights'], glass: ['F40_Glass', 'F40_Glass.001', 'F40_Window', 'F40_Window.001'] },
     wheelMats: /Rrims|Brake|Scene_-_Root\.002/i,
-    cam: { cockpit: [-0.12, 1.0, -0.36], look: [6, 0.82, -0.36], hood: [0.55, 1.12, 0], mirror: [0.3, 1.02, 0] },
-    mirrors: { in: { c: [0.386, 1.009, -0.005], n: [-1, -0.07, 0], w: 0.18, h: 0.045 }, L: { c: [0.718, 0.791, -0.932], n: [-0.9, 0, 0.44], w: 0.12, h: 0.06 } },
-    sw: { c: [0.585, 0.70, -0.33], n: [-0.84, 0.54, 0], r: 0.19, t: 0.05 },
-    dash: [{ c: [0.787, 0.749, -0.364], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'tach', max: 10000 }, { c: [0.787, 0.749, -0.272], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'speedo', max: 360 }],
+    cam: { cockpit: [-0.252, 1.0, -0.36], look: [6, 0.82, -0.36], hood: [0.418, 1.12, 0], mirror: [0.168, 1.02, 0] },
+    mirrors: { in: { c: [0.254, 1.009, -0.005], n: [-1, -0.07, 0], w: 0.18, h: 0.045 }, L: { c: [0.586, 0.791, -0.932], n: [-0.9, 0, 0.44], w: 0.12, h: 0.06 } },
+    sw: { c: [0.453, 0.70, -0.33], n: [-0.84, 0.54, 0], r: 0.19, t: 0.05 },
+    dash: [{ c: [0.655, 0.749, -0.364], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'tach', max: 10000 }, { c: [0.655, 0.749, -0.272], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'speedo', max: 360 }],
     exhaust: { y: 0.36, z: [-0.07, 0, 0.07] },
     tint: { f40seat: [0x7a1414, 0, 0.85], F40_Cockpit: [0x2a2a2c, 0, 0.9] },
-    lightBoxes: [{ mat: 'F40_Cockpit', min: [-0.5, 0.15, 0.13], max: [0.2, 0.95, 0.58], as: 'f40seat' }],
-    tailDiscs: [{ c: [-1.889, 0.648, -0.528], n: [-1, -0.03, -0.07], r: 0.08 }], darken: ['F40_GridD', 'F40_Grid', 'F40_Vehiclelight'],
+    lightBoxes: [{ mat: 'F40_Cockpit', min: [-0.632, 0.15, 0.13], max: [0.068, 0.95, 0.58], as: 'f40seat' }],
+    tailDiscs: [{ c: [-2.021, 0.648, -0.528], n: [-1, -0.03, -0.07], r: 0.08 }], darken: ['F40_GridD', 'F40_Grid', 'F40_Vehiclelight'],
   },
   model3: {
     name: 'Tesla Model 3 Performance', short: 'Model 3', info: 'Elektrik · 2 motor · 460 PS · 660 Nm · dört çeker',
@@ -139,6 +139,13 @@ function prepare(V, scene) {
     if (p.bymat && circ.every(c => c)) { const parts2 = splitTris(p.geo, (x, y, z) => { for (let q = 0; q < 4; q++) { const c = circ[q]; if (Math.hypot(x - c.c.x, y - c.c.y) < c.r * 1.08 && Math.abs(z - c.c.z) < 0.22) return q; } return 'b'; });
       for (const [k, g] of Object.entries(parts2)) { if (k === 'b') body.push({ geo: g, mat: p.mat }); else wheelParts[+k].push({ geo: g, mat: p.mat }); } }
     else body.push(p); }
+  // drop stray triangles that are not part of the wheel (body bits caught by the quadrant split) so the pivot sits on the real axle
+  for (let q = 0; q < 4; q++) { const list = wheelParts[q]; if (!list.length) continue; const cs = [];
+    for (const p of list) { const P = p.geo.attributes.position; for (let t = 0; t < P.count; t += 3) cs.push([(P.getX(t) + P.getX(t + 1) + P.getX(t + 2)) / 3, (P.getY(t) + P.getY(t + 1) + P.getY(t + 2)) / 3, (P.getZ(t) + P.getZ(t + 1) + P.getZ(t + 2)) / 3]); }
+    const med = k => { const a = cs.map(c => c[k]).sort((u, v) => u - v); return a[a.length >> 1]; }; const m = [med(0), med(1), med(2)];
+    const ds = cs.map(c => Math.hypot(c[0] - m[0], c[1] - m[1])).sort((u, v) => u - v); const r = Math.min(0.45, ds[Math.floor(ds.length * 0.97)]);
+    const keep = [], stray = []; for (const p of list) { const sp = splitTris(p.geo, (x, y, z) => (Math.hypot(x - m[0], y - m[1]) < r * 1.12 + 0.02 && Math.abs(z - m[2]) < 0.3) ? 'k' : 's'); if (sp.k) keep.push({ geo: sp.k, mat: p.mat }); if (sp.s) stray.push({ geo: sp.s, mat: p.mat }); }
+    if (keep.length) { wheelParts[q] = keep; for (const st of stray) body.push(st); } }
   // wheel centres from the rolling parts' bounds; axle positions define the car's x origin
   const wheels = wheelParts.map(list => { const b = new THREE.Box3(); for (const p of list) { p.geo.computeBoundingBox(); b.union(p.geo.boundingBox); } const c = b.isEmpty() ? null : b.getCenter(new THREE.Vector3()); if (c) c.y = (b.max.y - b.min.y) / 2 + b.min.y; return { c, list, r: b.isEmpty() ? 0.33 : (b.max.y - b.min.y) / 2 }; });
   const fx = wheels[0].c && wheels[1].c ? (wheels[0].c.x + wheels[1].c.x) / 2 : 1.35, rx = wheels[2].c && wheels[3].c ? (wheels[2].c.x + wheels[3].c.x) / 2 : -1.35;
