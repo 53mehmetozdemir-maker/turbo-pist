@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { buildBike } from './bike.js';
+import { buildCaddy } from './caddy.js';
 
 // electric motor: constant torque up to base speed, then constant power
 const evCurve = (tMax, pKW, maxRpm) => { const out = []; for (let r = 0; r <= maxRpm + 400; r += 400) { const w = Math.max(1, r * Math.PI / 30); out.push([r, Math.min(tMax, pKW * 1000 / w)]); } return out; };
@@ -42,6 +43,7 @@ export const VEHICLES = {
       gears: [9.04], reverse: 9.04, final: 1, idle: 0, redline: 18400, shiftUp: 99999, shiftDown: 0, eff: 0.92,
       tq: evCurve(660, 340, 18400), drag: 0.306, downforce: 0.1, brakeForce: 30000, drive: 'awd', awdFront: 0.4, vmax: 261, regen: 120, grip: 0.92, hl: 2.33, hw: 0.92 },
     mats: { paint: ['CAR_PAINT'], tail: ['Material.002'], head: ['Glass'], glass: ['Material.017', 'Material.016'] }, darken: ['Material.007'],
+    tint: { 'Material.012': [0x9aa0a8, 0.9, 0.28], 'Material.013': [0x111111, 0, 0.9], 'Material.009': [0x2a2d31, 0.6, 0.4] },
     lightBoxes: [{ mat: 'Material.005', min: [-9, 0.6, 0.2], max: [-1.9, 1.2, 0.95], as: 'tail' }],
     wheelMats: null,
     cam: { cockpit: [-0.2, 1.27, -0.37], look: [6, 1.06, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
@@ -65,13 +67,21 @@ export const VEHICLES = {
     dash: [{ c: [0.73, 1.048, -0.343], n: [-0.95, 0.3, 0], w: 0.16, h: 0.06, kind: 'peugeot' }],
   },
 };
-VEHICLES.rr1000 = {
-  name: 'Süper Spor 1000 RR', short: 'RR 1000', info: 'Motosiklet · 999 cc sıralı 4 · 210 PS · 113 Nm · 6 ileri · 197 kg',
-  proc: 'bike', sound: { cyl: 4, kind: 'i4' }, credit: 'Süper Spor 1000 RR: Turbo Pist için özel tasarım',
-  spec: { mass: 272, inertia: 300, muRear: 1.6, Bf: 9, a: 0.70, b: 0.757, cgH: 0.62, r: 0.32, track: 0,
-    gears: [2.647, 2.091, 1.727, 1.5, 1.36, 1.261], reverse: 2.647, final: 4.373, eff: 0.9, idle: 1300, redline: 14600, shiftUp: 14200, shiftDown: 8200, shiftTime: 0.05,
-    tq: [[0, 40], [2000, 55], [4000, 72], [6000, 85], [8000, 98], [10000, 110], [11000, 113], [12000, 112], [13500, 109], [14600, 100], [15000, 60]],
-    drag: 0.19, roll: 3, downforce: 0.03, brakeForce: 3300, brakeBias: 0.78, drive: 'rwd', vmax: 303, grip: 1.05, hl: 1.05, hw: 0.35 },
+VEHICLES.v4s = {
+  name: 'Ducati Panigale V4 S', short: 'Panigale V4 S', info: 'Motosiklet · 1103 cc Desmosedici Stradale V4 · 215,5 PS · 123,6 Nm · 6 ileri · 195,5 kg',
+  proc: 'bike', sound: { cyl: 4, kind: 'v4' }, credit: 'Ducati Panigale V4 S: Turbo Pist için prosedürel model (logosuz)',
+  spec: { mass: 283, inertia: 305, muRear: 1.6, Bf: 9, a: 0.71, b: 0.759, cgH: 0.62, r: 0.336, track: 0,
+    gears: [2.714, 2.118, 1.737, 1.524, 1.364, 1.25], reverse: 2.714, final: 4.6125, eff: 0.9, idle: 1300, redline: 14500, shiftUp: 14200, shiftDown: 8000, shiftTime: 0.05,
+    tq: [[0, 45], [2000, 60], [4000, 80], [6000, 100], [8000, 118], [9500, 123.6], [11000, 121], [12000, 119], [13000, 116], [14000, 106], [14500, 98], [15000, 60]],
+    drag: 0.19, roll: 3, downforce: 0.04, brakeForce: 3300, brakeBias: 0.78, drive: 'rwd', vmax: 305, grip: 1.05, hl: 1.05, hw: 0.35 },
+};
+VEHICLES.caddy = {
+  name: 'Volkswagen Caddy', short: 'Caddy', info: '2.0 TDI · 122 PS · 320 Nm · 7 ileri DSG · önden çekiş · 188 km/sa',
+  proc: 'caddy', sound: { cyl: 4, kind: 'diesel' }, credit: 'Volkswagen Caddy (5. nesil): Turbo Pist için prosedürel model (logosuz)',
+  spec: { mass: 1720, inertia: 3100, a: 1.16, b: 1.595, cgH: 0.68, r: 0.33,
+    gears: [3.56, 2.53, 1.59, 1.03, 0.79, 0.64, 0.54], reverse: 3.4, final: 3.6, idle: 800, redline: 4800, shiftUp: 4200, shiftDown: 1500, shiftTime: 0.12,
+    tq: [[0, 140], [1000, 220], [1500, 300], [1600, 320], [2500, 320], [3000, 290], [3500, 245], [4000, 215], [4500, 180], [4800, 120], [5000, 60]],
+    drag: 0.52, downforce: 0, brakeForce: 23000, drive: 'fwd', vmax: 188, grip: 0.85, hl: 2.25, hw: 0.93 },
 };
 export const VEHICLE_IDS = Object.keys(VEHICLES);
 
@@ -152,17 +162,18 @@ const shadowTex = (() => { let t = null; return () => { if (t) return t; const c
 
 // one drivable instance with its own paint / light materials
 export function buildVehicle(id, color) {
-  const V = VEHICLES[id]; if (V && V.proc === 'bike') return buildBike(color);
+  const V = VEHICLES[id]; if (V && V.proc === 'bike') return buildBike(color); if (V && V.proc === 'caddy') return buildCaddy(color);
   const T = cache[id] && cache[id].tpl; if (!T) return null;
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.25, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.9 });
   const brakeMat = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff0800, emissiveIntensity: 0.6, roughness: 0.15, toneMapped: false });
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xdfe5ea, emissive: 0xfff1d6, emissiveIntensity: 0.15, roughness: 0.05, metalness: 0.3 });
+  const headMat = new THREE.MeshPhysicalMaterial({ color: 0xc4cbd2, emissive: 0xfff1d6, emissiveIntensity: 0.08, roughness: 0.12, metalness: 0.85, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.3 });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0e1216, metalness: 0.2, roughness: 0.02, transparent: true, opacity: 0.45, envMapIntensity: 1.5, clearcoat: 1 });
   const M = V.mats || {}; const has = (list, n) => list && list.includes(n);
   const darkM = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.85, metalness: 0 });
-  const pick = mat => { const n = mat.name || ''; if (V.darken && V.darken.includes(n)) return darkM; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
-  const envMats = new Set([paint, glass]);
+  const tints = {}; for (const [k, t] of Object.entries(V.tint || {})) tints[k] = new THREE.MeshStandardMaterial({ color: t[0], metalness: t[1], roughness: t[2], envMapIntensity: 1 });
+  const pick = mat => { const n = mat.name || ''; if (tints[n]) return tints[n]; if (V.darken && V.darken.includes(n)) return darkM; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
+  const envMats = new Set([paint, glass, headMat, ...Object.values(tints)]);
   for (const p of T.body) { const m = new THREE.Mesh(p.geo, p.role === 'tail' ? brakeMat : p.role === 'head' ? headMat : pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m); }
   const unsprung = new THREE.Group(); root.add(unsprung);
   const pivots = T.wheels.map((w, i) => { const steerG = new THREE.Group(), spin = new THREE.Group(); steerG.add(spin); if (w.c) steerG.position.copy(w.c); unsprung.add(steerG);

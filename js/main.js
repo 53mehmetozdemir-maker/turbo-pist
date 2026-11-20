@@ -724,7 +724,7 @@ function frame(t){
     let da=r.ta-r.a; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI; r.a+=da*k;
     r.vx=fdt>0?(r.x-ox)/fdt:0; r.vy=fdt>0?(r.y-oy)/fdt:0;
     r.steer+=(r.sr-r.steer)*k; r.wheel+=r.v/CAR.wheelR*fdt;
-    if(r.model.bike) r.model.leanT=Math.max(-0.95,Math.min(0.95,Math.atan(r.v*r.v*Math.tan(r.steer)/(1.457*9.81))));
+    if(r.model.bike) r.model.leanT=Math.max(-0.95,Math.min(0.95,Math.atan(r.v*r.v*Math.tan(r.steer)/(1.469*9.81))));
     placeCar(r.model,r.x,r.y,r.a,0,0,r.steer,[r.wheel,r.wheel,r.wheel,r.wheel],r.bk,r.nt,0,r.hl);
     const dist=Math.hypot(r.x-phys.x,r.y-phys.y); audio.horn(id,r.hn&&dist<150,Math.max(0.05,1-dist/150));
   }
