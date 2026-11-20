@@ -39,7 +39,9 @@ export function buildCabin(o) {
   const chrome = new THREE.MeshStandardMaterial({ color: 0xc9ced4, roughness: 0.2, metalness: 1 });
   const ambM = new THREE.MeshBasicMaterial({ color: col.amb, toneMapped: false });
   const rubber = new THREE.MeshStandardMaterial({ color: 0x0d0d0e, roughness: 0.9 });
-  const add = (g, m, p = G) => { const o2 = new THREE.Mesh(g, m); o2.receiveShadow = true; p.add(o2); return o2; };
+  // a cabin sits in the shade of its roof: keep the sky/environment light on these surfaces low so they stay dark and natural
+  const shade = m => { if (m && 'envMapIntensity' in m && !m.isMeshBasicMaterial) m.envMapIntensity = Math.min(m.envMapIntensity ?? 1, m.metalness > 0.5 ? 0.35 : 0.12); return m; };
+  const add = (g, m, p = G) => { const o2 = new THREE.Mesh(g, shade(m)); o2.receiveShadow = true; p.add(o2); return o2; };
   const { xDash, xFace, yTop, yFloor, halfW } = o;
 
   // ---- dashboard: one sculpted profile swept across the cabin ----

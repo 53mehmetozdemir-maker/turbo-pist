@@ -34,8 +34,9 @@ export const VEHICLES = {
     sw: { c: [0.453, 0.70, -0.33], n: [-0.84, 0.54, 0], r: 0.19, t: 0.05 },
     dash: [{ c: [0.655, 0.749, -0.364], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'tach', max: 10000 }, { c: [0.655, 0.749, -0.272], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'speedo', max: 360 }],
     exhaust: { y: 0.36, z: [-0.07, 0, 0.07] },
+    cabin: [[-0.85, 0.3, 0], [0.75, 1.16, 0.84]], trimColor: 0x26272a,
     tint: { f40seat: [0x7a1414, 0, 0.85], F40_Cockpit: [0x2a2a2c, 0, 0.9] },
-    lightBoxes: [{ mat: 'F40_Cockpit', min: [-0.632, 0.15, 0.13], max: [0.068, 0.95, 0.58], as: 'f40seat' }],
+    lightBoxes: [{ mat: 'F40_Cockpit', min: [-0.55, 0.12, 0.12], max: [0.08, 0.84, 0.56], as: 'f40seat' }],
     tailDiscs: [{ c: [-2.021, 0.648, -0.528], n: [-1, -0.03, -0.07], r: 0.08 }], darken: ['F40_GridD', 'F40_Grid', 'F40_Vehiclelight'],
   },
   model3: {
@@ -46,7 +47,7 @@ export const VEHICLES = {
       gears: [9.04], reverse: 9.04, final: 1, idle: 0, redline: 18400, shiftUp: 99999, shiftDown: 0, eff: 0.92,
       tq: evCurve(660, 340, 18400), drag: 0.306, downforce: 0.1, brakeForce: 30000, drive: 'awd', awdFront: 0.4, vmax: 261, regen: 120, grip: 0.92, hl: 2.33, hw: 0.92 },
     mats: { paint: ['CAR_PAINT'], tail: ['Material.002'], head: ['Glass'], glass: ['Material.017', 'Material.016'] }, darken: ['Material.007'],
-    tint: { 'Material.012': [0x9aa0a8, 0.9, 0.28], 'Material.013': [0x111111, 0, 0.9], 'Material.009': [0x2a2d31, 0.6, 0.4] },
+    tint: { 'Material.012': [0x9aa0a8, 0.9, 0.28, 1], 'Material.013': [0x111111, 0, 0.9], 'Material.009': [0x2a2d31, 0.6, 0.4] },
     lightBoxes: [{ mat: 'Material.005', min: [-9, 0.6, 0.2], max: [-1.9, 1.2, 0.95], as: 'tail' }],
     wheelMats: null,
     cam: { cockpit: [-0.2, 1.27, -0.37], look: [6, 1.06, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
@@ -123,7 +124,8 @@ function prepare(V, scene) {
   for (const p of parts) p.geo.translate(-cx, -gy, -cz);
   // split triangles of a geometry by a classifier -> {key: geometry}
   const splitTris = (g, cls) => { const pos = g.attributes.position, out = {};
-    for (let t = 0; t < pos.count; t += 3) { const k = cls((pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3, (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3); (out[k] ??= []).push(t); }
+    for (let t = 0; t < pos.count; t += 3) { let nx = 0, ny = 0, nz = 0; if (cls.length > 3) { const ax = pos.getX(t + 1) - pos.getX(t), ay = pos.getY(t + 1) - pos.getY(t), az = pos.getZ(t + 1) - pos.getZ(t), bx = pos.getX(t + 2) - pos.getX(t), by = pos.getY(t + 2) - pos.getY(t), bz = pos.getZ(t + 2) - pos.getZ(t); nx = ay * bz - az * by; ny = az * bx - ax * bz; nz = ax * by - ay * bx; }
+      const k = cls((pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3, (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3, nx, ny, nz); (out[k] ??= []).push(t); }
     const res = {}; for (const [k, tris] of Object.entries(out)) { const ng = new THREE.BufferGeometry();
       for (const name of Object.keys(g.attributes)) { const a = g.attributes[name], arr = new a.array.constructor(tris.length * 3 * a.itemSize); let i = 0; for (const t of tris) for (let v = 0; v < 3; v++) for (let c = 0; c < a.itemSize; c++) arr[i++] = a.array[(t + v) * a.itemSize + c]; ng.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize, a.normalized)); }
       res[k] = ng; } return res; };
@@ -159,6 +161,12 @@ function prepare(V, scene) {
   for (const lb of V.lightBoxes || []) for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; if ((p.mat.name || '') !== lb.mat || p.role) continue;
     const sp = splitTris(p.geo, (x, y, z) => { const zz = Math.abs(z); return (x >= lb.min[0] && x <= lb.max[0] && y >= lb.min[1] && y <= lb.max[1] && zz >= lb.min[2] && zz <= lb.max[2]) ? 'l' : 'o'; });
     if (sp.l) { body.splice(i, 1); body.push({ geo: sp.l, mat: p.mat, role: lb.as }); if (sp.o) body.push({ geo: sp.o, mat: p.mat }); } }
+  // body-colour faces that look into the cabin (inside of the roof, door shells, pillars) become dark trim
+  if (V.cabin) { const [mn, mx] = V.cabin; const cx = (mn[0] + mx[0]) / 2, cy = (mn[1] + mx[1]) / 2; const paintN = (V.mats && V.mats.paint) || [];
+    for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; if (!paintN.includes(p.mat.name || '') || p.role) continue;
+      const sp = splitTris(p.geo, (x, y, z, nx, ny, nz) => { if (x < mn[0] || x > mx[0] || y < mn[1] || y > mx[1] || Math.abs(z) > mx[2]) return 'o';
+        return (nx * (x - cx) + ny * (y - cy) * 1.6 + nz * z) < 0 ? 't' : 'o'; });
+      if (sp.t) { body.splice(i, 1); body.push({ geo: sp.t, mat: p.mat, role: 'cabtrim' }); if (sp.o) body.push({ geo: sp.o, mat: p.mat }); } } }
   // steering wheel: triangles within a disc around the column axis become their own pivot
   let swParts = null; if (V.sw) { const c0 = new THREE.Vector3(...V.sw.c), ax = new THREE.Vector3(...V.sw.n).normalize(); swParts = [];
     for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; const sp = splitTris(p.geo, (x, y, z) => { const d = new THREE.Vector3(x, y, z).sub(c0); const a = d.dot(ax); const r = d.addScaledVector(ax, -a).length(); return (Math.abs(a) < V.sw.t && r < V.sw.r) ? 's' : 'b'; });
@@ -188,7 +196,8 @@ export function buildVehicle(id, color) {
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0e1216, metalness: 0.2, roughness: 0.02, transparent: true, opacity: 0.45, envMapIntensity: 1.5, clearcoat: 1 });
   const M = V.mats || {}; const has = (list, n) => list && list.includes(n);
   const darkM = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.85, metalness: 0 });
-  const tints = {}; for (const [k, t] of Object.entries(V.tint || {})) tints[k] = new THREE.MeshStandardMaterial({ color: t[0], metalness: t[1], roughness: t[2], envMapIntensity: 1 });
+  const tints = {}; for (const [k, t] of Object.entries(V.tint || {})) tints[k] = new THREE.MeshStandardMaterial({ color: t[0], metalness: t[1], roughness: t[2], envMapIntensity: t[3] ?? (t[1] > 0.5 ? 0.6 : 0.2) });
+  tints.cabtrim = tints.cabtrim || new THREE.MeshStandardMaterial({ color: V.trimColor || 0x1f2023, roughness: 0.92, envMapIntensity: 0.1 });
   const pick = mat => { const n = mat.name || ''; if (tints[n]) return tints[n]; if (V.darken && V.darken.includes(n)) return darkM; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
   const envMats = new Set([paint, glass, headMat, ...Object.values(tints)]);
   for (const p of T.body) { const m = new THREE.Mesh(p.geo, p.role === 'tail' ? brakeMat : p.role === 'head' ? headMat : (p.role && tints[p.role]) ? tints[p.role] : pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m); }

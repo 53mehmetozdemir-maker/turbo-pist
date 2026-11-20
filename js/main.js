@@ -54,7 +54,7 @@ const mirScene=new THREE.Scene(), mirOrtho=new THREE.OrthographicCamera(-1,1,1,-
 const pmrem=new THREE.PMREMGenerator(renderer);
 const sky=new Sky(); sky.scale.setScalar(6000); scene.add(sky);
 const U=sky.material.uniforms;
-const hemi=new THREE.HemisphereLight(0xcfe3ff,0x4a6a35,0.75); scene.add(hemi);
+const hemi=new THREE.HemisphereLight(0xcfe3ff,0x56524c,0.75); scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xfff1dc,2.6); sun.castShadow=renderer.shadowMap.enabled;
 const SH=settings.quality==='high'?2048:1024; sun.shadow.mapSize.set(SH,SH);
 Object.assign(sun.shadow.camera,{left:-55,right:55,top:55,bottom:-55,near:1,far:600}); sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.04;
@@ -109,7 +109,7 @@ function loadEnv(t){ if(envCache[t]) return envCache[t];
 let nightF=0;
 function applyTime(t){
   const city=W&&W.kind==='city';
-  if(t==='day'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-40),THREE.MathUtils.degToRad(140)); sun.color.set(0xfff1dc); sun.intensity=2.6; hemi.intensity=0.75; hemi.color.set(0xcfe3ff); hemi.groundColor.set(0x4a6a35);
+  if(t==='day'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-40),THREE.MathUtils.degToRad(140)); sun.color.set(0xfff1dc); sun.intensity=2.6; hemi.intensity=0.75; hemi.color.set(0xcfe3ff); hemi.groundColor.set(0x56524c);
     U.turbidity.value=3; U.rayleigh.value=1.2; U.mieCoefficient.value=0.004; sky.visible=true; scene.background=null; scene.fog.color.set(0xc9d9e8); scene.fog.near=city?320:300; scene.fog.far=city?1500:1400; renderer.toneMappingExposure=city?0.82:0.9; nightF=0; }
   else if(t==='dusk'){ sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-6),THREE.MathUtils.degToRad(250)); sun.color.set(0xffa860); sun.intensity=1.7; hemi.intensity=0.42; hemi.color.set(0xffc9a0); hemi.groundColor.set(0x3a3040);
     U.turbidity.value=7; U.rayleigh.value=2.6; U.mieCoefficient.value=0.006; sky.visible=true; scene.background=null; scene.fog.color.set(0xd59c7c); scene.fog.near=120; scene.fog.far=850; renderer.toneMappingExposure=0.85; nightF=0.55; }
@@ -630,7 +630,7 @@ const look={yaw:0,pitch:0,drag:false,lx:0,ly:0,rel:0,zoom:1};
   cv.addEventListener('contextmenu',e=>e.preventDefault());
   cv.addEventListener('pointerdown',e=>{ if(e.pointerType==='touch'||!(mode==='free'||mode==='race'||mode==='countdown')||paused) return; look.drag=true; look.lx=e.clientX; look.ly=e.clientY; cv.setPointerCapture(e.pointerId); });
   cv.addEventListener('pointermove',e=>{ if(!look.drag) return; const dx=e.clientX-look.lx, dy=e.clientY-look.ly; look.lx=e.clientX; look.ly=e.clientY;
-    look.yaw-=dx*0.006; look.pitch=Math.max(-0.5,Math.min(0.9,look.pitch+dy*0.004)); look.rel=performance.now(); });
+    look.yaw=Math.max(-2.7,Math.min(2.7,look.yaw-dx*0.0045)); look.pitch=Math.max(-0.5,Math.min(0.9,look.pitch+dy*0.0035)); look.rel=performance.now(); });
   const up=e=>{ if(!look.drag) return; look.drag=false; look.rel=performance.now(); try{ cv.releasePointerCapture(e.pointerId); }catch(_){} };
   cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
   cv.addEventListener('wheel',e=>{ if(mode==='free'||mode==='race'){ look.zoom=Math.max(0.6,Math.min(2.2,look.zoom*(e.deltaY>0?1.1:0.9))); e.preventDefault(); } },{passive:false}); }

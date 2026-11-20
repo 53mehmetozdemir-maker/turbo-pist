@@ -55,7 +55,7 @@ function rim(R, wd) { const parts = [new THREE.CylinderGeometry(R, R, wd, 40, 1,
 export function buildCaddy(color) {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.3, roughness: 0.36, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.9 });
-  const trim = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.8, side: THREE.BackSide });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.8, side: THREE.BackSide, envMapIntensity: 0.1 });
   const black = new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.55, metalness: 0.1 });
   const plastic = new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: 0.85 });
   const gloss = new THREE.MeshPhysicalMaterial({ color: 0x08090a, roughness: 0.1, clearcoat: 1, envMapIntensity: 1.2 });
@@ -65,7 +65,7 @@ export function buildCaddy(color) {
   const headMat = new THREE.MeshPhysicalMaterial({ color: 0xc4cbd2, emissive: 0xfff1d6, emissiveIntensity: 0.15, roughness: 0.12, metalness: 0.85, clearcoat: 1, envMapIntensity: 1.3 });
   const alloy = new THREE.MeshStandardMaterial({ color: 0xb5bac0, roughness: 0.3, metalness: 0.9 });
   const rubber = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.9 });
-  const cabin = new THREE.MeshStandardMaterial({ color: 0x1d1e21, roughness: 0.8 }), cabin2 = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.75 });
+  const cabin = new THREE.MeshStandardMaterial({ color: 0x1d1e21, roughness: 0.8, envMapIntensity: 0.1 }), cabin2 = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.75, envMapIntensity: 0.1 });
   const add = (g, m, p = body, cast = true) => { const o = new THREE.Mesh(g, m); o.castShadow = cast; o.receiveShadow = true; p.add(o); return o; };
 
   // ---- body shell ----
