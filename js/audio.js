@@ -132,7 +132,7 @@ export class CarAudio {
     const g2=c.createGain(); g2.gain.setValueAtTime(Math.min(0.8,strength*0.06),t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.connect(g2); g2.connect(this.out); o.start(t); o.stop(t+0.35);
   }
   blowoff(){ if(!this.ctx) return; const c=this.ctx,t=c.currentTime; const s=c.createBufferSource(); s.buffer=this.noiseBuf; const f=c.createBiquadFilter(); f.type='highpass'; f.frequency.value=2500; const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.45); s.connect(f); f.connect(g); g.connect(this.out); s.start(t,Math.random()); s.stop(t+0.5); }
-  pop(v){ if(!this.ctx) return; const c=this.ctx,t=c.currentTime; const s=c.createBufferSource(); s.buffer=this.noiseBuf; const f=c.createBiquadFilter(); f.type='bandpass'; f.frequency.value=300+Math.random()*500; f.Q.value=0.8;
+  pop(v){ if(!this.ctx) return; if(this.onPop) this.onPop(v); const c=this.ctx,t=c.currentTime; const s=c.createBufferSource(); s.buffer=this.noiseBuf; const f=c.createBiquadFilter(); f.type='bandpass'; f.frequency.value=300+Math.random()*500; f.Q.value=0.8;
     const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5*v,t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+0.07+Math.random()*0.05);
     s.connect(f); f.connect(g); g.connect(this.out); s.start(t,Math.random()*1.5); s.stop(t+0.2); }
   beep(high){ if(!this.ctx) return; const c=this.ctx,t=c.currentTime,o=c.createOscillator(),g=c.createGain(); o.type='square'; o.frequency.value=high?880:440;
