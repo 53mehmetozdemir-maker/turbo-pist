@@ -45,7 +45,7 @@ export function buildBike(color) {
   const rubber = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
   const discM = new THREE.MeshStandardMaterial({ color: 0xb7bbc1, roughness: 0.3, metalness: 1, side: THREE.DoubleSide });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x1b2833, roughness: 0.03, transparent: true, opacity: 0.55, clearcoat: 1, side: THREE.DoubleSide });
-  const brakeMat = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1010, emissiveIntensity: 0.6, roughness: 0.15 });
+  const brakeMat = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff0800, emissiveIntensity: 0.6, roughness: 0.15, toneMapped: false });
   const headMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, emissive: 0xfff1d6, emissiveIntensity: 0.15, roughness: 0.05, metalness: 0.3 });
   const add = (g, m, p = body, cast = true) => { const o = new THREE.Mesh(g, m); o.castShadow = cast; o.receiveShadow = true; p.add(o); return o; };
 

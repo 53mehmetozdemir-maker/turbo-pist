@@ -510,7 +510,7 @@ function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=he
   if(m.bike){ m.setLean(m.leanT||0,lastFdt); m.body.rotation.set(0,0,-pitch*0.6); m.body.position.y=bump; } else { m.body.rotation.set(-roll,0,-pitch); m.body.position.y=(m.setPose?0:0.02)+bump; }
   if(m.setPose) m.setPose(steer,wheelAng);
   else { for(let i=0;i<4;i++){ const w=m.wheels[i]; if(w.front) w.pivot.rotation.y=-steer; w.spin.rotation.z=-wheelAng[i]; } m.steer.rotation.x=steer*12; }
-  m.brakeMat.emissiveIntensity=brake?6:(lights?2.2:0.35); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
+  m.brakeMat.emissiveIntensity=brake?(m.vid?3.2:6):(lights?(m.vid?1.3:2.2):0.35); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
   if(m.headMat) m.headMat.emissiveIntensity=lights?3.5:0.15;
   for(const f of m.flames){ f.visible=nitro; if(nitro){ const s=0.8+Math.random()*0.5; f.scale.set(s,1,1); } }
 }

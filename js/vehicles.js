@@ -32,6 +32,7 @@ export const VEHICLES = {
     sw: { c: [0.585, 0.70, -0.33], n: [-0.84, 0.54, 0], r: 0.19, t: 0.05 },
     dash: [{ c: [0.787, 0.749, -0.364], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'tach', max: 10000 }, { c: [0.787, 0.749, -0.272], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'speedo', max: 360 }],
     exhaust: { y: 0.36, z: [-0.07, 0, 0.07] },
+    tailDiscs: [{ c: [-1.889, 0.648, -0.528], n: [-1, -0.03, -0.07], r: 0.08 }], darken: ['F40_GridD', 'F40_Grid', 'F40_Vehiclelight'],
   },
   model3: {
     name: 'Tesla Model 3 Performance', short: 'Model 3', info: 'Elektrik · 2 motor · 460 PS · 660 Nm · dört çeker',
@@ -40,7 +41,8 @@ export const VEHICLES = {
     spec: { mass: 1919, inertia: 3300, a: 1.5, b: 1.375, cgH: 0.5, r: 0.341, ev: true,
       gears: [9.04], reverse: 9.04, final: 1, idle: 0, redline: 18400, shiftUp: 99999, shiftDown: 0, eff: 0.92,
       tq: evCurve(660, 340, 18400), drag: 0.306, downforce: 0.1, brakeForce: 30000, drive: 'awd', awdFront: 0.4, vmax: 261, regen: 120, grip: 0.92, hl: 2.33, hw: 0.92 },
-    mats: { paint: ['CAR_PAINT'], tail: ['Material.002'], head: [], glass: ['Material.017', 'Material.016'] },
+    mats: { paint: ['CAR_PAINT'], tail: ['Material.002'], head: ['Glass'], glass: ['Material.017', 'Material.016'] }, darken: ['Material.007'],
+    lightBoxes: [{ mat: 'Material.005', min: [-9, 0.6, 0.2], max: [-1.9, 1.2, 0.95], as: 'tail' }],
     wheelMats: null,
     cam: { cockpit: [-0.15, 1.22, -0.37], look: [6, 1.04, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
     mirrors: { in: { c: [0.62, 1.335, 0.0], n: [-0.99, -0.05, -0.12], w: 0.22, h: 0.055, housing: true }, L: { c: [0.52, 1.005, -0.952], n: [-0.89, 0, 0.46], w: 0.14, h: 0.085 } },
@@ -54,10 +56,11 @@ export const VEHICLES = {
     spec: { mass: 1623, inertia: 2700, a: 1.04, b: 1.565, cgH: 0.58, r: 0.334, ev: true,
       gears: [8.6], reverse: 8.6, final: 1, idle: 0, redline: 10500, shiftUp: 99999, shiftDown: 0, eff: 0.92,
       tq: evCurve(260, 100, 10500), drag: 0.475, downforce: 0, brakeForce: 24000, drive: 'fwd', vmax: 150, regen: 70, grip: 0.82, hl: 2.13, hw: 0.88 },
-    mats: { paint: ['Bianca_White'], tail: ['2020_Peugeot_e-2008_rouge_vitre'], head: ['2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7'], glass: ['2020_Peugeot_e-2008_glass_clear', '2020_Peugeot_e-2008_vitres_exterieur'] },
+    lightBoxes: [{ mat: '2020_Peugeot_e-2008_black', min: [-9, 0.98, 0.42], max: [-1.75, 1.2, 0.8], as: 'tail' }, { mat: '2020_Peugeot_e-2008_black', min: [1.6, 0.78, 0.5], max: [9, 0.95, 0.8], as: 'head' }],
+    mats: { paint: ['Bianca_White'], tail: [], head: ['2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7'], glass: ['2020_Peugeot_e-2008_glass_clear', '2020_Peugeot_e-2008_vitres_exterieur'] },
     wheelMats: /wheel_tire_01_dm|wheel_black/,
     cam: { cockpit: [-0.1, 1.27, -0.37], look: [6, 1.07, -0.37], hood: [0.9, 1.45, 0], mirror: [0.55, 1.3, 0] },
-    mirrors: { in: { c: [0.528, 1.282, 0.003], n: [-0.99, -0.08, -0.12], w: 0.2, h: 0.05 }, L: { c: [0.625, 1.06, -0.868], n: [-0.88, 0.05, 0.47], w: 0.17, h: 0.09 } },
+    mirrors: { in: { c: [0.528, 1.282, 0.003], n: [-0.99, -0.08, -0.12], w: 0.2, h: 0.05 }, L: { c: [0.576, 1.078, -0.866], n: [-0.92, 0, 0.4], w: 0.15, h: 0.095 } },
     sw: { c: [0.40, 0.985, -0.37], n: [-0.85, 0.53, 0], r: 0.19, t: 0.05 },
     dash: [{ c: [0.73, 1.048, -0.343], n: [-0.95, 0.3, 0], w: 0.16, h: 0.06, kind: 'peugeot' }],
   },
@@ -125,16 +128,23 @@ function prepare(V, scene) {
   const mid = (fx + rx) / 2;
   for (const p of body) p.geo.translate(-mid, 0, 0);
   for (const w of wheels) { if (!w.c) continue; w.c.x -= mid; for (const p of w.list) { p.geo.translate(-mid, 0, 0); p.geo.translate(-w.c.x, -w.c.y, -w.c.z); } }
+  // light lenses that share a material with trim: carve them out by region
+  for (const lb of V.lightBoxes || []) for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; if ((p.mat.name || '') !== lb.mat || p.role) continue;
+    const sp = splitTris(p.geo, (x, y, z) => { const zz = Math.abs(z); return (x >= lb.min[0] && x <= lb.max[0] && y >= lb.min[1] && y <= lb.max[1] && zz >= lb.min[2] && zz <= lb.max[2]) ? 'l' : 'o'; });
+    if (sp.l) { body.splice(i, 1); body.push({ geo: sp.l, mat: p.mat, role: lb.as }); if (sp.o) body.push({ geo: sp.o, mat: p.mat }); } }
   // steering wheel: triangles within a disc around the column axis become their own pivot
   let swParts = null; if (V.sw) { const c0 = new THREE.Vector3(...V.sw.c), ax = new THREE.Vector3(...V.sw.n).normalize(); swParts = [];
     for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; const sp = splitTris(p.geo, (x, y, z) => { const d = new THREE.Vector3(x, y, z).sub(c0); const a = d.dot(ax); const r = d.addScaledVector(ax, -a).length(); return (Math.abs(a) < V.sw.t && r < V.sw.r) ? 's' : 'b'; });
       if (sp.s) { for (const g of [sp.s]) { g.translate(-c0.x, -c0.y, -c0.z); swParts.push({ geo: g, mat: p.mat }); } if (sp.b) body[i] = { geo: sp.b, mat: p.mat }; else body.splice(i, 1); } } }
   // tame glossy/metallic interior & trim materials (they glow gold in the sun otherwise)
-  const seen = new Map(); const fix = p => { const m = p.mat; if (!m || !m.isMeshStandardMaterial) return; if (seen.has(m)) { p.mat = seen.get(m); return; }
+  const seen = new Map(); const fix = (p, wheel) => { const m = p.mat; if (!m || !m.isMeshStandardMaterial) return; if (seen.has(m)) { p.mat = seen.get(m); return; }
+    const lum0 = m.color ? (m.color.r + m.color.g + m.color.b) / 3 : 1; const chrome0 = /chrom|metal|rim|cerchi/i.test(m.name || '');
+    if (!wheel && !chrome0 && !m.transparent && !m.map && !(V.mats && V.mats.paint && V.mats.paint.includes(m.name))) { // dark trim/interior: matte, no sun glare (it turned the cabins olive/gold)
+      const l = new THREE.MeshLambertMaterial({ color: m.color, side: m.side, name: m.name }); seen.set(m, l); p.mat = l; return; }
     const n = m.clone(); const lum = n.color ? (n.color.r + n.color.g + n.color.b) / 3 : 1; const chrome = /chrom|metal|rim|cerchi/i.test(m.name || '');
     if (!chrome) { n.metalness = Math.min(n.metalness, 0.1); n.roughness = Math.max(n.roughness, lum < 0.5 ? 0.6 : 0.4); }
     n.envMapIntensity = chrome ? 1 : 0.35; seen.set(m, n); p.mat = n; };
-  for (const p of body) fix(p); for (const w of wheels) for (const p of w.list) fix(p); if (swParts) for (const p of swParts) fix(p);
+  for (const p of body) fix(p); for (const w of wheels) for (const p of w.list) fix(p, true); if (swParts) for (const p of swParts) fix(p);
   return { body, wheels, sw: swParts, wb: fx - rx, len: all.max.x - all.min.x, rearX: all.min.x - cx - mid };
 }
 
@@ -146,19 +156,22 @@ export function buildVehicle(id, color) {
   const T = cache[id] && cache[id].tpl; if (!T) return null;
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.25, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.9 });
-  const brakeMat = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1010, emissiveIntensity: 0.6, roughness: 0.15 });
+  const brakeMat = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff0800, emissiveIntensity: 0.6, roughness: 0.15, toneMapped: false });
   const headMat = new THREE.MeshStandardMaterial({ color: 0xdfe5ea, emissive: 0xfff1d6, emissiveIntensity: 0.15, roughness: 0.05, metalness: 0.3 });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0e1216, metalness: 0.2, roughness: 0.02, transparent: true, opacity: 0.45, envMapIntensity: 1.5, clearcoat: 1 });
   const M = V.mats || {}; const has = (list, n) => list && list.includes(n);
-  const pick = mat => { const n = mat.name || ''; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
+  const darkM = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.85, metalness: 0 });
+  const pick = mat => { const n = mat.name || ''; if (V.darken && V.darken.includes(n)) return darkM; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
   const envMats = new Set([paint, glass]);
-  for (const p of T.body) { const m = new THREE.Mesh(p.geo, pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m); }
+  for (const p of T.body) { const m = new THREE.Mesh(p.geo, p.role === 'tail' ? brakeMat : p.role === 'head' ? headMat : pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m); }
   const unsprung = new THREE.Group(); root.add(unsprung);
   const pivots = T.wheels.map((w, i) => { const steerG = new THREE.Group(), spin = new THREE.Group(); steerG.add(spin); if (w.c) steerG.position.copy(w.c); unsprung.add(steerG);
     for (const p of w.list) { const m = new THREE.Mesh(p.geo, pick(p.mat)); m.castShadow = true; spin.add(m); } return { steerG, spin, front: i < 2 }; });
   let swG = null, swAxis = null; if (T.sw && T.sw.length) { swG = new THREE.Group(); swG.position.set(...V.sw.c); swAxis = new THREE.Vector3(...V.sw.n).normalize(); const inner = new THREE.Group(); swG.add(inner); for (const p of T.sw) inner.add(new THREE.Mesh(p.geo, pick(p.mat))); body.add(swG); swG.userData.inner = inner; }
   const flames = []; if (V.exhaust) { const fm = new THREE.MeshBasicMaterial({ color: 0x66b3ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
     for (const z of V.exhaust.z) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.55, 10).rotateZ(Math.PI / 2), fm); f.position.set(T.rearX - 0.22, V.exhaust.y, z); f.visible = false; body.add(f); flames.push(f); } }
+  for (const td of V.tailDiscs || []) for (const s of [1, -1]) { const n = new THREE.Vector3(td.n[0], td.n[1], td.n[2] * s).normalize(); const d = new THREE.Mesh(new THREE.CircleGeometry(td.r, 28), brakeMat);
+    d.position.set(td.c[0], td.c[1], td.c[2] * s).addScaledVector(n, 0.012); d.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n); body.add(d); }
   const dash = (V.dash || []).map(d => { const cv = document.createElement('canvas'); cv.width = Math.round(256 * Math.max(1, d.w / d.h)); cv.height = Math.round(cv.width * d.h / d.w); const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     const geo = d.kind === 'tach' || d.kind === 'speedo' ? new THREE.CircleGeometry(d.w / 2, 40) : new THREE.PlaneGeometry(d.w, d.h); const n = new THREE.Vector3(...d.n).normalize(); const u = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), n).normalize(), w = new THREE.Vector3().crossVectors(n, u);
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, w, n)); mesh.position.set(...d.c).addScaledVector(n, 0.003); body.add(mesh);
