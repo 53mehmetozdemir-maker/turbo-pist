@@ -302,7 +302,7 @@ let peers=[];
 const net=new Net(ps=>{ peers=ps; onPeersChanged(); }, ()=>{ goMenu(); }, toast);
 net.onExtra=d=>{ if(d.k==='tr' && W && W.traffic && !net.isHost) W.traffic.unpack(d.d); };
 const netNote=$('netNote');
-if(net.available){ $('joinBtn').disabled=false; netNote.innerHTML='Aynı oda kodunu giren herkes aynı haritaya katılır (haritayı odayı açan seçer). Lobideki <b>Davet linkini kopyala</b> ile arkadaşına link gönder.'; }
+if(net.available){ $('joinBtn').disabled=false; netNote.innerHTML='Aynı oda kodunu giren herkes aynı haritaya katılır: <b>Şehir</b> seçip odayı açarsan arkadaşınla şehirde gezersin, <b>Pist</b> seçersen yarışırsınız (haritayı odayı açan seçer). <b>🔗 Davet</b> ile arkadaşına link gönder.'; }
 else netNote.innerHTML='<span class="warn">Bağlantı kütüphanesi yüklenemedi.</span> İnterneti kontrol edip sayfayı yenile.';
 const myPres=()=>({name:settings.name,color:settings.color,veh:settings.vehicle});
 
@@ -322,6 +322,7 @@ $('soloBtn').onclick=()=>{ saveName(); audio.start(); online=false; if(settings.
 $('copyBtn').onclick=async()=>{ const url=location.origin+location.pathname+'?oda='+encodeURIComponent($('lobbyCode').textContent);
   try{ await navigator.clipboard.writeText(url); toast('Link kopyalandı ✓ Arkadaşına gönder'); }catch(e){ toast(url,6000); } };
 $('freeCopy').onclick=()=>$('copyBtn').onclick();
+$('freeGo').onclick=e=>{ e.currentTarget.blur(); goToFriend(); };
 function enterLobby(){
   mode='lobby'; ready=false; resultsShown=false; raceId=null; clearRemotes();
   net.set({ready:false, st:'lobby', raceId:null, fin:null, x:null});
@@ -400,14 +401,23 @@ function checkHost(){
 function handleRace(r){ if(seenRaces.has(r.id)) return; seenRaces.add(r.id); if(mode!=='lobby' || !r.p.includes(net.myId)) return; startRace(r); }
 
 // ---------------- free roam ----------------
+// a free lane spot a few car lengths behind another player in the city (null if nobody is driving there)
+function friendSpot(){ const fs=peers.filter(p=>!p.me&&p.p&&p.p.st==='free'&&typeof p.p.x==='number'); if(!fs.length) return null;
+  const f=fs.reduce((a,b)=>(Math.hypot(a.p.x-phys.x,a.p.y-phys.y)<Math.hypot(b.p.x-phys.x,b.p.y-phys.y)?a:b)).p; const fa=+f.a||0;
+  for(const d of [12,18,26,8]){ const l=nearestLane(f.x-Math.cos(fa)*d,f.y-Math.sin(fa)*d); if(Math.hypot(l.x-f.x,l.y-f.y)>6) return {x:l.x,y:l.y,a:l.a}; }
+  const l=nearestLane(f.x,f.y); return {x:l.x+6,y:l.y,a:l.a}; }
+function goToFriend(){ if(mode!=='free'||!online){ toast('Arkadaşına gitmek için şehirde bir odada olmalısın',2200); return; }
+  const sp=friendSpot(); if(!sp){ toast('Şehirde başka oyuncu yok',1800); return; }
+  phys.reset(sp.x,sp.y,sp.a); respawnCool=1.5; skids.clear(); toast('Arkadaşının yanına ışınlandın 👋',1800); }
 function startFree(){
   useWorld('city'); clearRemotes(); skids.clear(); repairCar(model); raceId=null;
   // spawn on a random outer lane, spread players apart
   const k=Math.floor(Math.random()*8); const i=1+Math.floor(Math.random()*8);
-  const sp=[{x:i*CP+30,y:k*CP+LANES[1],a:0},{x:k*CP-LANES[1],y:i*CP+30,a:Math.PI/2}][Math.random()<0.5?0:1];
+  let sp=[{x:i*CP+30,y:k*CP+LANES[1],a:0},{x:k*CP-LANES[1],y:i*CP+30,a:Math.PI/2}][Math.random()<0.5?0:1];
+  const fr=online&&friendSpot(); if(fr) sp=fr;
   phys.reset(sp.x,sp.y,sp.a); phys.manual=settings.manual; phys.assists=settings.assists;
   mode='free'; show(null); hud(true); camInit=false; lastModeT=performance.now();
-  toast(`Şehirde serbest sürüş · ${CAM_NAMES[camMode]} (C) · Korna (H) · Esc menü`,4000);
+  toast(online?`Şehirde arkadaşlarınla · Arkadaşına git (T) · ${CAM_NAMES[camMode]} (C) · Esc menü`:`Şehirde serbest sürüş · ${CAM_NAMES[camMode]} (C) · Korna (H) · Esc menü`,4500);
   if(online) net.set({...myPres(), st:'free', ready:false, raceId:null, map:net.isHost?'city':undefined});
 }
 
@@ -494,6 +504,7 @@ function handleEdges(){
     else if(k==='KeyM'){ audio.setMuted(!audio.muted); toast(audio.muted?'Ses kapalı':'Ses açık',1200); }
     else if(k==='KeyL'){ headlightsOn=!headlightsOn; toast(headlightsOn?'Farlar açık':'Farlar kapalı',1000); }
     else if(k==='KeyR') respawn();
+    else if(k==='KeyT') goToFriend();
     else if(k==='Escape' && (mode==='free'||mode==='race')){ if(paused){ paused=false; show(null); } else openPause(); }
     else if((k==='KeyE'||k==='KeyX') && phys.manual){ phys.shift(1); audio.shiftBlip(); }
     else if((k==='KeyQ'||k==='KeyZ') && phys.manual){ phys.shift(-1); audio.shiftBlip(); }
@@ -644,7 +655,7 @@ function updateHud(){
     setText('hLap',Math.min(me.lap+1,LAPS)+'/'+LAPS); setText('hPos',pos+'/'+st.length);
     setText('hTime',fmt(me.fin?me.ft:elapsed)); setText('hLast',fmt(lastLap)); setText('hBest',fmt(bestLap));
     setText('hCur',mode==='race'&&!me.fin?fmt(performance.now()-lapStart):'-:--.---'); }
-  else if(frameNo%10===0){ setText('stName',streetName(phys.x,phys.y)); setText('stDist',district(phys.x,phys.y)); setText('freeInfo',(online?(remotes.size+1)+' oyuncu':'Tek başına')+' · '+(['Gündüz','Akşam','Gece'][['day','dusk','night'].indexOf(settings.time)])); }
+  else if(frameNo%10===0){ setText('stName',streetName(phys.x,phys.y)); setText('stDist',district(phys.x,phys.y)); $('freeGo').classList.toggle('hidden',!(online&&remotes.size)); setText('freeInfo',(online?(remotes.size+1)+' oyuncu':'Tek başına')+' · '+(['Gündüz','Akşam','Gece'][['day','dusk','night'].indexOf(settings.time)])); }
   drawCluster();
   setText('hNet',fps+' FPS'+(online?(net.isHost?' · oda kurucusu':(net.ping!=null?' · '+net.ping+' ms':'')):'')+(phys.manual?' · manuel':'')+(phys.assists?'':' · yardımsız'));
   if(frameNo%2===0) renderMini();
