@@ -712,7 +712,7 @@ function frame(t){
     if(phys.kerb||phys.surfF===2) shake=Math.max(shake,Math.min(0.35,phys.speed*0.01));
     carEffects(fdt);
   } else if(paused){ acc=0; }
-  lastFdt=fdt; if(model.bike){ model.leanT=Math.max(-0.95,Math.min(0.95,Math.atan(phys.vLong*phys.yawRate/9.81))); model.rider.visible=!(driving&&camMode===1); }
+  lastFdt=fdt; if(model.bike){ const parked=!driving||phys.speed<0.3&&phys.throttle===0; model.leanT=parked&&!driving?-0.13:Math.max(-0.95,Math.min(0.95,Math.atan(phys.vLong*phys.yawRate/9.81))); model.rider.visible=driving&&camMode!==1; if(model.stand) model.stand.visible=!driving; }
   placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,(phys.brake>0.1&&!phys.burnout)||phys.hand>0,phys.nitroOn,phys.bump*0.25,headlightsOn,groundUnder(phys));
   headSpot.intensity=headlightsOn&&driving?(nightF>0.5?260:120):0;
   // remote players
