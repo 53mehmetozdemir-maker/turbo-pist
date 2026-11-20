@@ -284,7 +284,7 @@ function backfire(m,v){ if(!m||!m.flames||!m.flames.length) return; if(Math.rand
 let lastCutVis=0;
 function updateBackfire(dt){
   if(phys.cutEvent && phys.cutEvent!==lastCutVis){ lastCutVis=phys.cutEvent; if(mode==='free'||mode==='race') backfire(model,0.85); }
-  for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=Math.max(0,(m.bfT||0)-dt); const on=m.bfT>0, life=on?m.bfT/(m.bfLife||0.1):0;
+  for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=window.__bfHold?(m.bfLife||0.1)*0.7:Math.max(0,(m.bfT||0)-dt); const on=m.bfT>0, life=on?m.bfT/(m.bfLife||0.1):0;
     for(const g of m.backfire){ g.visible=on; if(on){ const L=m.bfLen*(0.85+Math.random()*0.3)*(0.6+0.4*life), W=0.7+Math.random()*0.5;
       g.userData.h.scale.set(L,W*L*1.6,1); g.userData.v.scale.set(L,W*L*1.6,1); g.userData.h.rotation.z=(Math.random()-0.5)*0.15;
       for(const mt of g.userData.mats) mt.opacity=Math.min(1,life*1.6); g.userData.glow.material.opacity=0.5*life; } } }
