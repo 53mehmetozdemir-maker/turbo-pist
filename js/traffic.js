@@ -1,7 +1,7 @@
 // AI traffic on the city lane graph + pedestrians on the sidewalks.
 import * as THREE from 'three';
 import { personGeos } from './props.js';
-import { NB, P, ROAD, LANES, lightState, blocks, SW, CURB, CAR_COLORS } from './city.js';
+import { NB, P, ROAD, LANES, lightState, blocks, SW, CURB, CAR_COLORS, nowS } from './city.js';
 
 const BL = P - ROAD;
 const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
@@ -129,7 +129,7 @@ export class Pedestrians {
   loopPos(p, d, inset) { const b = p.b, s = p.side, L = s * 4; d = ((d % L) + L) % L; const x0 = b.x0 + inset, y0 = b.y0 + inset, x1 = b.x0 + BL - inset, y1 = b.y0 + BL - inset;
     if (d < s) return [x0 + d, y0, 0]; if (d < 2 * s) return [x1, y0 + d - s, Math.PI / 2]; if (d < 3 * s) return [x1 - (d - 2 * s), y1, Math.PI]; return [x0, y1 - (d - 3 * s), -Math.PI / 2]; }
   update(dt, cars) {
-    const t = Date.now() / 1000, D = this.D;
+    const t = nowS(), D = this.D;
     this.peds.forEach((p, i) => {
       const d = p.off + p.sp * t;
       // dodge away from fast cars that come close (sidewalk drivers!)

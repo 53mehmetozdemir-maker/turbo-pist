@@ -73,8 +73,8 @@ export class Car {
     this.surfF=OPTS.forceSurface??this.world.surface(fx,fy,this); this.surfR=OPTS.forceSurface??this.world.surface(rx,ry,this);
     const wetK=(OPTS.wet?0.74:1)*P.grip; const muF=SURF[this.surfF].mu*wetK, muR=SURF[this.surfR].mu*P.muRear*wetK;
     this.kerb=(this.surfF===1||this.surfR===1)?1:0;
-    if(this.prevSurfF!=null && this.prevSurfF!==this.surfF && (this.prevSurfF===3||this.surfF===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfF=this.surfF;
-    if(this.prevSurfR!=null && this.prevSurfR!==this.surfR && (this.prevSurfR===3||this.surfR===3)) this.bumpV-=Math.min(2.5,speed*0.12); this.prevSurfR=this.surfR;
+    if(this.prevSurfF!=null && this.prevSurfF!==this.surfF && (this.prevSurfF===3||this.surfF===3)) this.bumpV-=Math.min(1.2,speed*0.06); this.prevSurfF=this.surfF;
+    if(this.prevSurfR!=null && this.prevSurfR!==this.surfR && (this.prevSurfR===3||this.surfR===3)) this.bumpV-=Math.min(1.2,speed*0.06); this.prevSurfR=this.surfR;
 
     // ---- engine & gearbox ----
     if(this.gear>P.gears.length) this.gear=P.gears.length;
@@ -196,13 +196,13 @@ export class Car {
     const wv=this.vLong/P.r;
     for(let i=0;i<4;i++){ let w=wv; if(i>=2){ if(this.hand && (Math.abs(this.vLong)>1||this.launch)) w=0; else if(this.burnout) w=this.rpm/((P.gears[0]*P.final))*2*Math.PI/60; else if(spin) w+=Math.sign(FdR)*this.spinR*60; } if(lockF && i<2) w=0; this.wheelSpin[i]=w; this.wheelAng[i]+=w*dt; }
     // suspension bounce (visual)
-    this.bumpV += (-this.bump*180 - this.bumpV*14)*dt; this.bump += this.bumpV*dt;
+    this.bumpV += (-this.bump*180 - this.bumpV*30)*dt; this.bump += this.bumpV*dt;
     // body pitch/roll (visual)
     // sprung body: damped springs so the nose dives and rebounds, the body leans and settles
-    const kP=95, cP=17, kR=80, cR=15;
-    this.pitchV=(this.pitchV||0)+((-this.axPrev*0.014)-this.pitch)*kP*dt-(this.pitchV||0)*cP*dt; this.pitch+=this.pitchV*dt;
-    this.rollV=(this.rollV||0)+((this.ayPrev*0.018)-this.rollA)*kR*dt-(this.rollV||0)*cR*dt; this.rollA+=this.rollV*dt;
-    this.pitch=Math.max(-0.07,Math.min(0.07,this.pitch)); this.rollA=Math.max(-0.08,Math.min(0.08,this.rollA));
+    const kP=110, cP=22, kR=110, cR=22;   // stiff, critically damped: the body settles without bouncing
+    this.pitchV=(this.pitchV||0)+((-this.axPrev*0.005)-this.pitch)*kP*dt-(this.pitchV||0)*cP*dt; this.pitch+=this.pitchV*dt;
+    this.rollV=(this.rollV||0)+((this.ayPrev*0.006)-this.rollA)*kR*dt-(this.rollV||0)*cR*dt; this.rollA+=this.rollV*dt;
+    this.pitch=Math.max(-0.03,Math.min(0.03,this.pitch)); this.rollA=Math.max(-0.035,Math.min(0.035,this.rollA));
     // road texture: tiny vibration growing with speed, stronger on kerbs/gravel
     this.rough=(this.kerb?0.012:0)+((this.surfF===2||this.surfF===4)?0.02:0)+speed*0.00006;
   }

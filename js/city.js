@@ -65,7 +65,9 @@ export function nearestLane(x, y) {
   const xx = Math.max(ROAD, Math.min(SIZE - ROAD, x)); return { x: xx, y: ky * P + LANES[1], a: 0 };
 }
 // traffic-light phase from the shared clock: returns 'ns'/'ew' state 0 green 1 yellow 2 red
-export function lightState(axis, t = Date.now() / 1000) {
+// shared room clock: guests adopt the host's wall clock so traffic lights and pedestrians match on every screen
+export const CLOCK = { off: 0 }; export const nowS = () => (Date.now() + CLOCK.off) / 1000;
+export function lightState(axis, t = nowS()) {
   const c = ((t % 26) + 26) % 26;
   const ew = c < 10 ? 0 : c < 12.5 ? 1 : 2, ns = c < 13 ? 2 : c < 23 ? 0 : c < 25.5 ? 1 : 2;
   return axis === 'ew' ? ew : ns;
