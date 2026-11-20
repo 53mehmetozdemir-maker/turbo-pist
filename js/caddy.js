@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildCabin } from './interior.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const WB = 2.755, AX = WB / 2, TR = 0.79, RW = 0.33;        // wheelbase, half track, 205/60 R16
 const ARCH = 0.375;
@@ -143,9 +144,9 @@ export function buildCaddy(color) {
   add(panel(1.5, 0.008, rx - 0.003, 1.08), black);                  // tailgate shut line
   add(box(0.06, 0.02, 0.12, rx - 0.02, 0.78, 0), chrome);                  // tailgate handle
   // ---- mirrors ----
-  for (const s of [-1, 1]) { const h = new THREE.SphereGeometry(1, 18, 12); h.scale(0.085, 0.09, 0.13); h.translate(1.02, 1.17, s * 1.0); add(h, paint);
+  for (const s of [-1, 1]) { const h = new RoundedBoxGeometry(0.1, 0.16, 0.25, 4, 0.04); h.translate(0.995, 1.17, s * 1.0); add(h, paint); add(new THREE.BoxGeometry(0.01, 0.145, 0.235).translate(0.947, 1.17, s * 1.0), black);
     add(box(0.06, 0.04, 0.12, 1.06, 1.1, s * 0.93), black); }
-  const mdefs = { in: { c: [0.56, 1.645, 0], n: [-0.99, -0.08, 0], w: 0.25, h: 0.065, housing: true }, L: { c: [0.925, 1.17, -1.0], n: [-0.96, 0, 0.27], w: 0.16, h: 0.12 } };
+  const mdefs = { in: { c: [0.56, 1.645, 0], n: [-0.99, -0.08, 0], w: 0.25, h: 0.065, housing: true }, L: { c: [0.941, 1.17, -1.0], n: [-1, 0, 0], w: 0.215, h: 0.13, fixed: true } };
   // ---- wheel arches, underbody ----
   for (const ax of [AX, -AX]) for (const s of [-1, 1]) add(new THREE.CylinderGeometry(ARCH + 0.005, ARCH + 0.005, 0.28, 24, 1, true, -Math.PI / 2, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).rotateY(0).translate(ax, RW, s * 0.78), plastic, body, false);
   add(box(4.3, 0.02, 1.7, 0.04, 0.26, 0), plastic, body, false);
