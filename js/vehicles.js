@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { buildBike } from './bike.js';
 import { buildCaddy } from './caddy.js';
+import { buildCabin, navTex } from './interior.js';
 
 // electric motor: constant torque up to base speed, then constant power
 const evCurve = (tMax, pKW, maxRpm) => { const out = []; for (let r = 0; r <= maxRpm + 400; r += 400) { const w = Math.max(1, r * Math.PI / 30); out.push([r, Math.min(tMax, pKW * 1000 / w)]); } return out; };
@@ -33,6 +34,8 @@ export const VEHICLES = {
     sw: { c: [0.585, 0.70, -0.33], n: [-0.84, 0.54, 0], r: 0.19, t: 0.05 },
     dash: [{ c: [0.787, 0.749, -0.364], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'tach', max: 10000 }, { c: [0.787, 0.749, -0.272], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'speedo', max: 360 }],
     exhaust: { y: 0.36, z: [-0.07, 0, 0.07] },
+    tint: { f40seat: [0x7a1414, 0, 0.85], F40_Cockpit: [0x2a2a2c, 0, 0.9] },
+    lightBoxes: [{ mat: 'F40_Cockpit', min: [-0.5, 0.15, 0.13], max: [0.2, 0.95, 0.58], as: 'f40seat' }],
     tailDiscs: [{ c: [-1.889, 0.648, -0.528], n: [-1, -0.03, -0.07], r: 0.08 }], darken: ['F40_GridD', 'F40_Grid', 'F40_Vehiclelight'],
   },
   model3: {
@@ -48,7 +51,9 @@ export const VEHICLES = {
     wheelMats: null,
     cam: { cockpit: [-0.2, 1.27, -0.37], look: [6, 1.06, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
     mirrors: { in: { c: [0.62, 1.335, 0.0], n: [-0.99, -0.05, -0.12], w: 0.22, h: 0.055, housing: true }, L: { c: [0.52, 1.005, -0.952], n: [-0.89, 0, 0.46], w: 0.14, h: 0.085 } },
-    sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.2, t: 0.05 },
+    kit: { hide: [[-1.9, 0.27, -0.7], [1.02, 1.26, 0.7]], opt: { xDash: 1.1, xFace: 0.66, yTop: 0.93, yFloor: 0.3, halfW: 0.72, zDrv: -0.37, seatX: -0.42, seatY: 0.56, back: 0.28, roofY: 1.42, xVisor: null,
+      doors: false, doorZ: 0.79, xDoorF: 0.78, xDoorR: -0.38, rear: { x: -1.25, y: 0.6, w: 1.32 }, cluster: null, screen: { c: [0.668, 0.972, -0.01], w: 0.3, h: 0.18, tilt: -0.233, stand: true },
+      sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.18, flat: true }, shifter: 'none', trimKind: 'black', pillars: [{ x: -0.3, y0: 0.92, y1: 1.36, z: 0.7, w: 0.16 }], col: { dash: 0x1a1b1d, low: 0x121314, seat: 0x17181a, ins: '#25262a', stitch: '#4a4c52', amb: 0xffffff } } },
     dash: [{ c: [0.655, 0.975, -0.01], n: [-0.97, 0.23, 0], w: 0.3, h: 0.18, kind: 'tesla' }],
   },
   e2008: {
@@ -58,8 +63,10 @@ export const VEHICLES = {
     spec: { mass: 1623, inertia: 2700, a: 1.04, b: 1.565, cgH: 0.58, r: 0.334, ev: true,
       gears: [8.6], reverse: 8.6, final: 1, idle: 0, redline: 10500, shiftUp: 99999, shiftDown: 0, eff: 0.92,
       tq: evCurve(260, 100, 10500), drag: 0.475, downforce: 0, brakeForce: 24000, drive: 'fwd', vmax: 150, regen: 70, grip: 0.82, hl: 2.13, hw: 0.88 },
-    lightBoxes: [{ mat: '2020_Peugeot_e-2008_black', min: [-9, 0.98, 0.42], max: [-1.75, 1.2, 0.8], as: 'tail' }, { mat: '2020_Peugeot_e-2008_black', min: [1.6, 0.78, 0.5], max: [9, 0.95, 0.8], as: 'head' }],
-    mats: { paint: ['Bianca_White'], tail: [], head: ['2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7'], glass: ['2020_Peugeot_e-2008_glass_clear', '2020_Peugeot_e-2008_vitres_exterieur'] },
+    lightBoxes: [{ mat: '2020_Peugeot_e-2008_black', min: [-9, 0.98, 0.42], max: [-1.75, 1.2, 0.8], as: 'tail' }, { mat: '2020_Peugeot_e-2008_black', min: [1.6, 0.78, 0.5], max: [9, 0.95, 0.8], as: 'head' }, { mat: '2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7', min: [1.5, 0.55, 0.15], max: [9, 1.1, 0.95], as: 'head' }, { mat: '2020_Peugeot_e-2008_chrome_0', min: [-1.5, 0.45, 0], max: [1.05, 1.3, 0.74], as: 'e2trim' }, { mat: '2020_Peugeot_e-2008_wheel_black', min: [-1.6, 0.45, 0], max: [1.1, 1.35, 0.76], as: 'e2dash' }],
+    mats: { paint: ['Bianca_White'], tail: [], head: [], glass: ['2020_Peugeot_e-2008_glass_clear', '2020_Peugeot_e-2008_vitres_exterieur'] },
+    navs: [{ c: [0.582, 1.045, 0.035], n: [-0.97, 0.15, -0.18], w: 0.235, h: 0.1 }],
+    tint: { '2020_Peugeot_e-2008_int': [0x2e2f33, 0, 0.75], '2020_Peugeot_e-2008_vehicle_generic_smallspecmap_7': [0x45474c, 0.4, 0.45], e2trim: [0x6a6d73, 0.7, 0.35], e2dash: [0x34363a, 0, 0.7], Color_M08: [0x2a2b2e, 0, 0.6] },
     wheelMats: /wheel_tire_01_dm|wheel_black/,
     cam: { cockpit: [-0.1, 1.27, -0.37], look: [6, 1.07, -0.37], hood: [0.9, 1.45, 0], mirror: [0.55, 1.3, 0] },
     mirrors: { in: { c: [0.528, 1.282, 0.003], n: [-0.99, -0.08, -0.12], w: 0.2, h: 0.05 }, L: { c: [0.576, 1.078, -0.866], n: [-0.92, 0, 0.4], w: 0.15, h: 0.095 } },
@@ -139,6 +146,9 @@ function prepare(V, scene) {
   for (const p of body) p.geo.translate(-mid, 0, 0);
   for (const w of wheels) { if (!w.c) continue; w.c.x -= mid; for (const p of w.list) { p.geo.translate(-mid, 0, 0); p.geo.translate(-w.c.x, -w.c.y, -w.c.z); } }
   // light lenses that share a material with trim: carve them out by region
+  if (V.kit && V.kit.hide) { const [mn, mx] = V.kit.hide; const keep = [...((V.mats && V.mats.paint) || []), ...((V.mats && V.mats.glass) || [])];
+    for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; if (keep.includes(p.mat.name || '')) continue;
+      const sp = splitTris(p.geo, (x, y, z) => (x > mn[0] && x < mx[0] && y > mn[1] && y < mx[1] && Math.abs(z) < mx[2]) ? 'h' : 'k'); if (!sp.h) continue; if (sp.k) body[i] = { geo: sp.k, mat: p.mat }; else body.splice(i, 1); } }
   for (const lb of V.lightBoxes || []) for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; if ((p.mat.name || '') !== lb.mat || p.role) continue;
     const sp = splitTris(p.geo, (x, y, z) => { const zz = Math.abs(z); return (x >= lb.min[0] && x <= lb.max[0] && y >= lb.min[1] && y <= lb.max[1] && zz >= lb.min[2] && zz <= lb.max[2]) ? 'l' : 'o'; });
     if (sp.l) { body.splice(i, 1); body.push({ geo: sp.l, mat: p.mat, role: lb.as }); if (sp.o) body.push({ geo: sp.o, mat: p.mat }); } }
@@ -174,11 +184,14 @@ export function buildVehicle(id, color) {
   const tints = {}; for (const [k, t] of Object.entries(V.tint || {})) tints[k] = new THREE.MeshStandardMaterial({ color: t[0], metalness: t[1], roughness: t[2], envMapIntensity: 1 });
   const pick = mat => { const n = mat.name || ''; if (tints[n]) return tints[n]; if (V.darken && V.darken.includes(n)) return darkM; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
   const envMats = new Set([paint, glass, headMat, ...Object.values(tints)]);
-  for (const p of T.body) { const m = new THREE.Mesh(p.geo, p.role === 'tail' ? brakeMat : p.role === 'head' ? headMat : pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m); }
+  for (const p of T.body) { const m = new THREE.Mesh(p.geo, p.role === 'tail' ? brakeMat : p.role === 'head' ? headMat : (p.role && tints[p.role]) ? tints[p.role] : pick(p.mat)); m.castShadow = m.material !== glass; m.receiveShadow = true; body.add(m); }
   const unsprung = new THREE.Group(); root.add(unsprung);
   const pivots = T.wheels.map((w, i) => { const steerG = new THREE.Group(), spin = new THREE.Group(); steerG.add(spin); if (w.c) steerG.position.copy(w.c); unsprung.add(steerG);
     for (const p of w.list) { const m = new THREE.Mesh(p.geo, pick(p.mat)); m.castShadow = true; spin.add(m); } return { steerG, spin, front: i < 2 }; });
   let swG = null, swAxis = null; if (T.sw && T.sw.length) { swG = new THREE.Group(); swG.position.set(...V.sw.c); swAxis = new THREE.Vector3(...V.sw.n).normalize(); const inner = new THREE.Group(); swG.add(inner); for (const p of T.sw) inner.add(new THREE.Mesh(p.geo, pick(p.mat))); body.add(swG); swG.userData.inner = inner; }
+  for (const nv of V.navs || []) { const n = new THREE.Vector3(...nv.n).normalize(); const u = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), n).normalize(), w = new THREE.Vector3().crossVectors(n, u);
+    const sm = new THREE.Mesh(new THREE.PlaneGeometry(nv.w, nv.h), new THREE.MeshBasicMaterial({ map: navTex(), toneMapped: false, color: 0xd8d8d8 })); sm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, w, n)); sm.position.set(...nv.c).addScaledVector(n, 0.004); body.add(sm); }
+  if (V.kit) { const cab = buildCabin(V.kit.opt); body.add(cab.group); swG = cab.swG; swAxis = cab.swAxis; }
   const flames = []; if (V.exhaust) { const fm = new THREE.MeshBasicMaterial({ color: 0x66b3ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
     for (const z of V.exhaust.z) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.55, 10).rotateZ(Math.PI / 2), fm); f.position.set(T.rearX - 0.22, V.exhaust.y, z); f.visible = false; body.add(f); flames.push(f); } }
   for (const td of V.tailDiscs || []) for (const s of [1, -1]) { const n = new THREE.Vector3(td.n[0], td.n[1], td.n[2] * s).normalize(); const d = new THREE.Mesh(new THREE.CircleGeometry(td.r, 28), brakeMat);

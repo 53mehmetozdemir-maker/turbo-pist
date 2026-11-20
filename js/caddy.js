@@ -2,6 +2,7 @@
 // Car frame: +X forward, +Y up, +Z right, ground at y=0, origin midway between the axles.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildCabin } from './interior.js';
 
 const WB = 2.755, AX = WB / 2, TR = 0.79, RW = 0.33;        // wheelbase, half track, 205/60 R16
 const ARCH = 0.385;
@@ -140,24 +141,15 @@ export function buildCaddy(color) {
   add(box(4.3, 0.02, 1.7, 0.04, 0.26, 0), plastic, body, false);
   // ---- cabin ----
   const interior = new THREE.Group(); body.add(interior);
-  add(box(0.6, 0.2, 1.74, 0.82, 1.0, 0), cabin, interior); add(box(0.32, 0.06, 1.72, 0.72, 1.115, 0), cabin2, interior);   // dashboard
-  add(box(0.10, 0.10, 0.38, 0.77, 1.17, -0.37), cabin, interior);         // instrument hood
-  add(box(0.04, 0.17, 0.26, 0.66, 1.18, 0.02).rotateZ(0), gloss, interior); // centre touchscreen
-  add(box(0.5, 0.25, 0.22, 0.45, 0.68, 0), cabin, interior);                // console
-  for (const s of [-1, 1]) { add(box(0.52, 0.12, 0.5, 0.0, 0.58, s * 0.37), cabin2, interior); const bk = box(0.12, 0.7, 0.5, -0.27, 0.98, s * 0.37); bk.rotateZ(0); add(bk.translate(0, 0, 0), cabin2, interior);
-    add(box(0.1, 0.18, 0.28, -0.28, 1.42, s * 0.37), cabin2, interior); }
-  add(box(0.5, 0.12, 1.4, -1.0, 0.6, 0), cabin2, interior); add(box(0.12, 0.62, 1.4, -1.25, 0.95, 0), cabin2, interior);   // rear bench
-  add(box(4.0, 0.02, 1.6, -0.1, 0.5, 0), cabin, interior);                 // floor
-  add(box(2.55, 0.015, 1.6, -0.85, 1.775, 0), new THREE.MeshStandardMaterial({ color: 0x55575c, roughness: 0.9 }), interior);   // headliner
-  // steering wheel (rotates about its column)
-  const swC = new THREE.Vector3(0.5, 1.03, -0.37), swN = new THREE.Vector3(-0.88, 0.47, 0).normalize();
-  const swG = new THREE.Group(); swG.position.copy(swC); swG.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), swN); interior.add(swG); const swIn = new THREE.Group(); swG.add(swIn);
-  add(new THREE.TorusGeometry(0.185, 0.018, 10, 36), black, swIn); add(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 20).rotateX(Math.PI / 2), black, swIn);
-  for (const a of [0, Math.PI, -Math.PI / 2]) add(box(0.17, 0.03, 0.015, 0, 0, 0).translate(0.09, 0, 0).rotateZ(a), black, swIn);
-  add(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 10).rotateX(Math.PI / 2).translate(0, 0, -0.17), black, swG);
+  const cab = buildCabin({ xDash: 1.12, xFace: 0.70, yTop: 1.13, yFloor: 0.42, halfW: 0.78, zDrv: -0.37, seatX: -0.05, seatY: 0.74, back: 0.24, roofY: 1.79, xVisor: 0.5,
+    doorZ: 0.85, xDoorF: 1.0, xDoorR: 0.08, rear: { x: -0.95, y: 0.76, w: 1.4 }, cluster: { c: [0.672, 1.165, -0.37], w: 0.27, h: 0.1 }, screen: { c: [0.66, 1.19, 0.02], w: 0.25, h: 0.15, tilt: -0.1, stand: true },
+    sw: { c: [0.45, 1.0, -0.37], n: [-0.88, 0.47, 0], r: 0.185 }, shifter: 'dsg', trimKind: 'alu', col: { dash: 0x222326, low: 0x18191b, seat: 0x232427, ins: '#34363b', stitch: '#7a7d84', amb: 0x6fb6ff } });
+  interior.add(cab.group); const swIn = cab.swG.userData.inner, swAxisC = cab.swAxis;
+  add(new THREE.BoxGeometry(2.55, 0.015, 1.6).translate(-0.85, 1.775, 0), new THREE.MeshStandardMaterial({ color: 0x55575c, roughness: 0.9 }), interior);   // headliner
+  add(new THREE.BoxGeometry(0.06, 0.6, 1.5).translate(-1.55, 1.0, 0), cabin, interior);   // luggage-area partition behind the bench
   // digital cockpit
   const dcv = document.createElement('canvas'); dcv.width = 384; dcv.height = 150; const dtex = new THREE.CanvasTexture(dcv); dtex.colorSpace = THREE.SRGBColorSpace;
-  const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.1), new THREE.MeshBasicMaterial({ map: dtex, toneMapped: false })); dash.position.set(0.715, 1.17, -0.37); dash.rotation.y = -Math.PI / 2; dash.rotateX(-0.25); interior.add(dash);
+  const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.1), new THREE.MeshBasicMaterial({ map: dtex, toneMapped: false })); dash.position.set(0.658, 1.165, -0.37); dash.rotation.y = -Math.PI / 2; interior.add(dash);
   // ---- wheels ----
   const tyreG = tyre(RW, 0.205), rimG = rim(0.205, 0.17), discG = new THREE.CylinderGeometry(0.15, 0.15, 0.02, 28).rotateX(Math.PI / 2);
   const discM = new THREE.MeshStandardMaterial({ color: 0x8e9196, roughness: 0.35, metalness: 0.9 });
@@ -183,12 +175,12 @@ export function buildCaddy(color) {
   return { root, body, paint, brakeMat, headMat, flames: [flame], wheels: [], mirrorDefs: mdefs, pivots: [], steer: new THREE.Object3D(), interior, lowerMesh: null, origPos: null, color, vid: 'caddy',
     gauge: { canvas: null, tex: {}, ctx: null },
     setEnvMap(t) { for (const m of envMats) { m.envMap = t; m.needsUpdate = true; } },
-    cockpit: [0.02, 1.47, -0.37], cockpitLook: [6, 1.12, -0.37], hood: [1.2, 1.55, 0], mirror: [0.8, 1.6, 0],
+    cockpit: [0.02, 1.47, -0.37], cockpitLook: [6, 1.06, -0.37], hood: [1.2, 1.55, 0], mirror: [0.8, 1.6, 0],
     drawDash(rpm, kmh, gear) { const g = dcv.getContext('2d'), W = dcv.width, H = dcv.height; const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0b1a2e'); bg.addColorStop(1, '#04070d'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
       const arc = (cx, v, max, col) => { g.lineWidth = 9; g.strokeStyle = '#1c2a3c'; g.beginPath(); g.arc(cx, 92, 56, Math.PI * 0.8, Math.PI * 2.2); g.stroke(); g.strokeStyle = col; g.beginPath(); g.arc(cx, 92, 56, Math.PI * 0.8, Math.PI * 0.8 + Math.PI * 1.4 * Math.min(1, v / max)); g.stroke(); };
       arc(70, kmh, 200, '#4fb3ff'); arc(W - 70, rpm, 5000, rpm > 4300 ? '#ff5a4f' : '#4fb3ff');
       g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 34px Inter,sans-serif'; g.fillText(String(kmh), 70, 92); g.font = '600 13px Inter,sans-serif'; g.fillStyle = '#8fb6dc'; g.fillText('km/h', 70, 122);
       g.fillStyle = '#fff'; g.font = 'bold 24px Inter,sans-serif'; g.fillText((rpm / 1000).toFixed(1), W - 70, 92); g.font = '600 13px Inter,sans-serif'; g.fillStyle = '#8fb6dc'; g.fillText('x1000/dk', W - 70, 122);
       g.fillStyle = '#fff'; g.font = 'bold 44px Inter,sans-serif'; g.fillText(gear, W / 2, 80); g.font = '600 13px Inter,sans-serif'; g.fillStyle = '#8fb6dc'; g.fillText('DSG', W / 2, 116); dtex.needsUpdate = true; },
-    setPose(steer, ang) { pivots.forEach((p, i) => { if (p.front) p.steerG.rotation.y = -steer; p.spin.rotation.z = -ang[i]; }); tq.setFromAxisAngle(zAx, steer * 7); swIn.quaternion.copy(tq); } };
+    setPose(steer, ang) { pivots.forEach((p, i) => { if (p.front) p.steerG.rotation.y = -steer; p.spin.rotation.z = -ang[i]; }); tq.setFromAxisAngle(swAxisC, steer * 7); swIn.quaternion.copy(tq); } };
 }
