@@ -35,7 +35,7 @@ export class Car {
   gearLabel(){ if(P.ev) return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 ? 'P' : 'D'); return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 && this.gear===1 ? 'N' : String(this.gear)); }
   shift(d){ if(this.reversing) { if(d>0){ this.reversing=false; this.gear=1; } return; }
     const g=this.gear+d; if(g<1 && Math.abs(this.vLong)<2){ this.reversing=true; return; } if(P.ev) return;
-    if(g>=1 && g<=P.gears.length && this.shiftT<=0){ this.gear=g; this.shiftT=P.shiftTime; } }
+    if(g>=1 && g<=P.gears.length && this.shiftT<=0){ this.gear=g; this.shiftT=P.shiftTime; this.cutsInGear=0; } }
 
   step(dt, inp, others){
     const ca=Math.cos(this.a), sa=Math.sin(this.a);
@@ -83,17 +83,21 @@ export class Car {
     let rpm=Math.max(P.idle, wheelRpm*ratio);
     if(this.shiftT>0) this.shiftT-=dt;
     if(!this.manual && !this.reversing && this.shiftT<=0){
-      if(rpm>P.shiftUp && this.gear<P.gears.length && thr>0.2){ this.gear++; this.shiftT=P.shiftTime; }
-      else if(this.gear>1){ const lower=wheelRpm*P.gears[this.gear-2]*P.final; if(rpm<P.shiftDown && lower<P.shiftUp-500){ this.gear--; this.shiftT=P.shiftTime*0.7; } }
+      // full throttle: hold the gear until the engine bounces off the limiter (like a real flat-out shift); part throttle: shift earlier
+      const atLim = thr>0.85 && !P.ev && CUT() && (this.cutsInGear||0)>=2;
+      const upAt = thr>0.85 && !P.ev ? Infinity : P.shiftUp*(0.72+0.28*thr);
+      if((rpm>upAt || atLim) && this.gear<P.gears.length && thr>0.2){ this.gear++; this.shiftT=P.shiftTime; this.cutsInGear=0; }
+      else if(this.gear>1){ const lower=wheelRpm*P.gears[this.gear-2]*P.final; if(rpm<P.shiftDown && lower<P.shiftUp-500){ this.gear--; this.shiftT=P.shiftTime*0.7; this.cutsInGear=0; } }
     }
     // free-revving at standstill / clutch slip in 1st
     if(!P.ev && wheelRpm*ratio<P.idle+600) rpm = rpm + (P.idle+thr*3500 - rpm)*0.5;
     if(this.burnout||this.launch) rpm = P.idle+thr*(P.redline-P.idle);           // wheels spinning / clutch in: engine revs freely
+    if(!P.ev && thr>0.3 && wheelRpm*ratio>=P.redline-60) rpm = P.redline+80;   // pushing against the limiter in gear
     // rev limiter: hitting redline cuts the ignition briefly, the needle bounces
     this.cutT=Math.max(0,(this.cutT||0)-dt);
-    if(this.cutT>0){ this.rpm-=(this.burnout||this.launch?9000:2500)*dt; }
+    if(this.cutT>0){ this.rpm-=(this.burnout||this.launch?9000:4500)*dt; }
     else { this.rpm += (Math.min(rpm,P.redline+60)-this.rpm)*Math.min(1,dt*((this.burnout||this.launch)?16:20));
-      if(CUT() && this.rpm>=P.redline && thr>0.3){ this.cutT=0.05; this.cutEvent=(this.cutEvent||0)+1; } }
+      if(CUT() && this.rpm>=P.redline && thr>0.3){ this.cutT=0.06; this.cutEvent=(this.cutEvent||0)+1; this.cutsInGear=(this.cutsInGear||0)+1; } }
     this.rpm=Math.max(P.idle*0.9,this.rpm);
     this.nitroOn = inp.nitro && this.nitro>0 && thr>0.3 && !this.reversing;
     if(this.nitroOn) this.nitro=Math.max(0,this.nitro-dt/4.5); else this.nitro=Math.min(1,this.nitro+dt/30);
