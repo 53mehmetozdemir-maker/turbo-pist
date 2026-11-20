@@ -55,7 +55,7 @@ export class Car {
     let target = inp.steer*lock;
     if(this.assists && speed>5){   // keep the front tyres near peak grip instead of past it
       const thetaF=Math.atan2(vLat+this.yawRate*P.a, Math.max(Math.abs(vLong),1));
-      target=Math.max(thetaF-0.15,Math.min(thetaF+0.15,target));
+      const mg=0.15+0.14*Math.max(0,1-speed/22); target=Math.max(thetaF-mg,Math.min(thetaF+mg,target));
     }
     if(inp.analog) this.steer += (target-this.steer)*Math.min(1,dt*14);
     else { const back=(Math.abs(target)<Math.abs(this.steer)||Math.sign(target)!==Math.sign(this.steer));
