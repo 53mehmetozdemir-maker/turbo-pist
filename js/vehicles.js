@@ -44,7 +44,7 @@ export const VEHICLES = {
     mats: { paint: ['CAR_PAINT'], tail: ['Material.002'], head: ['Glass'], glass: ['Material.017', 'Material.016'] }, darken: ['Material.007'],
     lightBoxes: [{ mat: 'Material.005', min: [-9, 0.6, 0.2], max: [-1.9, 1.2, 0.95], as: 'tail' }],
     wheelMats: null,
-    cam: { cockpit: [-0.15, 1.22, -0.37], look: [6, 1.04, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
+    cam: { cockpit: [-0.2, 1.27, -0.37], look: [6, 1.06, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
     mirrors: { in: { c: [0.62, 1.335, 0.0], n: [-0.99, -0.05, -0.12], w: 0.22, h: 0.055, housing: true }, L: { c: [0.52, 1.005, -0.952], n: [-0.89, 0, 0.46], w: 0.14, h: 0.085 } },
     sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.2, t: 0.05 },
     dash: [{ c: [0.655, 0.975, -0.01], n: [-0.97, 0.23, 0], w: 0.3, h: 0.18, kind: 'tesla' }],
@@ -140,7 +140,7 @@ function prepare(V, scene) {
   const seen = new Map(); const fix = (p, wheel) => { const m = p.mat; if (!m || !m.isMeshStandardMaterial) return; if (seen.has(m)) { p.mat = seen.get(m); return; }
     const lum0 = m.color ? (m.color.r + m.color.g + m.color.b) / 3 : 1; const chrome0 = /chrom|metal|rim|cerchi/i.test(m.name || '');
     if (!wheel && !chrome0 && !m.transparent && !m.map && !(V.mats && V.mats.paint && V.mats.paint.includes(m.name))) { // dark trim/interior: matte, no sun glare (it turned the cabins olive/gold)
-      const l = new THREE.MeshLambertMaterial({ color: m.color, side: m.side, name: m.name }); seen.set(m, l); p.mat = l; return; }
+      const col = m.color.clone(); const lm = (col.r + col.g + col.b) / 3; if (lm < 0.03) col.setScalar(0.03); const l = new THREE.MeshLambertMaterial({ color: col, side: m.side, name: m.name }); seen.set(m, l); p.mat = l; return; }
     const n = m.clone(); const lum = n.color ? (n.color.r + n.color.g + n.color.b) / 3 : 1; const chrome = /chrom|metal|rim|cerchi/i.test(m.name || '');
     if (!chrome) { n.metalness = Math.min(n.metalness, 0.1); n.roughness = Math.max(n.roughness, lum < 0.5 ? 0.6 : 0.4); }
     n.envMapIntensity = chrome ? 1 : 0.35; seen.set(m, n); p.mat = n; };

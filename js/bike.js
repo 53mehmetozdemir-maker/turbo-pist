@@ -83,8 +83,8 @@ export function buildBike(color) {
   const mdefs = { L: { c: [0.497, 1.07, -0.285], n: [-0.97, 0.05, 0.22], w: 0.095, h: 0.042 } };
   for (const s of [-1, 1]) { const hs = new THREE.BoxGeometry(0.04, 0.05, 0.11); hs.translate(0.52, 1.07, s * 0.285); add(hs, paint); add(tube(V3(0.56, 1.0, s * 0.22), V3(0.53, 1.06, s * 0.27), 0.008), black); }
   const dcv = document.createElement('canvas'); dcv.width = 256; dcv.height = 150; const dtex = new THREE.CanvasTexture(dcv); dtex.colorSpace = THREE.SRGBColorSpace;
-  const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.076), new THREE.MeshBasicMaterial({ map: dtex, toneMapped: false })); dash.position.set(0.47, 1.06, 0); dash.rotation.order = 'YXZ'; dash.rotation.y = -Math.PI / 2; dash.rotation.x = -0.75; body.add(dash);
-  add(new THREE.BoxGeometry(0.04, 0.09, 0.15).rotateZ(0.75).translate(0.485, 1.05, 0), black);
+  const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.076), new THREE.MeshBasicMaterial({ map: dtex, toneMapped: false })); dash.position.set(0.48, 1.075, 0); dash.lookAt(0.12, 1.24, 0); body.add(dash);
+  const dh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.09, 0.03), black); dh.position.set(0.492, 1.07, 0); dh.lookAt(0.12, 1.24, 0); dh.translateZ(-0.017); body.add(dh);
   // --- front end: steers about the head axis ---
   const steerAxis = new THREE.Vector3(A - HEAD.x, RF - HEAD.y, 0).normalize();
   const front = new THREE.Group(); front.position.copy(HEAD); body.add(front);
