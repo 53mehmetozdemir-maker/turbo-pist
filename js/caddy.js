@@ -192,5 +192,5 @@ export function buildCaddy(color) {
       g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 34px Inter,sans-serif'; g.fillText(String(kmh), 70, 92); g.font = '600 13px Inter,sans-serif'; g.fillStyle = '#8fb6dc'; g.fillText('km/h', 70, 122);
       g.fillStyle = '#fff'; g.font = 'bold 24px Inter,sans-serif'; g.fillText((rpm / 1000).toFixed(1), W - 70, 92); g.font = '600 13px Inter,sans-serif'; g.fillStyle = '#8fb6dc'; g.fillText('x1000/dk', W - 70, 122);
       g.fillStyle = '#fff'; g.font = 'bold 44px Inter,sans-serif'; g.fillText(gear, W / 2, 80); g.font = '600 13px Inter,sans-serif'; g.fillStyle = '#8fb6dc'; g.fillText('DSG', W / 2, 116); dtex.needsUpdate = true; },
-    setPose(steer, ang) { pivots.forEach((p, i) => { if (p.front) p.steerG.rotation.y = -steer; p.spin.rotation.z = -ang[i]; }); tq.setFromAxisAngle(swAxisC, steer * 7); swIn.quaternion.copy(tq); } };
+    setPose(steer, ang) { pivots.forEach((p, i) => { if (p.front) p.steerG.rotation.y = -steer; p.spin.rotation.z = -ang[i]; }); tq.setFromAxisAngle(swAxisC, -steer * 7); swIn.quaternion.copy(tq); } };
 }

@@ -10,7 +10,7 @@ const BASE = {
   gears: [3.38, 2.36, 1.78, 1.39, 1.12, 0.92], reverse: 3.2, final: 3.85, eff: 0.88,
   idle: 950, redline: 7600, shiftUp: 7150, shiftDown: 3300, shiftTime: 0.16,
   brakeForce: 32000, brakeBias: 0.68, drag: 0.39, roll: 14, downforce: 0.7,
-  Bf: 10.5, Br: 11.5, C: 1.6, muRear: 1.15, drive: 'rwd', awdFront: 0.4, ev: false, vmax: 0, grip: 1, hl: 2.2, hw: 0.92, regen: 0,
+  Bf: 10.5, Br: 11.5, C: 1.6, muRear: 1.25, drive: 'rwd', awdFront: 0.4, ev: false, vmax: 0, grip: 1, hl: 2.2, hw: 0.92, regen: 0,
   tq: [[0,200],[1000,260],[2500,390],[4000,490],[5200,530],[6200,515],[7000,470],[7600,420],[8000,300]],
 };
 export const P = { ...BASE };
@@ -126,7 +126,7 @@ export class Car {
     const fs = P.drive==='fwd' ? 1 : P.drive==='awd' ? P.awdFront : 0;   // share of drive on the front axle
     const FdR = Fdrive*(1-fs), FdF = Fdrive*fs;
     let Fxr = FdR - Fbr*sgn;
-    const maxR = muR*Wr*(this.assists?0.88:1.0);
+    const maxR = muR*Wr*(this.assists?0.8:1.0);
     const spin = Math.abs(FdR)>maxR && !this.hand;
     this.spinR = spin ? Math.min(1,(Math.abs(FdR)-maxR)/maxR) : 0;
     const lim=muR*Wr*(FdR*sgn<0||brk>0?LB:1); if(Math.abs(Fxr)>lim) Fxr=Math.sign(Fxr)*lim;
@@ -142,8 +142,9 @@ export class Car {
     const minV=3.0;
     const slipF=Math.atan2(wLat, Math.max(Math.abs(wLong),minV));
     const slipR=Math.atan2(vLatR, Math.max(Math.abs(vLong),minV));
-    let FyF=-muF*Wf*pac(slipF,P.Bf);
-    let FyR=-muR*Wr*pac(slipR,P.Br);
+    const LAT=1.25;   // sticky road tyres: more cornering grip than a plain friction coefficient gives
+    let FyF=-muF*Wf*pac(slipF,P.Bf)*LAT;
+    let FyR=-muR*Wr*pac(slipR,P.Br)*LAT;
     // friction circle
     const uF=Math.min(1,Math.abs(Fxf)/(muF*Wf*LB)), uR=Math.min(1,Math.abs(Fxr)/(muR*Wr*(brk>0?LB:1)));
     FyF*=Math.max(Math.sqrt(1-uF*uF),this.assists?0.35:0)*(lockF?0.3:1); FyR*=Math.max(Math.sqrt(1-uR*uR*0.92),this.assists?0.5:0);
@@ -169,10 +170,11 @@ export class Car {
     // stability control (assists): pull yaw toward the driver's intent, not while handbraking
     if(this.hand) this.escFade=0; else this.escFade=Math.min(1,(this.escFade||0)+dt*0.8);
     if(this.assists && speed>6){
-      let yawDes = vLong*delta/(L+0.0012*vLong*vLong); const yawMax=0.92*Math.min(muF,muR)*G*(1+down/(P.mass*G))/Math.max(speed,1); yawDes=Math.max(-yawMax,Math.min(yawMax,yawDes));
+      let yawDes = vLong*delta/(L+0.0012*vLong*vLong); const yawMax=0.92*1.25*Math.min(muF,muR)*G*(1+down/(P.mass*G))/Math.max(speed,1); yawDes=Math.max(-yawMax,Math.min(yawMax,yawDes));
       const err=this.yawRate-yawDes, beta=Math.atan2(vLat,Math.max(Math.abs(vLong),1));
       const over = Math.sign(err)===Math.sign(this.yawRate) || Math.abs(beta)>0.08;   // only rein in too much rotation (or a slide), never add yaw the tyres can't give
-      if(over && (Math.abs(err)>0.06 || Math.abs(beta)>0.08)) this.yawRate -= err*Math.min(1,dt*4.5)*this.escFade;
+      if(over && (Math.abs(err)>0.04 || Math.abs(beta)>0.05)) this.yawRate -= err*Math.min(1,dt*7)*this.escFade;
+      if(Math.abs(beta)>0.06 && !this.hand){ const k=Math.min(1,dt*2.5*this.escFade); const vl=vLat*k; this.vx+=sa*vl; this.vy-=ca*vl; }   // bleed off a sideways slide so the tail follows the nose
     }
     // low speed stabilisation (no creeping, no spinning on the spot)
     if(speed<1.5 && thr<0.05 && !this.burnout){ const k=Math.exp(-dt*(brk>0||this.hand?12:2.5)); this.vx*=k; this.vy*=k; }
@@ -197,7 +199,7 @@ export class Car {
     this.bumpV += (-this.bump*180 - this.bumpV*14)*dt; this.bump += this.bumpV*dt;
     // body pitch/roll (visual)
     // sprung body: damped springs so the nose dives and rebounds, the body leans and settles
-    const kP=95, cP=11, kR=80, cR=9;
+    const kP=95, cP=17, kR=80, cR=15;
     this.pitchV=(this.pitchV||0)+((-this.axPrev*0.014)-this.pitch)*kP*dt-(this.pitchV||0)*cP*dt; this.pitch+=this.pitchV*dt;
     this.rollV=(this.rollV||0)+((this.ayPrev*0.018)-this.rollA)*kR*dt-(this.rollV||0)*cR*dt; this.rollA+=this.rollV*dt;
     this.pitch=Math.max(-0.07,Math.min(0.07,this.pitch)); this.rollA=Math.max(-0.08,Math.min(0.08,this.rollA));

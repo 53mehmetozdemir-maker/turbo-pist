@@ -216,7 +216,7 @@ export function buildVehicle(id, color) {
     setEnvMap(t) { for (const m of envMats) { m.envMap = t; m.needsUpdate = true; } },
     cockpit: cam.cockpit, cockpitLook: cam.look, hood: cam.hood, mirror: cam.mirror,
     setPose(steer, ang) { pivots.forEach((p, i) => { if (p.front) p.steerG.rotation.y = -steer; p.spin.rotation.z = -ang[i]; });
-      if (swG) { tq.setFromAxisAngle(swAxis, steer * 7); swG.userData.inner.quaternion.copy(tq); } } };
+      if (swG) { tq.setFromAxisAngle(swAxis, -steer * 7); swG.userData.inner.quaternion.copy(tq); } } };
 }
 
 // live instrument faces drawn on canvases laid over the model's own dials / screens
