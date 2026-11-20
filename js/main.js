@@ -255,39 +255,61 @@ const smoke=new Particles(scene,settings.quality==='low'?250:700);
 const skids=new SkidMarks(scene,settings.quality==='low'?1200:3500);
 const audio=new CarAudio(); audio.profile=VEHICLES[settings.vehicle].sound;
 // ---- exhaust backfire: flame + glow + sparks, fired by the same events as the pop sound ----
-// procedural flame textures: a few irregular tongues (blue-white root, yellow-orange body, ragged fading tip)
-const flameTex=[0,1,2,3].map(k=>{ const c=document.createElement('canvas'); c.width=128; c.height=48; const g=c.getContext('2d'); g.globalCompositeOperation='lighter';
-  let seed=7+k*31; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
-  for(let i=0;i<46;i++){ const t=i/46, x=6+t*110*(0.75+rnd()*0.3), y=24+(rnd()-0.5)*14*t, r=(10-8*t)*(0.7+rnd()*0.6)+2;
-    const col=t<0.12?[150,190,255]:t<0.35?[255,235,170]:[255,140+60*(1-t),40]; const a=(t<0.12?0.35:0.22)*(1-t*0.85);
-    const gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,`rgba(${col[0]},${col[1]},${col[2]},${a})`); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
-  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t; });
-const bfGlowTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d'); const r=g.createRadialGradient(32,32,0,32,32,32); r.addColorStop(0,'rgba(255,190,110,.55)'); r.addColorStop(1,'rgba(255,90,20,0)'); g.fillStyle=r; g.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
+// exhaust flame: an axial billboard (turns about the pipe axis to face the camera) with a turbulent fire shader.
+// Noise-distorted cone, blackbody colours (blue root, white-yellow core, orange-red ragged edge), flickers every frame.
+const bfGlowTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d'); const r=g.createRadialGradient(32,32,0,32,32,32); r.addColorStop(0,'rgba(255,180,90,.5)'); r.addColorStop(1,'rgba(255,90,20,0)'); g.fillStyle=r; g.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
 const bfLight=new THREE.PointLight(0xff8a30,0,5,2); scene.add(bfLight);
-const flameGeo=new THREE.PlaneGeometry(1,0.36).translate(-0.5,0,0);   // anchored at the pipe, extends backwards
-function ensureBackfire(m){ if(m.backfire) return m.backfire; m.backfire=(m.flames||[]).map(f=>{ const g=new THREE.Group(); g.position.copy(f.position); g.rotation.copy(f.rotation);
-    const mats=[0,1].map(()=>new THREE.MeshBasicMaterial({map:flameTex[0],transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));
-    const h=new THREE.Mesh(flameGeo,mats[0]); const v=new THREE.Mesh(flameGeo,mats[1]); v.rotation.x=Math.PI/2; h.rotation.x=0;
-    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:bfGlowTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,opacity:0.6})); glow.scale.set(0.35,0.35,1); glow.position.x=-0.04;
-    g.add(h,v,glow); g.visible=false; f.parent.add(g); g.userData={h,v,glow,mats}; return g; }); m.bfT=0; return m.backfire; }
+const flameGeo=new THREE.PlaneGeometry(1,1,1,1).translate(-0.5,0,0);   // x: 0 at the pipe .. -1 at the tip, y: -0.5..0.5 across
+const FLAME_VS=`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const FLAME_FS=`uniform float uTime, uLife, uSeed; varying vec2 vUv;
+  float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7))+uSeed*13.7)*43758.5453); }
+  float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
+  float fbm(vec2 p){ float v=0.0, a=0.5; for(int i=0;i<4;i++){ v+=a*n(p); p*=2.03; a*=0.5; } return v; }
+  void main(){
+    float x=1.0-vUv.x;                    // 0 at the pipe, 1 at the tip
+    float y=(vUv.y-0.5)*2.0;              // -1..1 across
+    float t=uTime*28.0;
+    float turb=fbm(vec2(x*5.0-t, y*2.5+uSeed))-0.5;
+    float wob=(fbm(vec2(x*3.0-t*0.7, uSeed*3.0))-0.5)*0.6*x;
+    float width=(0.22+0.55*x)*(1.0-smoothstep(0.55,1.0,x))*(0.8+0.7*turb);   // widens then pinches off
+    float d=abs(y-wob)/max(width,0.001);
+    float body=1.0-smoothstep(0.35,1.0,d+turb*0.6*x);
+    float len=1.0-smoothstep(0.35+0.4*uLife,1.0,x+turb*0.35);
+    float a=body*len*clamp(uLife*1.8,0.0,1.0);
+    float heat=clamp((1.0-x*1.35)*(1.0-d*0.7)+turb*0.25,0.0,1.0);
+    vec3 col=mix(vec3(0.85,0.12,0.02),vec3(1.0,0.48,0.08),smoothstep(0.0,0.35,heat));
+    col=mix(col,vec3(1.0,0.86,0.45),smoothstep(0.35,0.7,heat));
+    col=mix(col,vec3(1.0,0.97,0.88),smoothstep(0.75,1.0,heat));
+    col=mix(col,vec3(0.45,0.6,1.0),(1.0-smoothstep(0.0,0.09,x))*0.8);   // blue root at the pipe lip
+    if(a<0.01) discard; gl_FragColor=vec4(col*a*1.6,a); }`;
+function ensureBackfire(m){ if(m.backfire) return m.backfire; m.backfire=(m.flames||[]).map((f,i)=>{ const g=new THREE.Group(); g.position.copy(f.position); g.rotation.copy(f.rotation);
+    f.geometry.computeBoundingBox(); g.position.x+=f.geometry.boundingBox.max.x*0.9;   // nitro cones are centred on the pipe: start the flame at the pipe lip
+    const mat=new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uLife:{value:1},uSeed:{value:i*1.7}},vertexShader:FLAME_VS,fragmentShader:FLAME_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false});
+    const fl=new THREE.Mesh(flameGeo,mat); fl.frustumCulled=false;
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:bfGlowTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,opacity:0.5})); glow.scale.set(0.3,0.3,1); glow.position.x=-0.03;
+    g.add(fl,glow); g.visible=false; f.parent.add(g); g.userData={fl,mat,glow}; return g; }); m.bfT=0; return m.backfire; }
+const _ax=new THREE.Vector3(), _cp=new THREE.Vector3(), _q=new THREE.Quaternion(), _iq=new THREE.Quaternion();
 const SPARKS=240, spPos=new Float32Array(SPARKS*3), spCol=new Float32Array(SPARKS*3), spV=new Float32Array(SPARKS*3), spLife=new Float32Array(SPARKS); let spNext=0;
 const spGeo=new THREE.BufferGeometry(); spGeo.setAttribute('position',new THREE.BufferAttribute(spPos,3)); spGeo.setAttribute('color',new THREE.BufferAttribute(spCol,3));
 const sparks=new THREE.Points(spGeo,new THREE.PointsMaterial({size:0.035,map:bfGlowTex,vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); sparks.frustumCulled=false; scene.add(sparks);
 const _bv=new THREE.Vector3(), _bd=new THREE.Vector3();
-function backfire(m,v){ if(!m||!m.flames||!m.flames.length) return; if(Math.random()>0.35+v*0.5) return;   // not every pop shows a flame
-  const bfs=ensureBackfire(m); m.bfLife=0.05+Math.random()*0.06+v*0.04; m.bfT=m.bfLife; m.bfLen=(0.25+Math.random()*0.45)*(0.6+v*0.6);
-  for(const g of bfs){ const tex=flameTex[Math.floor(Math.random()*flameTex.length)]; for(const mt of g.userData.mats) mt.map=tex; }
-  if(v>0.6 && Math.random()<0.6) for(const g of bfs){ g.getWorldPosition(_bv); _bd.set(-1,0,0).applyQuaternion(g.getWorldQuaternion(new THREE.Quaternion()));
-    const n=1+Math.floor(Math.random()*4*v); for(let k=0;k<n;k++){ const i=spNext; spNext=(spNext+1)%SPARKS; spPos[i*3]=_bv.x+_bd.x*0.15; spPos[i*3+1]=_bv.y; spPos[i*3+2]=_bv.z+_bd.z*0.15;
-      const sp=4+Math.random()*5; spV[i*3]=_bd.x*sp+(Math.random()-.5)*1.2+phys.vx; spV[i*3+1]=Math.random()*1.2; spV[i*3+2]=_bd.z*sp+(Math.random()-.5)*1.2+phys.vy; spLife[i]=0.12+Math.random()*0.18; } }
-  bfs[0].getWorldPosition(bfLight.position); bfLight.intensity=2.5*v; }
+function backfire(m,v){ if(!m||!m.flames||!m.flames.length) return; if(Math.random()>0.4+v*0.5) return;   // not every pop shows a flame
+  const bfs=ensureBackfire(m); m.bfLife=0.06+Math.random()*0.07+v*0.05; m.bfT=m.bfLife; m.bfLen=(0.35+Math.random()*0.5)*(0.6+v*0.6);
+  for(const g of bfs){ g.userData.mat.uniforms.uSeed.value=Math.random()*10; g.getWorldPosition(_bv); _bd.set(-1,0,0).applyQuaternion(g.getWorldQuaternion(_q));
+    // a little dark puff after the bang
+    smoke.emit(_bv.x+_bd.x*0.3,_bv.y,_bv.z+_bd.z*0.3,_bd.x*1.5+phys.vx*0.8,0.3,_bd.z*1.5+phys.vy*0.8,{color:[0.22,0.21,0.2],size:0.35,grow:1.6,life:0.6+Math.random()*0.4,alpha:0.18*v});
+    if(v>0.7 && Math.random()<0.4){ const n=1+Math.floor(Math.random()*3); for(let k=0;k<n;k++){ const i=spNext; spNext=(spNext+1)%SPARKS; spPos[i*3]=_bv.x+_bd.x*0.2; spPos[i*3+1]=_bv.y; spPos[i*3+2]=_bv.z+_bd.z*0.2;
+      const sp=4+Math.random()*5; spV[i*3]=_bd.x*sp+(Math.random()-.5)*1.2+phys.vx; spV[i*3+1]=Math.random()*1.0; spV[i*3+2]=_bd.z*sp+(Math.random()-.5)*1.2+phys.vy; spLife[i]=0.1+Math.random()*0.15; } } }
+  bfs[0].getWorldPosition(bfLight.position); bfLight.intensity=2.2*v; }
 let lastCutVis=0;
 function updateBackfire(dt){
   if(phys.cutEvent && phys.cutEvent!==lastCutVis){ lastCutVis=phys.cutEvent; if(mode==='free'||mode==='race') backfire(model,0.85); }
-  for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=window.__bfHold?(m.bfLife||0.1)*0.7:Math.max(0,(m.bfT||0)-dt); const on=m.bfT>0, life=on?m.bfT/(m.bfLife||0.1):0;
-    for(const g of m.backfire){ g.visible=on; if(on){ const L=m.bfLen*(0.85+Math.random()*0.3)*(0.6+0.4*life), W=0.7+Math.random()*0.5;
-      g.userData.h.scale.set(L,W*L*1.6,1); g.userData.v.scale.set(L,W*L*1.6,1); g.userData.h.rotation.z=(Math.random()-0.5)*0.15;
-      for(const mt of g.userData.mats) mt.opacity=Math.min(1,life*1.6); g.userData.glow.material.opacity=0.5*life; } } }
+  for(const m of [model]){ if(!m||!m.backfire) continue; m.bfT=window.__bfHold?(m.bfLife||0.1)*0.6:Math.max(0,(m.bfT||0)-dt); const on=m.bfT>0, life=on?m.bfT/(m.bfLife||0.1):0;
+    for(const g of m.backfire){ g.visible=on; if(!on) continue; const u=g.userData; u.mat.uniforms.uTime.value=performance.now()/1000; u.mat.uniforms.uLife.value=life;
+      const grow=Math.min(1,(1-life)*6+0.25);                                       // shoots out fast, then pulls back
+      const L=m.bfLen*grow*(0.9+Math.random()*0.2); u.fl.scale.set(L,L*0.42,1);
+      // axial billboard: spin the quad about its own x axis so its face points at the camera
+      g.updateWorldMatrix(true,false); g.getWorldQuaternion(_q); _iq.copy(_q).invert(); _cp.copy(camera.position); g.worldToLocal(_cp); u.fl.rotation.x=Math.atan2(-_cp.y,_cp.z); u.glow.material.opacity=0.45*life; } }
   bfLight.intensity=Math.max(0,bfLight.intensity-dt*40);
   for(let i=0;i<SPARKS;i++){ if(spLife[i]<=0){ spCol[i*3]=spCol[i*3+1]=spCol[i*3+2]=0; continue; } spLife[i]-=dt; spV[i*3+1]-=9.8*dt;
     spPos[i*3]+=spV[i*3]*dt; spPos[i*3+1]=Math.max(0.02,spPos[i*3+1]+spV[i*3+1]*dt); spPos[i*3+2]+=spV[i*3+2]*dt; if(spPos[i*3+1]<=0.02){ spLife[i]=0; }
