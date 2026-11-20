@@ -9,7 +9,7 @@ const P = {
   mass: 1350, inertia: 2350, a: CAR.a, b: CAR.b, cgH: 0.44, r: CAR.wheelR,
   gears: [3.38, 2.36, 1.78, 1.39, 1.12, 0.92], reverse: 3.2, final: 3.85, eff: 0.88,
   idle: 950, redline: 7600, shiftUp: 7150, shiftDown: 3300, shiftTime: 0.16,
-  brakeForce: 24000, brakeBias: 0.62, drag: 0.39, roll: 14, downforce: 0.7,
+  brakeForce: 32000, brakeBias: 0.68, drag: 0.39, roll: 14, downforce: 0.7,
   Bf: 10.5, Br: 11.5, C: 1.6, muRear: 1.15,
 };
 // torque curve [rpm, Nm]
@@ -110,8 +110,8 @@ export class Car {
     let Fbf = brk*P.brakeForce*P.brakeBias, Fbr = brk*P.brakeForce*(1-P.brakeBias);
     // ABS (assists) or lock-up limit
     const absK = this.assists?0.97:1.0;
-    const LB=1.3;   // tyres grip harder in a straight line under braking than sideways
-    Fbf=Math.min(Fbf, muF*Wf*absK*LB); Fbr=Math.min(Fbr, muR*Wr*absK*LB);
+    const LB=1.8;   // tyres grip harder in a straight line under braking than sideways
+    Fbf=Math.min(Fbf, muF*Wf*absK*LB); Fbr=Math.min(Fbr, muR*Wr*absK*LB*0.7);   // brake proportioning: rears never lock before the fronts
     let lockF = !this.assists && brk*P.brakeForce*P.brakeBias > muF*Wf*LB;
     if(this.hand){ Fbr=Math.max(Fbr, muR*Wr*0.95); }
     // rear: drive minus brake, limited by grip (traction control when assists on)
@@ -135,7 +135,7 @@ export class Car {
     let FyR=-muR*Wr*pac(slipR,P.Br);
     // friction circle
     const uF=Math.min(1,Math.abs(Fxf)/(muF*Wf*LB)), uR=Math.min(1,Math.abs(Fxr)/(muR*Wr*(brk>0?LB:1)));
-    FyF*=Math.max(Math.sqrt(1-uF*uF),this.assists?0.35:0)*(lockF?0.3:1); FyR*=Math.sqrt(1-uR*uR*0.92);
+    FyF*=Math.max(Math.sqrt(1-uF*uF),this.assists?0.35:0)*(lockF?0.3:1); FyR*=Math.max(Math.sqrt(1-uR*uR*0.92),this.assists?0.5:0);
     if(this.hand) FyR*=0.38;
     if(spin||this.burnout) FyR*=(1-0.55*this.spinR);
     this.slipF=slipF; this.slipR=slipR;
@@ -160,7 +160,8 @@ export class Car {
     if(this.assists && speed>6){
       let yawDes = vLong*delta/(L+0.0012*vLong*vLong); const yawMax=0.92*Math.min(muF,muR)*G*(1+down/(P.mass*G))/Math.max(speed,1); yawDes=Math.max(-yawMax,Math.min(yawMax,yawDes));
       const err=this.yawRate-yawDes, beta=Math.atan2(vLat,Math.max(Math.abs(vLong),1));
-      if(Math.abs(err)>0.08 || Math.abs(beta)>0.08) this.yawRate -= err*Math.min(1,dt*4.5)*this.escFade;
+      const over = Math.sign(err)===Math.sign(this.yawRate) || Math.abs(beta)>0.08;   // only rein in too much rotation (or a slide), never add yaw the tyres can't give
+      if(over && (Math.abs(err)>0.06 || Math.abs(beta)>0.08)) this.yawRate -= err*Math.min(1,dt*4.5)*this.escFade;
     }
     // low speed stabilisation (no creeping, no spinning on the spot)
     if(speed<1.5 && thr<0.05 && !this.burnout){ const k=Math.exp(-dt*(brk>0||this.hand?12:2.5)); this.vx*=k; this.vy*=k; }
