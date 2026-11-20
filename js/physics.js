@@ -9,7 +9,7 @@ const P = {
   mass: 1350, inertia: 2350, a: CAR.a, b: CAR.b, cgH: 0.44, r: CAR.wheelR,
   gears: [3.38, 2.36, 1.78, 1.39, 1.12, 0.92], reverse: 3.2, final: 3.85, eff: 0.88,
   idle: 950, redline: 7600, shiftUp: 7150, shiftDown: 3300, shiftTime: 0.16,
-  brakeForce: 15500, brakeBias: 0.64, drag: 0.39, roll: 14, downforce: 0.7,
+  brakeForce: 24000, brakeBias: 0.62, drag: 0.39, roll: 14, downforce: 0.7,
   Bf: 10.5, Br: 11.5, C: 1.6, muRear: 1.15,
 };
 // torque curve [rpm, Nm]
@@ -110,15 +110,16 @@ export class Car {
     let Fbf = brk*P.brakeForce*P.brakeBias, Fbr = brk*P.brakeForce*(1-P.brakeBias);
     // ABS (assists) or lock-up limit
     const absK = this.assists?0.97:1.0;
-    Fbf=Math.min(Fbf, muF*Wf*absK); Fbr=Math.min(Fbr, muR*Wr*absK);
-    let lockF = !this.assists && brk*P.brakeForce*P.brakeBias > muF*Wf;
+    const LB=1.3;   // tyres grip harder in a straight line under braking than sideways
+    Fbf=Math.min(Fbf, muF*Wf*absK*LB); Fbr=Math.min(Fbr, muR*Wr*absK*LB);
+    let lockF = !this.assists && brk*P.brakeForce*P.brakeBias > muF*Wf*LB;
     if(this.hand){ Fbr=Math.max(Fbr, muR*Wr*0.95); }
     // rear: drive minus brake, limited by grip (traction control when assists on)
     let Fxr = Fdrive - Fbr*sgn;
     const maxR = muR*Wr*(this.assists?0.88:1.0);
     const spin = Math.abs(Fdrive)>maxR && !this.hand;
     this.spinR = spin ? Math.min(1,(Math.abs(Fdrive)-maxR)/maxR) : 0;
-    if(Math.abs(Fxr)>muR*Wr) Fxr=Math.sign(Fxr)*muR*Wr;
+    const lim=muR*Wr*(Fdrive*sgn<0||brk>0?LB:1); if(Math.abs(Fxr)>lim) Fxr=Math.sign(Fxr)*lim;
     let Fxf = -Fbf*sgn;
     if(sgn===0){ Fxf=0; if(Math.abs(Fdrive)<1) Fxr=0; }
     if(this.burnout){ Fxr=muR*Wr*0.7*thr; Fxf=-Math.min(muF*Wf, Fxr*0.97); this.spinR=1; }   // fronts hold, rears smoke, slow creep
@@ -133,8 +134,8 @@ export class Car {
     let FyF=-muF*Wf*pac(slipF,P.Bf);
     let FyR=-muR*Wr*pac(slipR,P.Br);
     // friction circle
-    const uF=Math.min(1,Math.abs(Fxf)/(muF*Wf)), uR=Math.min(1,Math.abs(Fxr)/(muR*Wr));
-    FyF*=Math.sqrt(1-uF*uF)*(lockF?0.3:1); FyR*=Math.sqrt(1-uR*uR*0.92);
+    const uF=Math.min(1,Math.abs(Fxf)/(muF*Wf*LB)), uR=Math.min(1,Math.abs(Fxr)/(muR*Wr*(brk>0?LB:1)));
+    FyF*=Math.max(Math.sqrt(1-uF*uF),this.assists?0.35:0)*(lockF?0.3:1); FyR*=Math.sqrt(1-uR*uR*0.92);
     if(this.hand) FyR*=0.38;
     if(spin||this.burnout) FyR*=(1-0.55*this.spinR);
     this.slipF=slipF; this.slipR=slipR;

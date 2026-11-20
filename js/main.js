@@ -709,7 +709,7 @@ function frame(t){
   if(driving) updateReflections();
   if(driving && camMode===1){
     {
-      const mp=model.mirror||[0.3,1.2,0]; const p=worldOf(model,mp[0],mp[1],mp[2]), back=worldOf(model,-20,0.9,0);
+      const ca=Math.cos(phys.a), sa=Math.sin(phys.a), gy=model.root.position.y; const p=new THREE.Vector3(phys.x+ca*0.45,gy+1.1,phys.y+sa*0.45), back=new THREE.Vector3(phys.x-ca*20,gy+0.95,phys.y-sa*20);   // steady: ignores body pitch so braking/accelerating doesn't tip the view into the sky
       mirrorCam.position.copy(p); mirrorCam.lookAt(back); 
       const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false; model.root.visible=false; rain.m.visible=false;
       renderer.setRenderTarget(mirrorRT); renderer.render(scene,mirrorCam); renderer.setRenderTarget(null);
