@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -213,8 +214,8 @@ function attachMirrors(){ mirrorPlane=null; mirrorPlanes.length=0;
   const D=model.mirrorDefs; if(model.vid){ if(!D) return;
     const place=(def,u0,u1,rad,inner)=>{ const n=new THREE.Vector3(...def.n).normalize(); const u=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),n).normalize(), w=new THREE.Vector3().crossVectors(n,u);
       const mm=mirrorMesh(def.w,def.h,u0,u1,inner?0.15:0.08,inner?0.85:0.95,rad); mm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u,w,n)); mm.position.set(...def.c).addScaledVector(n,0.004); model.body.add(mm); mirrorPlanes.push(mm);
-      if(def.housing){ const hb=new THREE.Mesh(new THREE.BoxGeometry(def.w+0.025,def.h+0.025,0.03),new THREE.MeshStandardMaterial({color:0x121212,roughness:0.6})); hb.quaternion.copy(mm.quaternion); hb.position.set(...def.c).addScaledVector(n,-0.014); model.body.add(hb);
-        const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.08,6),hb.material); arm.position.set(def.c[0]+0.02,def.c[1]+def.h/2+0.04,def.c[2]); model.body.add(arm); }
+      if(def.housing){ const fr=def.frame??0.025, hb=new THREE.Mesh(new RoundedBoxGeometry(def.w+fr,def.h+fr,0.022,3,Math.min(0.012,(def.h+fr)/2-0.001)),new THREE.MeshStandardMaterial({color:0x121212,roughness:0.6})); hb.quaternion.copy(mm.quaternion); hb.position.set(...def.c).addScaledVector(n,-0.012); model.body.add(hb);
+        const al=def.arm??0.08, arm=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.007,al,8),hb.material); arm.position.set(def.c[0]+0.015,def.c[1]+def.h/2+al/2,def.c[2]); model.body.add(arm); }
       return mm; };
     if(D.in) mirrorPlane=place(D.in,0.18,0.82,26,true);
     if(D.L){ place(D.L,0.6,1.0,40,false); place({...D.L,c:[D.L.c[0],D.L.c[1],-D.L.c[2]],n:[D.L.n[0],D.L.n[1],-D.L.n[2]]},0.0,0.4,40,false); }
@@ -622,14 +623,17 @@ function ensureLamps(m){ if(m.lamps) return m.lamps; const L=m.lamps={tail:[],he
   for(const t of tc){ const w=Math.max(0.05,Math.min(0.45,t.sz)); const s=mk(0xff1a0a,m.body,new THREE.Vector3(t.mn.x-0.015,t.c.y,t.c.z)); s.userData.w=w; L.tail.push(s); }
   if(!m.bike){ const sides=[-1,1]; for(const sd of sides){ const cand=tc.filter(t=>Math.sign(t.c.z)===sd&&Math.abs(t.c.z)>0.3&&t.c.y<1.4).sort((a,b)=>b.sz-a.sz)[0]; if(!cand) continue;
       const r=mk(0xf4f8ff,m.body,new THREE.Vector3(cand.mn.x-0.02,cand.c.y-0.01,cand.c.z-sd*Math.min(0.1,(cand.mx.z-cand.mn.z)*0.25))); r.userData.w=0.1; L.rev.push(r); } }
-  for(const h of hc){ const s=mk(0xfff4e2,m.body,new THREE.Vector3(h.mx.x+0.015,h.c.y,h.c.z)); s.userData.w=Math.max(0.05,Math.min(0.4,h.sz)); L.head.push(s); }
+  for(const h of hc){ const s=mk(0xfff4e2,m.body,new THREE.Vector3(h.c.x+(h.mx.x-h.c.x)*0.85,h.c.y,h.c.z)); s.userData.w=Math.max(0.05,Math.min(0.4,h.sz)); L.head.push(s); }
   m.lampInfo=tc.length+'/'+hc.length;
   return L; }
 let lampLight=null;
-function updateLamps(m,brake,lights,rev,isMe){ if(isMe&&window.__brk) brake=true; const L=ensureLamps(m); const t=performance.now();
-  for(const s of L.tail){ const w=s.userData.w, k=brake?1:lights?0.38:0; s.material.opacity=k*(brake?0.95:0.7); const sz=Math.min(1.1,w*(brake?3.0:1.9)+0.12); s.scale.set(sz,sz,1); s.visible=k>0; }
-  for(const s of L.rev){ s.material.opacity=rev?0.9:0; s.visible=rev; s.scale.set(0.42,0.42,1); }
-  for(const s of L.head){ const w=s.userData.w, k=lights?1:0.22; s.material.opacity=lights?0.85:0.45; const sz=Math.min(1.4,w*(lights?3.4:1.5)+0.1); s.scale.set(sz,sz,1); s.visible=k>0; }
+const _fw=new THREE.Vector3(), _cd=new THREE.Vector3();
+// a lamp only glows towards the side it shines to (no halos seen through the bodywork from the side)
+function facing(s,sign){ s.getWorldPosition(_lv); _cd.subVectors(camera.position,_lv).normalize(); return Math.max(0,Math.min(1,(_cd.dot(_fw)*sign-0.05)/0.45)); }
+function updateLamps(m,brake,lights,rev,isMe){ if(isMe&&window.__brk) brake=true; const L=ensureLamps(m); const t=performance.now(); _fw.set(1,0,0).transformDirection(m.body.matrixWorld);
+  for(const s of L.tail){ const w=s.userData.w, k=brake?1:lights?0.38:0; s.material.opacity=k*(brake?0.95:0.7)*facing(s,-1); const sz=Math.min(1.1,w*(brake?3.0:1.9)+0.12); s.scale.set(sz,sz,1); s.visible=k>0; }
+  for(const s of L.rev){ s.material.opacity=rev?0.9*facing(s,-1):0; s.visible=rev; s.scale.set(0.42,0.42,1); }
+  for(const s of L.head){ const w=s.userData.w, k=lights?1:0.22; s.material.opacity=(m.hasPopups?(lights?0.35:0.25):(lights?0.85:0.45))*facing(s,1); const sz=Math.min(1.4,w*(lights?3.4:1.5)+0.1); s.scale.set(sz,sz,1); s.visible=k>0; }
   if(isMe){ if(!lampLight){ lampLight=new THREE.PointLight(0xff2010,0,6,2); scene.add(lampLight); }
     if(L.tail.length){ L.tail[0].parent.localToWorld(_lv.set((L.tail[0].position.x-0.6),0.5,0)); lampLight.position.copy(_lv); }
     const want=(brake?2.2:lights?0.5:0)+(rev?0:0); lampLight.color.set(rev&&!brake?0xe8eeff:0xff2010); lampLight.intensity+=((rev&&!brake?1.6:want)-lampLight.intensity)*0.35; } }
@@ -642,6 +646,7 @@ function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=he
   m.brakeMat.emissiveIntensity=brake?(m.vid?4.5:7):(lights?(m.vid?1.1:1.8):0.12); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
   if(m.headMat) m.headMat.emissiveIntensity=lights?3.5:0.9;   // LED daytime running lights stay on
   updateLamps(m,brake,lights,rev,isMe);
+  if(m.setPopups) m.setPopups(lights,lastFdt||0.016);
   for(const f of m.flames){ f.visible=nitro; if(nitro){ const s=0.8+Math.random()*0.5; f.scale.set(s,1,1); } }
 }
 function worldOf(m,lx,ly,lz){ _v.set(lx,ly,lz); return m.body.localToWorld(_v); }

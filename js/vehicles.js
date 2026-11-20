@@ -35,6 +35,7 @@ export const VEHICLES = {
     dash: [{ c: [0.655, 0.749, -0.364], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'tach', max: 10000 }, { c: [0.655, 0.749, -0.272], n: [-1, 0, 0], w: 0.085, h: 0.085, kind: 'speedo', max: 360 }],
     exhaust: { y: 0.36, z: [-0.07, 0, 0.07] },
     cabin: [[-0.85, 0.3, 0], [0.75, 1.16, 0.84]], trimColor: 0x26272a,
+    popups: { x0: 1.74, y0: 0.62, z: 0.6, len: 0.15, w: 0.33, slope: -0.35, open: 1.5 },
     tint: { f40seat: [0x7a1414, 0, 0.85], F40_Cockpit: [0x2a2a2c, 0, 0.9] },
     lightBoxes: [{ mat: 'F40_Cockpit', min: [-0.55, 0.12, 0.12], max: [0.08, 0.84, 0.56], as: 'f40seat' }],
     tailDiscs: [{ c: [-2.021, 0.648, -0.528], n: [-1, -0.03, -0.07], r: 0.08 }], darken: ['F40_GridD', 'F40_Grid', 'F40_Vehiclelight'],
@@ -52,11 +53,11 @@ export const VEHICLES = {
     lightBoxes: [{ mat: 'Material.005', min: [-9, 0.6, 0.2], max: [-1.9, 1.2, 0.95], as: 'tail' }],
     wheelMats: null,
     cam: { cockpit: [-0.2, 1.27, -0.37], look: [6, 1.06, -0.37], hood: [0.9, 1.35, 0], mirror: [0.55, 1.3, 0] },
-    mirrors: { in: { c: [0.42, 1.29, 0.0], n: [-0.99, -0.08, -0.12], w: 0.22, h: 0.055, housing: true }, L: { c: [0.52, 1.005, -0.952], n: [-0.89, 0, 0.46], w: 0.14, h: 0.085 } },
-    backTrim: true, cabin: [[-1.95, 0.3, 0], [1.0, 1.45, 0.95]],
+    mirrors: { in: { c: [0.36, 1.265, 0.0], n: [-0.99, -0.08, -0.12], w: 0.2, h: 0.05, housing: true, frame: 0.008, arm: 0.035 }, L: { c: [0.52, 1.005, -0.952], n: [-0.89, 0, 0.46], w: 0.14, h: 0.085 } },
+    backTrim: true, cabin: [[-1.95, 0.3, 0], [1.0, 1.45, 0.95]], trimColor: 0x15171c,
     kit: { hide: [[-1.9, 0.2, -0.7], [1.02, 1.26, 0.7]], opt: { xDash: 1.1, xFace: 0.66, yTop: 0.93, yFloor: 0.3, halfW: 0.72, zDrv: -0.37, seatX: -0.42, seatY: 0.56, back: 0.28, roofY: 1.42, xVisor: null,
       doorZ: 0.83, xDoorF: 0.8, xDoorR: -0.4, rear: { x: -1.2, y: 0.5, w: 1.32 }, cluster: null, screen: { c: [0.668, 0.972, -0.01], w: 0.3, h: 0.18, tilt: -0.233, stand: true },
-      sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.185 }, shifter: 'none', trimKind: 'carbon', style: 'tesla', roofBar: { x: -0.32, y: 1.37 }, shelf: { x0: -1.98, x1: -1.5, y: 0.98 }, col: { dash: 0x1a1b1d, low: 0x121314, seat: 0x17181a, ins: '#25262a', stitch: '#4a4c52', amb: 0xffffff } } },
+      sw: { c: [0.47, 0.93, -0.37], n: [-0.92, 0.4, 0], r: 0.185 }, shifter: 'none', trimKind: 'carbon', style: 'tesla', roofBar: { x: -0.32, y: 1.37 }, tintRoof: { x0: -1.6, x1: 0.35, y: 1.42, w: 1.2 }, shelf: { x0: -1.98, x1: -1.5, y: 0.98 }, col: { dash: 0x16181e, low: 0x0f1014, seat: 0x15171c, ins: '#22252b', stitch: '#4a4e56', amb: 0xffffff } } },
     dash: [{ c: [0.655, 0.975, -0.01], n: [-0.97, 0.23, 0], w: 0.3, h: 0.18, kind: 'tesla' }],
   },
   e2008: {
@@ -157,6 +158,15 @@ function prepare(V, scene) {
   const mid = (fx + rx) / 2;
   for (const p of body) p.geo.translate(-mid, 0, 0);
   for (const w of wheels) { if (!w.c) continue; w.c.x -= mid; for (const p of w.list) { p.geo.translate(-mid, 0, 0); p.geo.translate(-w.c.x, -w.c.y, -w.c.z); } }
+  // some source models ship with the front wheels turned (toe/steer baked in): find each wheel's axle direction and square it up
+  for (const w of wheels) { if (!w.c) continue; const pts = []; for (const p of w.list) { const P = p.geo.attributes.position; const st = Math.max(1, Math.floor(P.count / 3000)); for (let i = 0; i < P.count; i += st) pts.push([P.getX(i), P.getY(i), P.getZ(i)]); }
+    let best = 0, bv = Infinity; for (let t = -0.35; t <= 0.35; t += 0.0025) { const c = Math.cos(t), sn = Math.sin(t); let m = 0, v = 0; for (const q of pts) m += -sn * q[0] + c * q[2]; m /= pts.length; for (const q of pts) { const d = -sn * q[0] + c * q[2] - m; v += d * d; } if (v < bv) { bv = v; best = t; } }
+    const zw = () => { const b2 = new THREE.Box3(); for (const p of w.list) { p.geo.computeBoundingBox(); b2.union(p.geo.boundingBox); } return b2.max.z - b2.min.z; };
+    if (Math.abs(best) > 0.004) { const w0 = zw(); for (const p of w.list) p.geo.rotateY(best); if (zw() > w0 - 0.01) { for (const p of w.list) p.geo.rotateY(-best); best = 0; } }
+    const bb = new THREE.Box3(); for (const p of w.list) { p.geo.computeBoundingBox(); bb.union(p.geo.boundingBox); } const off = bb.getCenter(new THREE.Vector3()); off.y = 0;
+    for (const p of w.list) p.geo.translate(-off.x, 0, -off.z); w.c.x += off.x; w.c.z += off.z; w.toe = best; }
+  // left/right wheels share one axle line: average their positions so the car tracks straight
+  for (const [a, b] of [[0, 1], [2, 3]]) { const A = wheels[a].c, B = wheels[b].c; if (!A || !B) continue; const x = (A.x + B.x) / 2, y = (A.y + B.y) / 2, z = (Math.abs(A.z) + Math.abs(B.z)) / 2; A.set(x, y, Math.sign(A.z) * z); B.set(x, y, Math.sign(B.z) * z); }
   // light lenses that share a material with trim: carve them out by region
   if (V.kit && V.kit.hide) { const [mn, mx] = V.kit.hide; const keep = [...((V.mats && V.mats.paint) || []), ...((V.mats && V.mats.glass) || [])];
     for (let i = body.length - 1; i >= 0; i--) { const p = body[i]; if (keep.includes(p.mat.name || '')) continue;
@@ -228,7 +238,25 @@ export function buildVehicle(id, color) {
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.015; sh.renderOrder = 2; unsprung.add(sh);
   const cam = V.cam || {};
   const tq = new THREE.Quaternion();
-  return { root, body, paint, brakeMat, headMat, flames, wheels: [], mirrorDefs: V.mirrors, drawDash: dash.length ? (rpm, kmh, gear, nitro) => { for (const D of dash) drawDash(D, rpm, kmh, gear, nitro); } : null, pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: id,
+  // pop-up headlights (F40): each pod hinges at its rear edge, lies flush in the bonnet when off and swings up when the lights come on
+  const pods = []; let popK = 0;
+  const popLampM = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, emissive: 0xfff3dc, emissiveIntensity: 0, roughness: 0.1, metalness: 0.4, toneMapped: false });
+  if (V.popups) { const P = V.popups; const glowC = document.createElement('canvas'); glowC.width = glowC.height = 64; { const g = glowC.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.15, 'rgba(255,250,235,.8)'); r.addColorStop(0.45, 'rgba(255,240,210,.15)'); r.addColorStop(1, 'rgba(255,240,210,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); }
+    const glowT = new THREE.CanvasTexture(glowC); const blk = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.55 });
+    for (const sd of [-1, 1]) { const hinge = new THREE.Group(); hinge.position.set(P.x0, P.y0, sd * P.z); body.add(hinge);
+      const L = P.len, W = P.w, H = 0.085; const pod = new THREE.Group(); hinge.add(pod);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(L, 0.012, W).translate(L / 2 - 0.002, -0.004, 0), paint); lid.castShadow = true; pod.add(lid);
+      const box = new THREE.Mesh(new THREE.BoxGeometry(L - 0.01, H, W - 0.012).translate(L / 2, -H / 2 - 0.008, 0), blk); pod.add(box);
+      // lamp face on the underside: two round reflectors that point forward once the pod is up
+      for (const dz of [-W * 0.24, W * 0.24]) { const r = Math.min(W * 0.19, L * 0.38); const ring = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.08, r * 1.08, 0.006, 24).translate(L * 0.5, -H - 0.011, dz), new THREE.MeshStandardMaterial({ color: 0x8b9096, metalness: 1, roughness: 0.25 })); pod.add(ring);
+        const lens = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.008, 24).translate(L * 0.5, -H - 0.013, dz), popLampM); pod.add(lens);
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowT, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0 })); sp.position.set(L * 0.5, -H - 0.06, dz); sp.scale.set(0.5, 0.5, 1); pod.add(sp); pods.push({ hinge, sp }); }
+      hinge.userData.closed = P.slope; }
+    for (const p of pods) { p.hinge.rotation.z = p.hinge.userData.closed; p.hinge.visible = false; } }
+  const setPopups = (on, dt) => { if (!pods.length) return; popK = Math.max(0, Math.min(1, popK + (on ? 1 : -1) * dt / 0.7)); const e = popK * popK * (3 - 2 * popK);
+    for (const p of pods) { p.hinge.visible = popK > 0.001; p.hinge.rotation.z = p.hinge.userData.closed + e * (V.popups.open - p.hinge.userData.closed); p.sp.material.opacity = Math.max(0, (e - 0.7) / 0.3) * 0.9; }
+    popLampM.emissiveIntensity = Math.max(0, (e - 0.6) / 0.4) * 4; };
+  return { root, body, paint, brakeMat, headMat, flames, setPopups, hasPopups: !!V.popups, wheels: [], mirrorDefs: V.mirrors, drawDash: dash.length ? (rpm, kmh, gear, nitro) => { for (const D of dash) drawDash(D, rpm, kmh, gear, nitro); } : null, pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: id,
     gauge: { canvas: null, tex: {}, ctx: null },
     setEnvMap(t) { for (const m of envMats) { m.envMap = t; m.needsUpdate = true; } },
     cockpit: cam.cockpit, cockpitLook: cam.look, hood: cam.hood, mirror: cam.mirror,

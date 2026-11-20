@@ -147,6 +147,9 @@ export function buildCabin(o) {
   if (o.xVisor) { for (const s of [-1, 1]) add(rb(0.2, 0.022, 0.36, 0.01).translate(o.xVisor, o.roofY - 0.04, s * 0.37), new THREE.MeshStandardMaterial({ color: 0x8a8c90, roughness: 0.9 }));
     add(rb(0.16, 0.035, 0.22, 0.015).translate(o.xVisor - 0.05, o.roofY - 0.035, 0), lowM); }
   if (o.shelf) add(new THREE.BoxGeometry(o.shelf.x1 - o.shelf.x0, 0.02, halfW * 2 + 0.1).translate((o.shelf.x0 + o.shelf.x1) / 2, o.shelf.y, 0), lowM);   // parcel shelf
+  // tinted glass roof: blocks most of the sun like the real UV/IR-coated glass (shadow caster only, never drawn in colour)
+  if (o.tintRoof) { const r = new THREE.Mesh(new THREE.BoxGeometry(o.tintRoof.x1 - o.tintRoof.x0, 0.01, o.tintRoof.w), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+    r.position.set((o.tintRoof.x0 + o.tintRoof.x1) / 2, o.tintRoof.y, 0); r.castShadow = true; r.renderOrder = -1; G.add(r); }
   if (o.roofBar) add(rb(0.12, 0.05, o.roofBar.w || halfW * 1.5, 0.02).translate(o.roofBar.x, o.roofBar.y, 0), lowM);   // structural crossbar between the glass roof panels
   for (const pl of o.pillars || []) for (const s of [-1, 1]) add(rb(pl.w, pl.y1 - pl.y0, 0.03, 0.012).translate(pl.x, (pl.y0 + pl.y1) / 2, s * pl.z), lowM);   // pillar trims
   return { group: G, swG, swAxis: swn };
