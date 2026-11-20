@@ -256,7 +256,7 @@ export function buildVehicle(id, color) {
   const setPopups = (on, dt) => { if (!pods.length) return; popK = Math.max(0, Math.min(1, popK + (on ? 1 : -1) * dt / 0.7)); const e = popK * popK * (3 - 2 * popK);
     for (const p of pods) { p.hinge.visible = popK > 0.001; p.hinge.rotation.z = p.hinge.userData.closed + e * (V.popups.open - p.hinge.userData.closed); p.sp.material.opacity = Math.max(0, (e - 0.7) / 0.3) * 0.9; }
     popLampM.emissiveIntensity = Math.max(0, (e - 0.6) / 0.4) * 4; };
-  return { root, body, paint, brakeMat, headMat, flames, setPopups, hasPopups: !!V.popups, wheels: [], mirrorDefs: V.mirrors, drawDash: dash.length ? (rpm, kmh, gear, nitro) => { for (const D of dash) drawDash(D, rpm, kmh, gear, nitro); } : null, pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: id,
+  return { root, body, paint, brakeMat, headMat, glassMat: glass, cabinBox: V.cabin || V.cabinBox || null, flames, setPopups, hasPopups: !!V.popups, wheels: [], mirrorDefs: V.mirrors, drawDash: dash.length ? (rpm, kmh, gear, nitro) => { for (const D of dash) drawDash(D, rpm, kmh, gear, nitro); } : null, pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: id,
     gauge: { canvas: null, tex: {}, ctx: null },
     setEnvMap(t) { for (const m of envMats) { m.envMap = t; m.needsUpdate = true; } },
     cockpit: cam.cockpit, cockpitLook: cam.look, hood: cam.hood, mirror: cam.mirror,

@@ -200,12 +200,23 @@ function applyWeather(wx){
 
 // ---------------- local car ----------------
 const phys=new Car(); phys.manual=settings.manual; phys.assists=settings.assists; phys.world=trackWorld;
-function makeVehicleModel(id,color){ return (!VEHICLES[id]||VEHICLES[id].builtin||!vehicleReady(id)) ? buildCar(color) : buildVehicle(id,color); }
+// cabin lighting: the city HDR is warm/golden, which turned every interior olive-yellow. Inside the car, light comes from the
+// windows as soft neutral daylight, so cabin surfaces use a neutral studio environment instead of the scene's warm one.
+let cabinEnv=null;
+function neutralCabin(m){ if(!m||!m.body) return m; if(!cabinEnv) cabinEnv=pmrem.fromScene(new RoomEnvironment(),0.04).texture;
+  m.root.updateMatrixWorld(true); const inv=new THREE.Matrix4().copy(m.body.matrixWorld).invert(); const skip=new Set([m.paint,m.brakeMat,m.headMat,m.glassMat,m.brake3Mat].filter(Boolean));
+  const cb=m.cabinBox?[[m.cabinBox[0][0],m.cabinBox[0][1],0],[m.cabinBox[1][0],2.0,0.92]]:[[-1.7,0.25,0],[1.2,2.0,0.92]]; const done=new Map(); const bb=new THREE.Box3(), c=new THREE.Vector3(), mw=new THREE.Matrix4();
+  m.body.traverse(o=>{ if(!o.isMesh||!o.material||Array.isArray(o.material)) return; const mt=o.material; if(skip.has(mt)||mt.transparent||mt.isMeshBasicMaterial||mt.isShaderMaterial||!('envMap' in mt)) return;
+    if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); mw.multiplyMatrices(inv,o.matrixWorld); bb.copy(o.geometry.boundingBox).applyMatrix4(mw); bb.getCenter(c);
+    const inside=c.x>cb[0][0]&&c.x<cb[1][0]&&c.y>cb[0][1]&&c.y<cb[1][1]&&Math.abs(c.z)<cb[1][2]; if(!inside) return;
+    let nm=done.get(mt); if(!nm){ nm=mt.clone(); nm.envMap=cabinEnv; nm.envMapIntensity=mt.metalness>0.5?0.95:0.8; nm.needsUpdate=true; done.set(mt,nm); } o.material=nm; });
+  return m; }
+function makeVehicleModel(id,color){ return neutralCabin((!VEHICLES[id]||VEHICLES[id].builtin||!vehicleReady(id)) ? buildCar(color) : buildVehicle(id,color)); }
 let lastFdt=1/60;
 let model=makeVehicleModel(settings.vehicle,settings.color); scene.add(model.root);
 let mirrorPlane=null; const mirrorPlanes=[];
 function mirrorMesh(w,h,u0,u1,v0,v1,rad,mask=null){ const g=new THREE.PlaneGeometry(w,h); const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,u1-uv.getX(i)*(u1-u0),v0+uv.getY(i)*(v1-v0));
-  const am=document.createElement('canvas'); am.width=256; am.height=Math.round(256*h/w); const c=am.getContext('2d'); c.fillStyle='#000'; c.fillRect(0,0,am.width,am.height); c.fillStyle='#fff'; c.beginPath(); c.roundRect(3,3,250,am.height-6,rad); c.fill();
+  const am=document.createElement('canvas'); am.width=256; am.height=Math.round(256*h/w); const c=am.getContext('2d'); c.fillStyle='#000'; c.fillRect(0,0,am.width,am.height); c.fillStyle='#fff'; c.beginPath(); if(rad==='ellipse') c.ellipse(128,am.height/2,124,am.height/2-3,0,0,Math.PI*2); else c.roundRect(3,3,250,am.height-6,rad); c.fill();
   const ag=new THREE.CanvasTexture(mask||am); // alpha mask uses the plane's own (unremapped) coords
   const mat=new THREE.MeshBasicMaterial({map:mirrorRT.texture,fog:false,transparent:false}); mat.onBeforeCompile=s=>{ s.vertexShader=s.vertexShader.replace('#include <uv_pars_vertex>','#include <uv_pars_vertex>\nattribute vec2 uv2m; varying vec2 vMk;').replace('#include <uv_vertex>','#include <uv_vertex>\nvMk=uv2m;');
     s.uniforms.mk={value:ag}; s.fragmentShader=s.fragmentShader.replace('#include <map_pars_fragment>','#include <map_pars_fragment>\nuniform sampler2D mk; varying vec2 vMk;').replace('#include <alphatest_fragment>','if(texture2D(mk,vMk).r<0.5) discard;'); };
@@ -238,7 +249,7 @@ function attachMirrors(){ mirrorPlane=null; mirrorPlanes.length=0;
       const cc=c.clone().addScaledVector(u,(u0+u1)/2).addScaledVector(w,(w0+w1)/2).addScaledVector(n,oMax+0.0025);
       return {...def,c:cc.toArray(),w:W,h:H,mask:cv}; };
     if(D.in) mirrorPlane=place(D.in,0.18,0.82,26,true);
-    if(D.L){ const R={...D.L,c:[D.L.c[0],D.L.c[1],-D.L.c[2]],n:[D.L.n[0],D.L.n[1],-D.L.n[2]]}; place(D.L.fixed?D.L:fit(D.L),0.6,1.0,D.L.rad||40,false); place(D.L.fixed?R:fit(R),0.0,0.4,D.L.rad||40,false); }
+    if(D.L){ const R={...D.L,c:[D.L.c[0],D.L.c[1],-D.L.c[2]],n:[D.L.n[0],D.L.n[1],-D.L.n[2]]}; const rr=D.L.ellipse?'ellipse':(D.L.rad||40); place(D.L.fixed?D.L:fit(D.L),0.6,1.0,rr,false); place(D.L.fixed?R:fit(R),0.0,0.4,rr,false); }
     return; }
   mirrorPlane=mirrorMesh(0.228,0.058,0.18,0.82,0.15,0.85,26); mirrorPlane.geometry.rotateY(-Math.PI/2); mirrorPlane.position.set(0.471,1.0925,-0.007); mirrorPlane.rotation.y=-0.14; model.body.add(mirrorPlane); mirrorPlanes.push(mirrorPlane);
   for(const s of [-1,1]){ const n=new THREE.Vector3(-0.9,0.01,-s*0.44).normalize(); const u=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),n).normalize(), w=new THREE.Vector3().crossVectors(n,u);
@@ -666,6 +677,7 @@ function placeCar(m,x,y,a,pitch,roll,steer,wheelAng,brake,nitro,bump=0,lights=he
   m.brakeMat.emissiveIntensity=brake?(m.vid?4.5:7):(lights?(m.vid?1.1:1.8):0.12); if(m.brake3Mat) m.brake3Mat.emissiveIntensity=brake?5:0;
   if(m.headMat) m.headMat.emissiveIntensity=lights?3.5:0.9;   // LED daytime running lights stay on
   updateLamps(m,brake,lights,rev,isMe);
+  if(isMe&&m.glassMat){ const want=(camMode===1&&(mode==='free'||mode==='race'||mode==='countdown'))?0.14:0.45; if(m.glassMat.opacity!==want){ m.glassMat.opacity=want; } }
   if(m.setPopups) m.setPopups(lights,lastFdt||0.016);
   for(const f of m.flames){ f.visible=nitro; if(nitro){ const s=0.8+Math.random()*0.5; f.scale.set(s,1,1); } }
 }

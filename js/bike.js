@@ -165,8 +165,8 @@ export function buildBike(color) {
   add(tube(V3(0.0, 0.34, -0.155), V3(-B, RR + 0.06, -0.155), 0.008, 4), satin); add(tube(V3(0.0, 0.28, -0.155), V3(-B, RR - 0.06, -0.155), 0.008, 4), satin);   // chain
   add(new THREE.CylinderGeometry(0.085, 0.085, 0.008, 32).rotateX(Math.PI / 2).translate(-B, RR, -0.155), satin);
   // --- mirrors (on the fairing), TFT dash ---
-  const mdefs = { L: { c: [0.548, 1.032, -0.282], n: [-0.97, 0.05, 0.22], w: 0.10, h: 0.045 } };
-  for (const s of [-1, 1]) { const hs = new THREE.SphereGeometry(1, 16, 10); hs.scale(0.025, 0.024, 0.055); hs.translate(0.57, 1.03, s * 0.28); add(hs, black); add(beam(V3(0.62, 0.95, s * 0.19), V3(0.58, 1.02, s * 0.255), 0.02, 0.015, 0.012), black); }
+  const mdefs = { L: { c: [0.568, 1.03, -0.28], n: [-1, 0, 0], w: 0.108, h: 0.047, fixed: true, ellipse: true } };
+  for (const s of [-1, 1]) { const hs = new THREE.SphereGeometry(1, 20, 12, Math.PI / 2, Math.PI); hs.scale(0.03, 0.026, 0.058); hs.translate(0.57, 1.03, s * 0.28); add(hs, black); const rim = new THREE.TorusGeometry(1, 0.06, 6, 32); rim.rotateY(Math.PI / 2); rim.scale(0.05, 0.026, 0.058); rim.translate(0.5695, 1.03, s * 0.28); add(rim, black); add(beam(V3(0.62, 0.95, s * 0.19), V3(0.58, 1.02, s * 0.255), 0.02, 0.015, 0.012), black); }
   const dcv = document.createElement('canvas'); dcv.width = 256; dcv.height = 150; const dtex = new THREE.CanvasTexture(dcv); dtex.colorSpace = THREE.SRGBColorSpace;
   const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.076), new THREE.MeshBasicMaterial({ map: dtex, toneMapped: false })); dash.position.set(0.53, 1.02, 0); dash.lookAt(0.28, 1.21, 0); body.add(dash);
   const dh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.09, 0.03), black); dh.position.set(0.53, 1.02, 0); dh.lookAt(0.28, 1.21, 0); dh.translateZ(-0.017); body.add(dh);
