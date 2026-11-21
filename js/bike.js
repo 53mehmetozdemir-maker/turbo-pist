@@ -1,10 +1,10 @@
-// Procedural Ducati Panigale V4 S (2022-24 shape, no logos) with a tucked rider.
+// Procedural BMW S 1000 RR (2023-25 shape, no logos): 999 cc inline four, M winglets, twin LED eyes, tricolour livery, with a tucked rider.
 // Car frame: +X forward, +Y up, +Z right, ground at y=0, origin midway between the axles.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-const A = 0.71, B = 0.759;                 // axle positions (wheelbase 1.469 m)
-const RF = 0.300, RR = 0.336;               // 120/70 ZR17 front, 200/60 ZR17 rear
+const A = 0.70, B = 0.757;                 // axle positions (wheelbase 1.457 m)
+const RF = 0.300, RR = 0.330;               // 120/70 ZR17 front, 190/55 ZR17 rear
 const HEAD = new THREE.Vector3(0.42, 0.97, 0);   // steering head (24° rake)
 
 const ni = g => { g = g.index ? g.toNonIndexed() : g; if (g.attributes.uv) g.deleteAttribute('uv'); return g; };
@@ -73,6 +73,7 @@ export function buildBike(color) {
   const DS = THREE.DoubleSide;
   const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.35, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1, side: DS });
   const white = new THREE.MeshPhysicalMaterial({ color: 0xeef0f2, metalness: 0.1, roughness: 0.32, clearcoat: 1, envMapIntensity: 0.8, side: DS });
+  const mBlue = new THREE.MeshPhysicalMaterial({ color: 0x1c4fd0, metalness: 0.2, roughness: 0.3, clearcoat: 1, side: DS }), mDark = new THREE.MeshPhysicalMaterial({ color: 0x15213f, metalness: 0.2, roughness: 0.3, clearcoat: 1, side: DS }), mRed = new THREE.MeshPhysicalMaterial({ color: 0xd51d2c, metalness: 0.2, roughness: 0.3, clearcoat: 1, side: DS });
   const black = new THREE.MeshStandardMaterial({ color: 0x0d0e10, roughness: 0.6, metalness: 0.1, side: DS });
   const satin = new THREE.MeshStandardMaterial({ color: 0x1c1d21, roughness: 0.45, metalness: 0.35, side: DS });
   const carbon = new THREE.MeshPhysicalMaterial({ color: 0x18191c, roughness: 0.3, metalness: 0.4, clearcoat: 1, side: DS });
@@ -102,10 +103,14 @@ export function buildBike(color) {
   add(loft(FAIR, 0, 8, 1.0, 3), paint);                                  // fairing sides & nose (top under the screen/tank is open)
   add(loft(FAIR, 0, 3.4, 0, 1.0), paint);                                  // nose top
   add(loft(FAIR, 5.9, 7.2, 2.0, 2.3, 0.003), satin, body, false);         // side duct
-  add(loft(FAIR, 0.5, 1.9, 1.35, 2.25, 0.003), black, body, false);      // intake under the lights
-  add(loft(FAIR, 0.55, 1.85, 1.38, 1.62, 0.005), headMat, body, false);   // slim DRL / headlight blade
+  add(loft(FAIR, 0.15, 1.6, 0.0, 0.55, 0.004), black, body, false);       // central ram-air intake between the eyes
+  add(loft(FAIR, 0.5, 1.9, 1.05, 2.05, 0.003), black, body, false);      // dark headlamp housings
+  add(loft(FAIR, 0.6, 1.75, 1.15, 1.75, 0.006), headMat, body, false);   // twin LED headlights
+  add(loft(FAIR, 0.55, 1.85, 1.92, 2.02, 0.007), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), body, false);   // DRL brows
+  // tricolour livery bands sweeping back along the fairing
+  add(loft(FAIR, 3.2, 7.4, 2.35, 2.55, 0.004), mBlue, body, false); add(loft(FAIR, 3.6, 7.6, 2.55, 2.72, 0.004), mDark, body, false); add(loft(FAIR, 4.0, 7.8, 2.72, 2.88, 0.004), mRed, body, false);
   add(loft(FAIR, 5.2, 7.6, 2.6, 3.0, 0.003), black, body, false);         // lower side opening (radiator)
-  for (const s of [-1, 1]) for (const [x0, y0, sp] of [[0.76, 0.72, 0.075], [0.68, 0.68, 0.065]]) { const w = new THREE.BoxGeometry(0.14, 0.016, sp); w.translate(0, 0, s * sp / 2); w.rotateY(s * -0.2); w.rotateX(s * 0.25); w.translate(x0, y0, s * 0.16); add(w, carbon, body, false); }   // winglets
+  for (const s of [-1, 1]) for (const [x0, y0, sp] of [[0.74, 0.74, 0.11], [0.64, 0.70, 0.09]]) { const w = new THREE.BoxGeometry(0.14, 0.016, sp); w.translate(0, 0, s * sp / 2); w.rotateY(s * -0.2); w.rotateX(s * 0.25); w.translate(x0, y0, s * 0.16); add(w, carbon, body, false); }   // winglets
   const TANK = [
     [0.50, [[0, 0.985], [0.10, 0.980], [0.17, 0.93], [0.17, 0.83]]],
     [0.38, [[0, 1.040], [0.13, 1.025], [0.20, 0.95], [0.19, 0.82]]],
@@ -145,20 +150,19 @@ export function buildBike(color) {
   add(shell([[0.02, 0.15, 0.86, 0.56], [-0.18, 0.14, 0.86, 0.6], [-0.40, 0.11, 0.88, 0.72]], 200, 12), satin, body, false);   // covers under the seat (airbox / shock)
   const crank = new THREE.BoxGeometry(0.34, 0.24, 0.30); crank.translate(0.12, 0.36, 0); add(crank, engM);
   const engG = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.42, metalness: 0.7 }), camM = new THREE.MeshStandardMaterial({ color: 0x8c8f95, roughness: 0.3, metalness: 0.9 });
-  const fb = new THREE.BoxGeometry(0.22, 0.2, 0.30); fb.rotateZ(1.3); fb.translate(0.30, 0.42, 0); add(fb, engG);                 // front bank (near horizontal)
-  const rb2 = new THREE.BoxGeometry(0.2, 0.24, 0.30); rb2.rotateZ(-0.27); rb2.translate(0.03, 0.62, 0); add(rb2, engG);           // rear bank (near vertical)
-  for (const s of [-1, 1]) { add(new THREE.BoxGeometry(0.15, 0.04, 0.07).rotateZ(-0.27).translate(0.0, 0.75, s * 0.08), camM); add(new THREE.BoxGeometry(0.04, 0.14, 0.07).rotateZ(1.3 - Math.PI / 2).translate(0.43, 0.46, s * 0.08), camM); }
+  const blk = new THREE.BoxGeometry(0.2, 0.26, 0.40); blk.rotateZ(0.5); blk.translate(0.22, 0.56, 0); add(blk, engG);            // forward-inclined inline-4 cylinder block
+  const head4 = new THREE.BoxGeometry(0.16, 0.08, 0.42); head4.rotateZ(0.5); head4.translate(0.16, 0.70, 0); add(head4, camM);     // ShiftCam head cover
   for (let k = 0; k < 6; k++) add(new THREE.BoxGeometry(0.17, 0.004, 0.31).translate(0.12, 0.27 + k * 0.03, 0), engG);   // case ribs
   add(new THREE.BoxGeometry(0.2, 0.06, 0.2).translate(0.12, 0.2, 0), engG);   // sump
   add(new THREE.CylinderGeometry(0.09, 0.09, 0.025, 28).rotateX(Math.PI / 2).translate(0.03, 0.40, 0.165), new THREE.MeshStandardMaterial({ color: 0xc9bea6, roughness: 0.45, metalness: 0.5 }));   // champagne clutch cover
   add(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 20).rotateX(Math.PI / 2).translate(0.16, 0.36, -0.16), satin);    // alternator cover
   for (let k = 0; k < 4; k++) { const z = -0.105 + k * 0.07; add(tube(V3(0.34, 0.60, z), V3(0.42, 0.40, z * 0.8), 0.018), ti); add(tube(V3(0.42, 0.40, z * 0.8), V3(0.30, 0.17, z * 0.4), 0.018), ti); }
-  add(beam(V3(0.25, 0.20, 0), V3(-0.30, 0.24, 0), 0.10, 0.08, 0.24), engM);                     // under-engine silencer
-  for (const s of [-1, 1]) add(beam(V3(0.10, 0.21, s * 0.125), V3(-0.28, 0.25, s * 0.125), 0.06, 0.045, 0.01), new THREE.MeshStandardMaterial({ color: 0x55575d, roughness: 0.35, metalness: 0.9 }));   // titanium heat shields
-  for (const s of [-1, 1]) add(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 12).rotateZ(Math.PI / 2).translate(-0.33, 0.24, s * 0.06), ti);
-  add(beam(V3(-0.12, 0.45, -0.13), V3(-B, RR, -0.11), 0.13, 0.09, 0.06), engM);   // single-sided swingarm
-  add(beam(V3(-0.14, 0.40, -0.13), V3(-0.45, 0.33, -0.12), 0.07, 0.05, 0.04), engM);
-  add(new THREE.CylinderGeometry(0.075, 0.075, 0.16, 20).rotateX(Math.PI / 2).translate(-B, RR, -0.1), engM);   // eccentric hub
+  add(beam(V3(0.22, 0.18, 0), V3(-0.08, 0.2, 0.08), 0.09, 0.08, 0.2), engM);                      // pre-silencer box under the engine
+  add(tube(V3(-0.08, 0.2, 0.12), V3(-0.22, 0.30, 0.19), 0.04), ti);                                   // link pipe out to the right
+  { const can = new THREE.CylinderGeometry(0.062, 0.07, 0.36, 18); can.rotateZ(Math.PI / 2 - 0.35); can.translate(-0.36, 0.36, 0.19); add(can, ti); add(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 14).rotateZ(Math.PI / 2 - 0.35).translate(-0.53, 0.42, 0.19), black); add(new THREE.TorusGeometry(0.066, 0.006, 6, 18).rotateY(Math.PI / 2).rotateZ(-0.35).translate(-0.53, 0.42, 0.19), carbon); }   // short side silencer
+  const swM = new THREE.MeshStandardMaterial({ color: 0x23252a, roughness: 0.4, metalness: 0.6 });
+  for (const s of [-1, 1]) { add(beam(V3(-0.12, 0.45, s * 0.11), V3(-B, RR, s * 0.105), 0.11, 0.07, 0.035), swM); add(beam(V3(-0.15, 0.39, s * 0.11), V3(-0.5, 0.32, s * 0.105), 0.05, 0.035, 0.03), swM); }   // double-sided swingarm with under-bracing
+  add(tube(V3(-B, RR, -0.13), V3(-B, RR, 0.13), 0.015), alu);
   add(tube(V3(-0.12, 0.45, -0.14), V3(-0.12, 0.45, 0.14), 0.035), alu);
   add(tube(V3(-0.10, 0.62, 0), V3(-0.22, 0.42, 0), 0.028), gold); add(tube(V3(-0.13, 0.57, 0), V3(-0.19, 0.47, 0), 0.04), satin);   // rear shock + spring
   for (const s of [-1, 1]) { add(tube(V3(-0.17, 0.40, s * 0.12), V3(-0.17, 0.40, s * 0.21), 0.011), alu); add(beam(V3(-0.10, 0.48, s * 0.13), V3(-0.22, 0.36, s * 0.13), 0.05, 0.03, 0.012), alu); }   // rearsets
@@ -188,7 +192,7 @@ export function buildBike(color) {
   // --- rear wheel ---
   const rw = new THREE.Group(); rw.position.set(-B, RR, 0); body.add(rw); const rspin = new THREE.Group(); rw.add(rspin);
   add(tyre(RR, 0.19), rubber, rspin); add(rim2(RR - 0.105, 0.14), rimM, rspin); add(wavyDisc(0.11, 0.065).translate(0, 0, -0.085), discM, rspin, false);
-  add(beam(V3(-0.06, -0.03, -0.1), V3(-0.12, 0.03, -0.1), 0.04, 0.035, 0.025), alu, rw); add(new THREE.CylinderGeometry(0.045, 0.045, 0.05, 6).rotateX(Math.PI / 2).translate(0, 0, 0.09), alu, rspin);
+  add(beam(V3(-0.06, -0.03, -0.1), V3(-0.12, 0.03, -0.1), 0.04, 0.035, 0.025), alu, rw); 
   // --- rider (tucked), hidden in the helmet camera ---
   const rider = new THREE.Group(); body.add(rider);
   const suit = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.55, metalness: 0.05 }), suitC = new THREE.MeshPhysicalMaterial({ color, roughness: 0.4, clearcoat: 0.4 }), suitW = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.45 });
@@ -222,7 +226,7 @@ export function buildBike(color) {
 
   const stand = new THREE.Group(); body.add(stand); add(tube(V3(-0.02, 0.36, -0.13), V3(-0.12, 0.03, -0.26), 0.012), alu, stand); add(new THREE.BoxGeometry(0.06, 0.01, 0.04).translate(-0.125, 0.025, -0.265), alu, stand);
   const q = new THREE.Quaternion(); let lean = 0;
-  return { root, body, leanG, rider, stand, paint, brakeMat, headMat, flames: [flame], wheels: [], pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: 'v4s', bike: true,
+  return { root, body, leanG, rider, stand, paint, brakeMat, headMat, flames: [flame], wheels: [], pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: 's1000rr', bike: true,
     mirrorDefs: mdefs, gauge: { canvas: null, tex: {}, ctx: null },
     setEnvMap(t) { for (const m of [paint, white, glass, helmet, visor, carbon, headMat, suitC]) { m.envMap = t; m.needsUpdate = true; } },
     cockpit: [0.28, 1.21, 0], cockpitLook: [6, 0.55, 0], hood: [0.62, 1.0, 0], mirror: [0.45, 1.1, 0],

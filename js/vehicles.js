@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { buildBike } from './bike.js';
-import { buildCaddy } from './caddy.js';
+import { buildCivic } from './civic.js';
 import { buildCabin, navTex } from './interior.js';
 
 // electric motor: constant torque up to base speed, then constant power
@@ -79,21 +79,21 @@ export const VEHICLES = {
     dash: [{ c: [0.73, 1.048, -0.343], n: [-0.95, 0.3, 0], w: 0.16, h: 0.06, kind: 'peugeot' }],
   },
 };
-VEHICLES.v4s = {
-  name: 'Ducati Panigale V4 S', short: 'Panigale V4 S', info: 'Motosiklet · 1103 cc Desmosedici Stradale V4 · 215,5 PS · 123,6 Nm · 6 ileri · 195,5 kg',
-  proc: 'bike', sound: { cyl: 4, kind: 'v4' }, credit: 'Ducati Panigale V4 S: Turbo Pist için prosedürel model (logosuz)',
-  spec: { mass: 283, inertia: 305, muRear: 1.6, Bf: 9, a: 0.71, b: 0.759, cgH: 0.62, r: 0.336, track: 0,
-    gears: [2.714, 2.118, 1.737, 1.524, 1.364, 1.25], reverse: 2.714, final: 4.6125, eff: 0.9, idle: 1300, redline: 14500, shiftUp: 14200, shiftDown: 8000, shiftTime: 0.05,
-    tq: [[0, 45], [2000, 60], [4000, 80], [6000, 100], [8000, 118], [9500, 123.6], [11000, 121], [12000, 119], [13000, 116], [14000, 106], [14500, 98], [15000, 60]],
-    drag: 0.19, roll: 3, downforce: 0.04, brakeForce: 3300, brakeBias: 0.78, drive: 'rwd', vmax: 305, grip: 1.05, hl: 1.05, hw: 0.35 },
+VEHICLES.s1000rr = {
+  name: 'BMW S 1000 RR', short: 'S 1000 RR', info: 'Motosiklet · 999 cc sıralı dört, ShiftCam · 210 PS / 13.750 d/dk · 113 Nm · 6 ileri · 197 kg',
+  proc: 'bike', sound: { cyl: 4, kind: 'i4moto' }, credit: 'BMW S 1000 RR (2025): Turbo Pist için prosedürel model (logosuz)',
+  spec: { mass: 277, inertia: 300, muRear: 1.6, Bf: 9, a: 0.70, b: 0.757, cgH: 0.62, r: 0.33, track: 0,
+    gears: [2.647, 2.091, 1.727, 1.5, 1.36, 1.261], reverse: 2.647, final: 4.373, eff: 0.9, idle: 1250, redline: 14600, shiftUp: 14400, shiftDown: 8500, shiftTime: 0.045,
+    tq: [[0, 40], [2000, 55], [4000, 72], [6000, 88], [8000, 100], [9500, 108], [11000, 113], [12000, 112], [13000, 110], [13750, 107], [14600, 98], [15100, 60]],
+    drag: 0.185, roll: 3, downforce: 0.05, brakeForce: 3350, brakeBias: 0.78, drive: 'rwd', vmax: 303, grip: 1.05, hl: 1.04, hw: 0.35 },
 };
-VEHICLES.caddy = {
-  name: 'Volkswagen Caddy', short: 'Caddy', info: '2.0 TDI · 122 PS · 320 Nm · 7 ileri DSG · önden çekiş · 188 km/sa',
-  proc: 'caddy', sound: { cyl: 4, kind: 'diesel' }, credit: 'Volkswagen Caddy (5. nesil): Turbo Pist için prosedürel model (logosuz)',
-  spec: { mass: 1720, inertia: 3100, a: 1.16, b: 1.595, cgH: 0.68, r: 0.33,
-    gears: [3.56, 2.53, 1.59, 1.03, 0.79, 0.64, 0.54], reverse: 3.4, final: 3.6, idle: 800, redline: 4800, shiftUp: 4200, shiftDown: 1500, shiftTime: 0.12,
-    tq: [[0, 140], [1000, 220], [1500, 300], [1600, 320], [2500, 320], [3000, 290], [3500, 245], [4000, 215], [4500, 180], [4800, 120], [5000, 60]],
-    drag: 0.52, downforce: 0, brakeForce: 23000, drive: 'fwd', vmax: 188, grip: 0.85, hl: 2.25, hw: 0.93 },
+VEHICLES.civic = {
+  name: 'Honda Civic Type R (EK9, 1998)', short: 'Civic Type R', info: '1.6 VTEC B16B · 185 PS / 8.200 d/dk · 160 Nm · 5 ileri manuel · önden çekiş · 1.050 kg',
+  proc: 'civic', sound: { cyl: 4, kind: 'vtec' }, credit: 'Honda Civic Type R EK9 (1998): Turbo Pist için prosedürel model (logosuz)',
+  spec: { mass: 1130, inertia: 1750, a: 1.02, b: 1.60, cgH: 0.5, r: 0.298,
+    gears: [3.23, 2.105, 1.458, 1.107, 0.848], reverse: 3.0, final: 4.4, idle: 900, redline: 8900, shiftUp: 8600, shiftDown: 4800, shiftTime: 0.13,
+    tq: [[0, 90], [2000, 115], [3000, 124], [4000, 130], [5000, 134], [5700, 136], [5900, 148], [6500, 153], [7000, 157], [7500, 160], [8000, 158], [8400, 152], [8900, 138], [9200, 110]],
+    drag: 0.36, downforce: 0, brakeForce: 15000, drive: 'fwd', vmax: 225, grip: 0.97, hl: 2.08, hw: 0.85 },
 };
 export const VEHICLE_IDS = Object.keys(VEHICLES);
 
@@ -200,7 +200,7 @@ const shadowTex = (() => { let t = null; return () => { if (t) return t; const c
 
 // one drivable instance with its own paint / light materials
 export function buildVehicle(id, color) {
-  const V = VEHICLES[id]; if (V && V.proc === 'bike') return buildBike(color); if (V && V.proc === 'caddy') return buildCaddy(color);
+  const V = VEHICLES[id]; if (V && V.proc === 'bike') return buildBike(color); if (V && V.proc === 'civic') return buildCivic(color);
   const T = cache[id] && cache[id].tpl; if (!T) return null;
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.25, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.9 });

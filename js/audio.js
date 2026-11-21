@@ -39,6 +39,9 @@ export const VOICES = {
   turbo:  { ev: [0, 90, 180, 270, 360, 450, 540, 630], bank: [0, 1, 0, 1, 0, 1, 0, 1], tau: 0.0017, noise: 0.3, pipe: [0.0027, 0.0031], fb: 0.5, bright: 2600, drive: 1.9, intake: 0.2, jitter: 0.07 },   // F40: 2.9 twin-turbo flat-plane V8, muffled by the turbines
   v4:     { ev: [0, 90, 290, 380], bank: [0, 1, 0, 1], tau: 0.0014, noise: 0.35, pipe: [0.0016, 0.0019], fb: 0.6, bright: 4800, drive: 2.1, intake: 0.4, jitter: 0.05 },   // Ducati Desmosedici Stradale "Twin Pulse" firing 0-90-290-380
   diesel: { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0026, noise: 0.45, pipe: [0.0042], fb: 0.45, bright: 1500, drive: 1.4, clatter: 0.9, intake: 0.1, jitter: 0.09 },   // VW 2.0 TDI inline four
+  vtec:   { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0016, noise: 0.28, pipe: [0.0029], fb: 0.5, bright: 2700, drive: 1.6, intake: 0.22, jitter: 0.05,   // Honda B16B below the VTEC crossover
+            vtec: { at: 5800, hi: { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.001, noise: 0.4, pipe: [0.0023], fb: 0.63, bright: 5600, drive: 2.1, intake: 0.85, jitter: 0.04 } } },   // ...and the hard-edged howl on the high-lift cams
+  i4moto: { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0009, noise: 0.32, pipe: [0.0012], fb: 0.6, bright: 6400, drive: 2.2, intake: 0.55, jitter: 0.04 },   // BMW S 1000 RR: flat-crank inline four, 14 600 rpm shriek
   i4:     { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0015, noise: 0.3, pipe: [0.003], fb: 0.5, bright: 3500, drive: 1.6, intake: 0.25, jitter: 0.05 },
 };
 export class CarAudio {
@@ -84,7 +87,7 @@ export class CarAudio {
       const w=car.rpm/60; for(const {o,mul,gg,base} of this.oscs){ o.frequency.setTargetAtTime(w*(mul*2+1)*0.9+40,t,0.03); gg.gain.setTargetAtTime(base*(mul>=2?0.5:0.15),t,0.1); }
       const ld=Math.max(car.throttle,0.15); this.engLP.frequency.setTargetAtTime(1200+w*6,t,k); this.eng.gain.setTargetAtTime(0.02+ld*0.07*Math.min(1,car.speed/4+0.2),t,k);
       this.lfoG.gain.setTargetAtTime(0,t,0.1); this.exhaust.g.gain.setTargetAtTime(0,t,0.1); this.popBurst=0; this.lastThr=car.throttle; this._tail(car,dt,t); return; }
-    const voice=VOICES[pr.kind]||VOICES.v8;
+    let voice=VOICES[pr.kind]||VOICES.v8; if(voice.vtec){ this.vtecOn=car.rpm>(this.vtecOn?voice.vtec.at-250:voice.vtec.at); if(this.vtecOn) voice=voice.vtec.hi; }
     if(this.wk){ if(this.wkVoice!==voice){ this.wkVoice=voice; this.wk.port.postMessage(voice); }
       const P=this.wk.parameters, thr=car.revHold?1:car.throttle, load=Math.min(1,thr*(0.55+0.45*Math.min(1,car.rpm/(pr.kind==='diesel'?3500:7000))));
       P.get('rpm').setTargetAtTime(Math.max(300,car.rpm),t,0.012); P.get('load').setTargetAtTime(load,t,0.03);
