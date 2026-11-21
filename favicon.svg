@@ -1,29 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1c2230"/>
-      <stop offset="1" stop-color="#07090d"/>
-    </linearGradient>
-    <linearGradient id="arc" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#22d3ee"/>
-      <stop offset="0.55" stop-color="#facc15"/>
-      <stop offset="1" stop-color="#ef4444"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.62" r="0.5">
-      <stop offset="0" stop-color="#ef4444" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#ef4444" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <circle cx="32" cy="38" r="26" fill="url(#glow)"/>
-  <!-- tachometer arc from 7 o'clock to 2 o'clock -->
-  <path d="M13.6 49.8 A22 22 0 1 1 51.5 26.2" fill="none" stroke="url(#arc)" stroke-width="7" stroke-linecap="round"/>
-  <!-- red line segment -->
-  <path d="M47.4 19.7 A22 22 0 0 1 51.5 26.2" fill="none" stroke="#ff2d2d" stroke-width="7" stroke-linecap="round"/>
-  <!-- needle pinned at the red line -->
-  <path d="M32 38 L49 22.5" stroke="#fff" stroke-width="4.2" stroke-linecap="round"/>
-  <circle cx="32" cy="38" r="5.2" fill="#fff"/>
-  <circle cx="32" cy="38" r="2.2" fill="#ef4444"/>
-  <!-- speed streaks -->
-  <path d="M38 50 H55 M42 55.5 H56" stroke="#fff" stroke-opacity=".85" stroke-width="3" stroke-linecap="round"/>
+ <defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a0b3d"/><stop offset=".6" stop-color="#5b1270"/><stop offset="1" stop-color="#0b0418"/></linearGradient>
+  <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe259"/><stop offset=".55" stop-color="#ff7a3d"/><stop offset="1" stop-color="#ff2e8a"/></linearGradient>
+  <clipPath id="c"><rect width="64" height="64" rx="14"/></clipPath>
+ </defs>
+ <g clip-path="url(#c)">
+  <rect width="64" height="64" fill="url(#sky)"/>
+  <circle cx="32" cy="34" r="19" fill="url(#sun)"/>
+  <g fill="#3a0d55"><rect x="10" y="33" width="44" height="2"/><rect x="10" y="38" width="44" height="2.6"/><rect x="10" y="43" width="44" height="3.2"/></g>
+  <rect y="44" width="64" height="20" fill="#0b0418"/>
+  <g stroke="#ff2e8a" stroke-width="1.2" opacity=".9"><path d="M32 44 L4 64 M32 44 L18 64 M32 44 L46 64 M32 44 L60 64"/><path d="M0 49 H64 M0 55 H64" opacity=".6"/></g>
+  <!-- low wedge sports car, rear view -->
+  <path d="M13 53 Q13.5 46 20 44 L25.5 39.6 Q32 38 38.5 39.6 L44 44 Q50.5 46 51 53 Z" fill="#05030a"/>
+  <path d="M14 41.5 H50 L49 43.6 H15 Z" fill="#05030a"/><rect x="19" y="41.5" width="1.6" height="3" fill="#05030a"/><rect x="43.4" y="41.5" width="1.6" height="3" fill="#05030a"/>
+  <path d="M26.5 40.6 Q32 39.4 37.5 40.6 L40 43.3 H24 Z" fill="#2b1a4a"/>
+  <rect x="15.5" y="46.2" width="33" height="2.6" rx="1.3" fill="#ff1f3d" opacity=".7" filter="blur(1.6px)"/>
+  <rect x="15.5" y="46.2" width="33" height="2.6" rx="1.3" fill="#ff2d4a"/>
+  <circle cx="28.5" cy="51.3" r="1.1" fill="#ffb020"/><circle cx="35.5" cy="51.3" r="1.1" fill="#ffb020"/>
+  <rect x="14" y="51" width="7" height="5.5" rx="1.6" fill="#05030a"/><rect x="43" y="51" width="7" height="5.5" rx="1.6" fill="#05030a"/>
+ </g>
 </svg>
