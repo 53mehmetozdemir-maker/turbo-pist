@@ -1,3 +1,4 @@
+import { Peer } from 'peerjs';
 // Peer-to-peer rooms over WebRTC (PeerJS). The first player to open a room code
 // becomes host and relays everyone's "presence" (a small state object) to all.
 const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},
@@ -16,7 +17,7 @@ export class Net {
     this.tick=0; this.seq=0; this.lastHostSeq=-1; this.onExtra=null;
     setInterval(()=>this.pump(),33);
   }
-  get available(){ return typeof window.Peer==='function'; }
+  get available(){ return typeof Peer==='function'; }
   get online(){ return !!this.peer; }
   get hostId(){ return this.isHost?this.myId:(this.hostConn?this.hostConn.peer:null); }
   // host -> everyone: extra messages (e.g. traffic state)
@@ -51,14 +52,14 @@ export class Net {
     c.on('close',gone); c.on('error',gone); c.on('open',()=>{ this.dirty=true; });
   }
   becomeHost(id){
-    return new Promise((res,rej)=>{ const p=new window.Peer(id,{debug:0,config:ICE}); let done=false;
+    return new Promise((res,rej)=>{ const p=new Peer(id,{debug:0,config:ICE}); let done=false;
       p.on('open',myId=>{ done=true; this.peer=p; this.isHost=true; this.myId=myId; p.on('connection',c=>this.hostSetup(c)); res('host'); });
       p.on('error',err=>{ if(!done){ done=true; p.destroy(); rej(err); } else if(err.type!=='peer-unavailable') this.toast('Bağlantı sorunu: '+err.type); });
       p.on('disconnected',()=>{ try{ p.reconnect(); }catch(e){} });
     });
   }
   becomeClient(hostId){
-    return new Promise((res,rej)=>{ const p=new window.Peer({debug:0,config:ICE}); let done=false;
+    return new Promise((res,rej)=>{ const p=new Peer({debug:0,config:ICE}); let done=false;
       const fail=e=>{ if(!done){ done=true; try{p.destroy();}catch(_){} rej(e); } };
       const to=setTimeout(()=>fail({type:'zaman aşımı'}),15000);
       p.on('error',e=>{ if(!done) fail(e); else this.toast('Bağlantı sorunu: '+e.type); });

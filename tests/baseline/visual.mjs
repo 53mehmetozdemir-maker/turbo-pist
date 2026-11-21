@@ -39,7 +39,7 @@ for (const [name, s] of SHOTS) {
     if (MODE === 'record') { fs.writeFileSync(ref, buf); report.push([name, 'kaydedildi', errs.length ? errs.slice(0, 2).join(' / ') : '']); }
     else { const A = PNG.sync.read(fs.readFileSync(ref)), B = PNG.sync.read(buf); let diffPct = 100;
       if (A.width === B.width && A.height === B.height) { const D = new PNG({ width: A.width, height: A.height }); const n = pixelmatch(A.data, B.data, D.data, A.width, A.height, { threshold: 0.12 }); diffPct = 100 * n / (A.width * A.height);
-        if (diffPct > 0.5) { fs.writeFileSync(path.join(OUTD, name + '_fark.png'), PNG.sync.write(D)); fs.writeFileSync(path.join(OUTD, name + '_yeni.png'), buf); } }
+        if (n > 0) { fs.writeFileSync(path.join(OUTD, name + '_fark.png'), PNG.sync.write(D)); fs.writeFileSync(path.join(OUTD, name + '_yeni.png'), buf); } }
       const ok = diffPct <= 0.5; if (!ok) bad++; report.push([name, (ok ? '✅ ' : '❌ ') + diffPct.toFixed(2) + '% fark', errs.slice(0, 2).join(' / ')]); }
   } catch (e) { bad++; report.push([name, '❌ hata', String(e.message).slice(0, 160)]); }
   console.log(report[report.length - 1].join('  |  ')); await ctx.close();

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { DRACOLoader, DRACO_GLTF_CONFIG } from 'three/addons/loaders/DRACOLoader.js';
 import { buildFleetCar, tireGeo, rimGeo } from './fleetcar.js';
 
 export const CAR = { length: 4.53, width: 1.94, a: 1.35, b: 1.31, track: 0.83, wheelR: 0.36 };
@@ -111,7 +111,7 @@ function wheelGroup(R,detail=1){
 let FERRARI=null, AO_TEX=null;
 export async function loadCarModel(base='assets/'){
   try{
-    const draco=new DRACOLoader(); draco.setDecoderPath(window.DRACO_PATH||'https://unpkg.com/three@0.187.0/examples/jsm/libs/draco/gltf/');
+    const draco=new DRACOLoader(); draco.setDecoderPath(window.DRACO_PATH||DRACO_GLTF_CONFIG);
     const loader=new GLTFLoader(); loader.setDRACOLoader(draco);
     const g=await loader.loadAsync(base+'ferrari.glb'); FERRARI=g.scene;
     AO_TEX=await new THREE.TextureLoader().loadAsync(base+'ferrari_ao.png');

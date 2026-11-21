@@ -18,6 +18,16 @@ node baseline/physics.mjs check     # birebir aynı olmalı
 node baseline/visual.mjs check      # her görüntü ≤ %0,5 piksel farkı; farklar tests/out/screens/ altına
 node baseline/saves.mjs check
 node baseline/keys.mjs check        # 28 klavye kısayolu kontrolü, hepsi ✅ olmalı (~2 dk)
+node baseline/klasik.mjs check      # klasik.html: hatasız açılış, PeerJS, menü görüntüsü
 node baseline/perf.mjs check        # hiçbir sahne daha yavaş olmamalı
 ```
 Testler zamanı (60 Hz sanal saat) ve rastgeleliği oyunun koduna dokunmadan sabitler; three.js/PeerJS'i yerel npm kopyasından verir. Yazılım tabanlı WebGL (SwiftShader) kullanıldığı için gerçek FPS burada ölçülmez; gerçek cihazda ayrıca kontrol edilir.
+
+## Aşama 1'den sonra: derlenmiş oyuna karşı
+Oyun artık Vite ile derleniyor; testler derlenmiş klasöre karşı çalışır:
+```
+cd .. && npx vite build --base=/ --outDir /tmp/dist-test && cd tests
+export GAME_ROOT=/tmp/dist-test
+node baseline/physics.mjs check   # (ve diğerleri)
+```
+Aşama raporları: `raporlar/`.

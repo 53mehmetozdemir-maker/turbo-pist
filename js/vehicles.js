@@ -2,7 +2,7 @@
 // plus the licensed 3D models and how to dress them (paint, lights, glass, wheels, cockpit camera).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { DRACOLoader, DRACO_GLTF_CONFIG } from 'three/addons/loaders/DRACOLoader.js';
 import { buildBike } from './bike.js';
 import { prepareBike, buildBikeGLB } from './bikeglb.js';
 import { buildCabin, navTex } from './interior.js';
@@ -130,7 +130,7 @@ export const VEHICLE_IDS = Object.keys(VEHICLES);
 // ---------- loading & preparing a model once per vehicle type ----------
 const cache = {};
 let loader = null;
-function getLoader() { if (loader) return loader; const d = new DRACOLoader(); d.setDecoderPath(window.DRACO_PATH || 'https://unpkg.com/three@0.187.0/examples/jsm/libs/draco/gltf/'); loader = new GLTFLoader(); loader.setDRACOLoader(d); return loader; }
+function getLoader() { if (loader) return loader; const d = new DRACOLoader(); d.setDecoderPath(window.DRACO_PATH || DRACO_GLTF_CONFIG); loader = new GLTFLoader(); loader.setDRACOLoader(d); return loader; }
 export function _tpl(id){ return cache[id] && cache[id].tpl; }
 export function vehicleReady(id) { const V = VEHICLES[id]; return !!V && (V.builtin || (V.proc && !V.file) || !!(cache[id] && cache[id].tpl)); }
 export function loadVehicle(id) {
