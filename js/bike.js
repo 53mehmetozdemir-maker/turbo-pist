@@ -68,7 +68,7 @@ function wavyDisc(r, ri) { const sh = new THREE.Shape(); const n = 24; for (let 
   const h = new THREE.Path(); h.absarc(0, 0, ri, 0, Math.PI * 2, true); sh.holes.push(h); for (let k = 0; k < 18; k++) { const a = k / 18 * Math.PI * 2, rr = (r + ri) / 2 + (k % 2) * 0.012; const p = new THREE.Path(); p.absarc(Math.cos(a) * rr, Math.sin(a) * rr, 0.0045, 0, Math.PI * 2, true); sh.holes.push(p); }
   return new THREE.ExtrudeGeometry(sh, { depth: 0.005, bevelEnabled: false, curveSegments: 4 }).translate(0, 0, -0.0025); }
 
-export function buildBike(color) {
+export function buildBike(color, opts = {}) {
   const root = new THREE.Group(); const leanG = new THREE.Group(); root.add(leanG); const body = new THREE.Group(); leanG.add(body);
   const DS = THREE.DoubleSide;
   const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.35, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1, side: DS });
@@ -226,7 +226,9 @@ export function buildBike(color) {
 
   const stand = new THREE.Group(); body.add(stand); add(tube(V3(-0.02, 0.36, -0.13), V3(-0.12, 0.03, -0.26), 0.012), alu, stand); add(new THREE.BoxGeometry(0.06, 0.01, 0.04).translate(-0.125, 0.025, -0.265), alu, stand);
   const q = new THREE.Quaternion(); let lean = 0;
-  return { root, body, leanG, rider, stand, paint, brakeMat, headMat, flames: [flame], wheels: [], pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: 's1000rr', bike: true,
+  // a real (imported) bike model replaces the procedural bodywork: keep only the rider and the moving groups
+  if (opts.hideBike) { const keep = new Set(); rider.traverse(o => keep.add(o)); body.traverse(o => { if (o.isMesh && !keep.has(o)) o.visible = false; }); shadow.visible = true; }
+  return { front, fw, fspin, rw, rspin, HEAD: HEAD.clone(), root, body, leanG, rider, stand, paint, brakeMat, headMat, flames: [flame], wheels: [], pivots: [], steer: new THREE.Object3D(), interior: new THREE.Group(), lowerMesh: null, origPos: null, color, vid: 's1000rr', bike: true,
     mirrorDefs: mdefs, gauge: { canvas: null, tex: {}, ctx: null },
     setEnvMap(t) { for (const m of [paint, white, glass, helmet, visor, carbon, headMat, suitC]) { m.envMap = t; m.needsUpdate = true; } },
     cockpit: [0.28, 1.21, 0], cockpitLook: [6, 0.55, 0], hood: [0.62, 1.0, 0], mirror: [0.45, 1.1, 0],

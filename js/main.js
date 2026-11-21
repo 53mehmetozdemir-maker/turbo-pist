@@ -224,7 +224,7 @@ function neutralCabin(m){ if(!m||!m.body) return m; if(!cabinEnv) cabinEnv=pmrem
   m.body.traverse(o=>{ if(!o.isMesh||!o.material||Array.isArray(o.material)) return; const mt=o.material; if(skip.has(mt)||mt.transparent||mt.isMeshBasicMaterial||mt.isShaderMaterial||!('envMap' in mt)) return;
     if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); mw.multiplyMatrices(inv,o.matrixWorld); bb.copy(o.geometry.boundingBox).applyMatrix4(mw); bb.getCenter(c);
     const inside=c.x>cb[0][0]&&c.x<cb[1][0]&&c.y>cb[0][1]&&c.y<cb[1][1]&&Math.abs(c.z)<cb[1][2]; if(!inside) return;
-    let nm=done.get(mt); if(!nm){ nm=mt.clone(); nm.envMap=cabinEnv; nm.envMapIntensity=mt.metalness>0.5?0.95:0.8; nm.needsUpdate=true; done.set(mt,nm); } o.material=nm; });
+    let nm=done.get(mt); if(!nm){ nm=mt.clone(); nm.envMap=cabinEnv; nm.envMapIntensity=mt.metalness>0.5?0.95:Math.min(0.8,(mt.envMapIntensity??0.4)*2.3); nm.needsUpdate=true; done.set(mt,nm); } o.material=nm; });
   return m; }
 function makeVehicleModel(id,color){ return neutralCabin((!VEHICLES[id]||VEHICLES[id].builtin||!vehicleReady(id)) ? buildCar(color) : buildVehicle(id,color)); }
 let lastFdt=1/60;

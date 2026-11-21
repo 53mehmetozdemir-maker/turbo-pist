@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { buildBike } from './bike.js';
-import { buildCivic } from './civic.js';
+import { prepareBike, buildBikeGLB } from './bikeglb.js';
 import { buildCabin, navTex } from './interior.js';
 
 // electric motor: constant torque up to base speed, then constant power
@@ -79,21 +79,51 @@ export const VEHICLES = {
     dash: [{ c: [0.73, 1.048, -0.343], n: [-0.95, 0.3, 0], w: 0.16, h: 0.06, kind: 'peugeot' }],
   },
 };
-VEHICLES.s1000rr = {
-  name: 'BMW S 1000 RR', short: 'S 1000 RR', info: 'Motosiklet · 999 cc sıralı dört, ShiftCam · 210 PS / 13.750 d/dk · 113 Nm · 6 ileri · 197 kg',
-  proc: 'bike', sound: { cyl: 4, kind: 'i4moto' }, credit: 'BMW S 1000 RR (2025): Turbo Pist için prosedürel model (logosuz)',
-  spec: { mass: 277, inertia: 300, muRear: 1.6, Bf: 9, a: 0.70, b: 0.757, cgH: 0.62, r: 0.33, track: 0,
-    gears: [2.647, 2.091, 1.727, 1.5, 1.36, 1.261], reverse: 2.647, final: 4.373, eff: 0.9, idle: 1250, redline: 14600, shiftUp: 14400, shiftDown: 8500, shiftTime: 0.045,
-    tq: [[0, 40], [2000, 55], [4000, 72], [6000, 88], [8000, 100], [9500, 108], [11000, 113], [12000, 112], [13000, 110], [13750, 107], [14600, 98], [15100, 60]],
-    drag: 0.185, roll: 3, downforce: 0.05, brakeForce: 3350, brakeBias: 0.78, drive: 'rwd', vmax: 303, grip: 1.05, hl: 1.04, hw: 0.35 },
+VEHICLES.gsxr = {
+  name: 'Suzuki GSX-R 750', short: 'GSX-R 750', info: 'Motosiklet · 750 cc sıralı dört · 150 PS / 13.200 d/dk · 86 Nm · 6 ileri · 190 kg',
+  proc: 'bikeglb', file: 'assets/cars/gsxr.glb', length: 2.06, front: '-z', axleF: 0.70, sound: { cyl: 4, kind: 'i4moto' },
+  credit: 'Suzuki GSX-R 750: kullanıcının gönderdiği model',
+  parts: { 'Srad750.001': 'fwheel', 'Srad750001': 'fwheel', 'Srad750.004': 'rwheel', 'Srad750004': 'rwheel', 'Srad750.006': 'front', 'Srad750006': 'front' },
+  mats: { paint: ['Car_Paint_-_Red.001'], tail: ['Matte__FFFF3C00__spec_RR_'], head: ['Material.003'], glass: ['Matte__662F2F2F__spec_trans_'], lens: ['Matte__6BFFFFFF__prim_spec_trans_', 'Matte__57CCCCCC__trans_'] },
+  tint: { 'Car_Paint_-_Black': [0x0c0c0d, 0.3, 0.25], 'renan__spec_': [0x111113, 0.2, 0.5], 'Roue': [0x101010, 0, 0.9], 'Material': [0xa9adb2, 0.95, 0.35], 'Material.001': [0x111111, 0, 0.8],
+    'aluminium__spec_': [0xa8adb3, 0.9, 0.3], 'Matte__FFAAAAAA__env_29_spec_': [0xd9dde2, 1, 0.12], 'Matte__FFCCCCCC__env_50_': [0xd9dde2, 1, 0.12], 'Matte__FFAAAAAA__env_11_spec_': [0xb0b4b8, 0.9, 0.25],
+    'Motor': [0x1c1c1e, 0.5, 0.45], 'Echape': [0x6d6f72, 0.9, 0.3], 'metalpipegold__spec_': [0xb48a3a, 1, 0.3], 'Matte__FFCCCCCC': [0x1b1b1d, 0.2, 0.5], 'Matte__FF292929': [0x161616, 0, 0.5],
+    'Matte__FF00FFC8__spec_FR_': [0x1a1c20, 0.9, 0.08], 'Matte__FFFFFFFF__env_6_spec_': [0x0f0f10, 0.3, 0.35], 'Matte__FFFFFFFF': [0x2a2a2c, 0.2, 0.4], 'renan': [0x151515, 0, 0.7], 'Material.004': [0x111111, 0, 0.8], 'Material.002': [0x6a0000, 0, 0.3] },
+  spec: { mass: 270, inertia: 290, muRear: 1.55, Bf: 9, a: 0.70, b: 0.736, cgH: 0.6, r: 0.315, track: 0,
+    gears: [2.785, 2.052, 1.714, 1.5, 1.347, 1.208], reverse: 2.785, final: 5.14, eff: 0.9, idle: 1200, redline: 14000, shiftUp: 13800, shiftDown: 8000, shiftTime: 0.05,
+    tq: [[0, 32], [2000, 45], [4000, 58], [6000, 68], [8000, 76], [10000, 83], [11200, 86], [12000, 85], [13200, 81], [14000, 74], [14500, 50]],
+    drag: 0.2, roll: 3, downforce: 0.03, brakeForce: 3200, brakeBias: 0.78, drive: 'rwd', vmax: 285, grip: 1.03, hl: 1.03, hw: 0.36 },
+};
+VEHICLES.gt3 = {
+  name: 'Porsche 911 GT3 (992)', short: '911 GT3', info: '4.0 atmosferik boxer 6 · 510 PS / 8.400 d/dk · 470 Nm · 7 ileri PDK · arkadan itiş · 9.000 d/dk',
+  file: 'assets/cars/gt3.glb', length: 4.573, front: '+z', sound: { cyl: 6, kind: 'f6' }, keepStd: true,
+  credit: 'Porsche 911 GT3 (2022): kullanıcının gönderdiği model',
+  spec: { mass: 1510, inertia: 2350, a: 1.5, b: 0.957, cgH: 0.45, r: 0.352,
+    gears: [3.75, 2.38, 1.72, 1.34, 1.11, 0.96, 0.84], reverse: 3.3, final: 4.47, idle: 950, redline: 9000, shiftUp: 8800, shiftDown: 4500, shiftTime: 0.07,
+    tq: [[0, 230], [1500, 320], [2500, 380], [3500, 420], [4500, 440], [5500, 460], [6100, 470], [7000, 462], [8000, 445], [8400, 430], [9000, 400], [9300, 260]],
+    drag: 0.33, downforce: 0.5, brakeForce: 33000, drive: 'rwd', vmax: 318, grip: 1.04, hl: 2.29, hw: 0.93 },
+  mats: { paint: ['Azul Tubarão'], tail: ['Luz de Freio'], head: ['Farol', 'Led Farol', 'DRL'], glass: ['Vidro'] },
+  wheelMats: null,
+  cam: { cockpit: [-0.33, 1.04, -0.338], look: [6, 0.86, -0.338], hood: [0.9, 1.02, 0], mirror: [0.25, 1.1, 0] },
+  mirrors: { in: { c: [0.2, 1.11, 0], n: [-0.99, -0.1, 0], w: 0.2, h: 0.05 }, L: { c: [0.27, 0.89, -0.91], n: [-0.95, 0, 0.3], w: 0.17, h: 0.08 } },
+  sw: { c: [0.256, 0.783, -0.338], n: [-0.91, 0.41, 0], r: 0.19, t: 0.06 },
+  cabin: [[-1.0, 0.3, 0], [0.75, 1.25, 0.85]], trimColor: 0x18191b,
 };
 VEHICLES.civic = {
-  name: 'Honda Civic Type R (EK9, 1998)', short: 'Civic Type R', info: '1.6 VTEC B16B · 185 PS / 8.200 d/dk · 160 Nm · 5 ileri manuel · önden çekiş · 1.050 kg',
-  proc: 'civic', sound: { cyl: 4, kind: 'vtec' }, credit: 'Honda Civic Type R EK9 (1998): Turbo Pist için prosedürel model (logosuz)',
-  spec: { mass: 1130, inertia: 1750, a: 1.02, b: 1.60, cgH: 0.5, r: 0.298,
-    gears: [3.23, 2.105, 1.458, 1.107, 0.848], reverse: 3.0, final: 4.4, idle: 900, redline: 8900, shiftUp: 8600, shiftDown: 4800, shiftTime: 0.13,
-    tq: [[0, 90], [2000, 115], [3000, 124], [4000, 130], [5000, 134], [5700, 136], [5900, 148], [6500, 153], [7000, 157], [7500, 160], [8000, 158], [8400, 152], [8900, 138], [9200, 110]],
-    drag: 0.36, downforce: 0, brakeForce: 15000, drive: 'fwd', vmax: 225, grip: 0.97, hl: 2.08, hw: 0.85 },
+  name: 'Honda Civic Type R (FK8)', short: 'Civic Type R', info: '2.0 VTEC Turbo K20C1 · 320 PS · 400 Nm · 6 ileri manuel · önden çekiş · 272 km/sa',
+  file: 'assets/cars/civic.glb', length: 4.557, front: '+z', sound: { cyl: 4, kind: 'k20t' },
+  credit: 'Honda Civic Type R FK8: CGTrader ücretsiz model',
+  spec: { mass: 1450, inertia: 2350, a: 1.03, b: 1.67, cgH: 0.5, r: 0.3275,
+    gears: [3.625, 2.115, 1.529, 1.125, 0.911, 0.734], reverse: 3.3, final: 4.111, idle: 850, redline: 7000, shiftUp: 6800, shiftDown: 3000, shiftTime: 0.12,
+    tq: [[0, 180], [1500, 260], [2000, 340], [2500, 400], [4500, 400], [5000, 385], [5500, 370], [6000, 355], [6500, 350], [7000, 320], [7300, 200]],
+    drag: 0.34, downforce: 0.12, brakeForce: 26000, drive: 'fwd', vmax: 272, grip: 1.0, hl: 2.28, hw: 0.94 },
+  mats: { paint: ['FK8.Paint'], tail: ['Material.010'], head: ['Material.007'], glass: ['FK8.Windshield'] },
+  tint: { 'FK8.HeadlightGlass': [0xe8eef4, 0.1, 0.03, 1.4, 0.18], 'Material.009': [0x8a4a00, 0, 0.3] },
+  wheelMats: null,
+  cam: { cockpit: [-0.2, 1.13, -0.357], look: [6, 0.98, -0.357], hood: [0.9, 1.32, 0], mirror: [0.45, 1.25, 0] },
+  mirrors: { in: { c: [0.33, 1.33, 0], n: [-0.99, -0.08, 0], w: 0.21, h: 0.055, housing: true }, L: { c: [0.47, 1.07, -0.99], n: [-0.95, 0, 0.3], w: 0.16, h: 0.09 } },
+  sw: { c: [0.41, 0.918, -0.357], n: [-0.88, 0.47, 0], r: 0.19, t: 0.06 },
+  cabin: [[-1.6, 0.35, 0], [0.9, 1.4, 0.88]], trimColor: 0x1a1b1e,
 };
 export const VEHICLE_IDS = Object.keys(VEHICLES);
 
@@ -102,11 +132,11 @@ const cache = {};
 let loader = null;
 function getLoader() { if (loader) return loader; const d = new DRACOLoader(); d.setDecoderPath(window.DRACO_PATH || 'https://unpkg.com/three@0.187.0/examples/jsm/libs/draco/gltf/'); loader = new GLTFLoader(); loader.setDRACOLoader(d); return loader; }
 export function _tpl(id){ return cache[id] && cache[id].tpl; }
-export function vehicleReady(id) { const V = VEHICLES[id]; return !!V && (V.builtin || V.proc || !!(cache[id] && cache[id].tpl)); }
+export function vehicleReady(id) { const V = VEHICLES[id]; return !!V && (V.builtin || (V.proc && !V.file) || !!(cache[id] && cache[id].tpl)); }
 export function loadVehicle(id) {
-  const V = VEHICLES[id]; if (!V || V.builtin || V.proc) return Promise.resolve(true);
+  const V = VEHICLES[id]; if (!V || V.builtin || (V.proc && !V.file)) return Promise.resolve(true);
   if (cache[id]) return cache[id].p;
-  const c = cache[id] = {}; c.p = getLoader().loadAsync(V.file).then(g => { c.tpl = prepare(V, g.scene); return true; }).catch(e => { console.warn('araç yüklenemedi', id, e); delete cache[id]; return false; });
+  const c = cache[id] = {}; c.p = getLoader().loadAsync(V.file).then(g => { c.tpl = V.proc === 'bikeglb' ? prepareBike(V, g.scene) : prepare(V, g.scene); return true; }).catch(e => { console.warn('araç yüklenemedi', id, e); delete cache[id]; return false; });
   return c.p;
 }
 
@@ -187,11 +217,11 @@ function prepare(V, scene) {
   // tame glossy/metallic interior & trim materials (they glow gold in the sun otherwise)
   const seen = new Map(); const fix = (p, wheel) => { const m = p.mat; if (!m || !m.isMeshStandardMaterial) return; if (seen.has(m)) { p.mat = seen.get(m); return; }
     const lum0 = m.color ? (m.color.r + m.color.g + m.color.b) / 3 : 1; const chrome0 = /chrom|metal|rim|cerchi/i.test(m.name || '');
-    if (!wheel && !chrome0 && !m.transparent && !m.map && !(V.mats && V.mats.paint && V.mats.paint.includes(m.name))) { // dark trim/interior: matte, no sun glare (it turned the cabins olive/gold)
+    if (!V.keepStd && !wheel && !chrome0 && !m.transparent && !m.map && !(V.mats && V.mats.paint && V.mats.paint.includes(m.name))) { // dark trim/interior: matte, no sun glare (it turned the cabins olive/gold)
       const col = m.color.clone(); const lm = (col.r + col.g + col.b) / 3; if (lm < 0.03) col.setScalar(0.03); const l = new THREE.MeshLambertMaterial({ color: col, side: m.side, name: m.name }); seen.set(m, l); p.mat = l; return; }
     const n = m.clone(); const lum = n.color ? (n.color.r + n.color.g + n.color.b) / 3 : 1; const chrome = /chrom|metal|rim|cerchi/i.test(m.name || '');
     if (!chrome) { n.metalness = Math.min(n.metalness, 0.1); n.roughness = Math.max(n.roughness, lum < 0.5 ? 0.6 : 0.4); }
-    n.envMapIntensity = chrome ? 1 : 0.35; seen.set(m, n); p.mat = n; };
+    n.envMapIntensity = chrome ? 1 : 0.35; if (V.keepStd && !chrome && lum < 0.06 && !wheel) { n.roughness = Math.max(n.roughness, 0.8); n.envMapIntensity = 0.12; } seen.set(m, n); p.mat = n; };
   for (const p of body) fix(p); for (const w of wheels) for (const p of w.list) fix(p, true); if (swParts) for (const p of swParts) fix(p);
   return { body, wheels, sw: swParts, wb: fx - rx, len: all.max.x - all.min.x, rearX: all.min.x - cx - mid };
 }
@@ -200,7 +230,7 @@ const shadowTex = (() => { let t = null; return () => { if (t) return t; const c
 
 // one drivable instance with its own paint / light materials
 export function buildVehicle(id, color) {
-  const V = VEHICLES[id]; if (V && V.proc === 'bike') return buildBike(color); if (V && V.proc === 'civic') return buildCivic(color);
+  const V = VEHICLES[id]; if (V && V.proc === 'bike') return buildBike(color); if (V && V.proc === 'bikeglb') { const T = cache[id] && cache[id].tpl; return T ? buildBikeGLB({ ...V, id }, T, color) : null; } 
   const T = cache[id] && cache[id].tpl; if (!T) return null;
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.25, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.9 });
@@ -209,7 +239,7 @@ export function buildVehicle(id, color) {
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0e1216, metalness: 0.2, roughness: 0.02, transparent: true, opacity: 0.45, envMapIntensity: 1.5, clearcoat: 1 });
   const M = V.mats || {}; const has = (list, n) => list && list.includes(n);
   const darkM = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.85, metalness: 0 });
-  const tints = {}; for (const [k, t] of Object.entries(V.tint || {})) tints[k] = new THREE.MeshStandardMaterial({ color: t[0], metalness: t[1], roughness: t[2], envMapIntensity: t[3] ?? (t[1] > 0.5 ? 0.6 : 0.2) });
+  const tints = {}; for (const [k, t] of Object.entries(V.tint || {})) tints[k] = new THREE.MeshStandardMaterial({ color: t[0], metalness: t[1], roughness: t[2], envMapIntensity: t[3] ?? (t[1] > 0.5 ? 0.6 : 0.2), ...(t[4] != null ? { transparent: true, opacity: t[4], depthWrite: false } : {}) });
   tints.cabtrim = tints.cabtrim || new THREE.MeshStandardMaterial({ color: V.trimColor || 0x1f2023, roughness: 0.92, envMapIntensity: 0.1 });
   const pick = mat => { const n = mat.name || ''; if (tints[n]) return tints[n]; if (V.darken && V.darken.includes(n)) return darkM; if (has(M.paint, n)) return paint; if (has(M.tail, n)) return brakeMat; if (has(M.head, n)) return headMat; if (has(M.glass, n)) return glass; return mat; };
   const envMats = new Set([paint, glass, headMat, ...Object.values(tints)]);

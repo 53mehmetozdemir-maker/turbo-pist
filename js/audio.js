@@ -41,6 +41,8 @@ export const VOICES = {
   diesel: { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0026, noise: 0.45, pipe: [0.0042], fb: 0.45, bright: 1500, drive: 1.4, clatter: 0.9, intake: 0.1, jitter: 0.09 },   // VW 2.0 TDI inline four
   vtec:   { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0016, noise: 0.28, pipe: [0.0029], fb: 0.5, bright: 2700, drive: 1.6, intake: 0.22, jitter: 0.05,   // Honda B16B below the VTEC crossover
             vtec: { at: 5800, hi: { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.001, noise: 0.4, pipe: [0.0023], fb: 0.63, bright: 5600, drive: 2.1, intake: 0.85, jitter: 0.04 } } },   // ...and the hard-edged howl on the high-lift cams
+  f6:     { ev: [0, 120, 240, 360, 480, 600], bank: [0, 1, 0, 1, 0, 1], tau: 0.0011, noise: 0.26, pipe: [0.0021, 0.0024], fb: 0.6, bright: 5600, drive: 1.9, intake: 0.5, jitter: 0.04 },   // Porsche 4.0 flat six: 9 000 rpm metallic wail
+  k20t:   { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0019, noise: 0.32, pipe: [0.0027, 0.0031], fb: 0.5, bright: 2600, drive: 1.8, intake: 0.3, jitter: 0.06 },   // Honda K20C1 2.0 turbo four, triple-exit exhaust, muffled by the turbine
   i4moto: { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0009, noise: 0.32, pipe: [0.0012], fb: 0.6, bright: 6400, drive: 2.2, intake: 0.55, jitter: 0.04 },   // BMW S 1000 RR: flat-crank inline four, 14 600 rpm shriek
   i4:     { ev: [0, 180, 360, 540], bank: [0, 0, 0, 0], tau: 0.0015, noise: 0.3, pipe: [0.003], fb: 0.5, bright: 3500, drive: 1.6, intake: 0.25, jitter: 0.05 },
 };
@@ -103,7 +105,7 @@ export class CarAudio {
     this.eng.gain.setTargetAtTime(0.08+load*0.24+(car.nitroOn?0.08:0),t,k);
     this.lfoG.gain.setTargetAtTime(car.rpm<2500?0.035:0.008,t,0.1); this.lfo.frequency.setTargetAtTime(car.rpm/60*0.5,t,0.1);
     this.exhaust.fl.frequency.setTargetAtTime(200+car.rpm*0.09,t,0.05); this.exhaust.g.gain.setTargetAtTime(0.03+load*0.16,t,0.05); }
-    if(pr.kind==='turbo'){ const boost=Math.max(0,Math.min(1,(car.rpm-2800)/2200))*thr; this.turbo=this.turbo||(()=>{ const c=this.ctx,o=c.createOscillator(),g=c.createGain(); o.type='sine'; g.gain.value=0; o.connect(g); g.connect(this.out); o.start(); return {o,g}; })();
+    if(pr.kind==='turbo'||pr.kind==='k20t'){ const boost=Math.max(0,Math.min(1,(car.rpm-2800)/2200))*thr; this.turbo=this.turbo||(()=>{ const c=this.ctx,o=c.createOscillator(),g=c.createGain(); o.type='sine'; g.gain.value=0; o.connect(g); g.connect(this.out); o.start(); return {o,g}; })();
       this.turbo.o.frequency.setTargetAtTime(2500+car.rpm*0.6,t,0.1); this.turbo.g.gain.setTargetAtTime(boost*0.03,t,0.15);
       if(this.lastThr>0.6 && thr<0.1 && car.rpm>3500) this.blowoff(); }
     // lift-off pops & crackles at high rpm
