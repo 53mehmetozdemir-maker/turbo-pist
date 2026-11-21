@@ -311,7 +311,7 @@ export function makeFleet(scene,max,quality){
           const P=d2<NEAR2?s.near:s.far, i=d2<NEAR2?nN++:nF++;
           for(const m of P.list) m.setMatrixAt(i,m4); P.body.setColorAt(i,it.col); P.tail.setColorAt(i,tc); P.head.setColorAt(i,hc);
           if(d2<160*160) s.shadow.setMatrixAt(nS++,m4);
-          if(blinkOn&&it.sig&&d2<300*300){ if(it.sig>0) s.blinkR.setMatrixAt(nBR++,m4); else s.blinkL.setMatrixAt(nBL++,m4); } }
+          if(blinkOn&&it.sig&&d2<300*300){ if(it.sig>0) s.blinkR.setMatrixAt(nBR++,m4); if(it.sig<0||it.sig===2) s.blinkL.setMatrixAt(nBL++,m4); } }
         for(const m of s.near.list){ m.count=nN; m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; }
         for(const m of s.far.list){ m.count=nF; m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; }
         s.shadow.count=nS; s.shadow.instanceMatrix.needsUpdate=true; s.blinkR.count=nBR; s.blinkL.count=nBL; s.blinkR.instanceMatrix.needsUpdate=true; s.blinkL.instanceMatrix.needsUpdate=true; } },

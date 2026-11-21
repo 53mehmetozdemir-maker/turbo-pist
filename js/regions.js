@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SIZE, CAR_COLORS } from './city.js';
+import { wreckCheck, wreckStep } from './traffic.js';
 
 export const WORLD_MIN = -1400, WORLD_MAX = 2500;
 const RING = { x0: -150, y0: -150, x1: SIZE + 150, y1: SIZE + 150, R: 140 };
@@ -191,6 +192,7 @@ export class HighwayTraffic {
   step(dt, players) {
     const L = this.L;
     for (const c of this.cars) {
+      if (wreckCheck(c)) { this.place(c); wreckStep(c, dt); continue; }
       let gap = 1e9, vl = 0;
       for (const o of this.cars) { if (o === c || o.dir !== c.dir || o.lane !== c.lane) continue; let d = c.dir ? c.s - o.s : o.s - c.s; d = ((d % L) + L) % L; const g = d - (c.len + o.len) / 2; if (g < gap) { gap = g; vl = o.v; } }
       const ca = Math.cos(c.a), sa = Math.sin(c.a);
@@ -333,7 +335,7 @@ export function buildRegions(scene, quality, grassMat) {
     }, false);
     const pm = mesh(new THREE.PlaneGeometry(PAD.x1 - PAD.x0, PAD.y1 - PAD.y0).rotateX(-Math.PI / 2).translate((PAD.x0 + PAD.x1) / 2, 0.045, (PAD.y0 + PAD.y1) / 2), std({ map: paint, transparent: true, roughness: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })); group.add(pm);
     // tyre-stack walls around the pad (gap at the entrance), cones on the slalom
-    const tyreG = new THREE.TorusGeometry(0.33, 0.14, 6, 12).rotateX(Math.PI / 2), tyres = [];
+    const tyreG = new THREE.TorusGeometry(0.33, 0.14, 4, 9).rotateX(Math.PI / 2), tyres = [];
     const edge = [[PAD.x0, PAD.y0], [PAD.x1, PAD.y0], [PAD.x1, PAD.y1], [PAD.x0, PAD.y1], [PAD.x0, PAD.y0]];
     for (let e = 0; e < 4; e++) { const [ax, ay] = edge[e], [bx, by] = edge[e + 1], L = Math.hypot(bx - ax, by - ay); let open = false;
       for (let d = 0; d < L; d += 0.95) { const x = ax + (bx - ax) * d / L, y = ay + (by - ay) * d / L; if (e === 3 && Math.abs(y - 980) < 10) { open = true; continue; } for (let k = 0; k < 3; k++) tyres.push([x, 0.15 + k * 0.27, y]); } }

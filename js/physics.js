@@ -252,11 +252,13 @@ export class Car {
     const ca=Math.cos(this.a), sa=Math.sin(this.a), oa=Math.cos(o.a), osa=Math.sin(o.a), R=1.05;
     const mine=[[1.1],[-1.1]].map(([d])=>[this.x+ca*d,this.y+sa*d,d]);
     const theirs=[[1.1],[-1.1]].map(([d])=>[o.x+oa*d,o.y+osa*d]);
-    for(const m of mine) for(const t of theirs){
+    for(const m of mine) for(const [ti,t] of theirs.entries()){
       const dx=m[0]-t[0], dy=m[1]-t[1], d=Math.hypot(dx,dy); if(d>=2*R||d<1e-4) continue;
       const nx=dx/d, ny=dy/d, pen=2*R-d; this.x+=nx*pen*0.5; this.y+=ny*pen*0.5;
       const rvx=this.vx-(o.vx||0), rvy=this.vy-(o.vy||0), vn=rvx*nx+rvy*ny;
       if(vn<0){ const j=-(1.3)*vn*0.5; this.vx+=nx*j; this.vy+=ny*j; this.yawRate+=(m[2]*(-sa*nx+ca*ny))*j*0.25;
+        if(o.ref){ const r=o.ref, k=(P.mass||1400)/1400, dv=j*k*1.15, d=ti?-1.1:1.1;   // the bot car gets the opposite impulse (mass-weighted) and spins around the contact point
+          r.kvx=(r.kvx||0)-nx*dv; r.kvy=(r.kvy||0)-ny*dv; r.kw=(r.kw||0)+d*(-osa*(-nx)+oa*(-ny))*dv*0.5; r.hitV=Math.max(r.hitV||0,-vn); r.hitX=t[0]; r.hitY=t[1]; }
         if(-vn>this.impact){ this.impact=-vn; this.impactAt={lx:Math.sign(m[2])*2,lz:0}; } if(-vn>this.hitV) this.hitV=-vn; }
     }
   }

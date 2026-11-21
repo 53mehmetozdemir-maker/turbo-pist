@@ -5,6 +5,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
@@ -47,7 +48,7 @@ const DPR=window.devicePixelRatio||1;
 let GPU='';
 try{ const gl=renderer.getContext(), dbg=gl.getExtension('WEBGL_debug_renderer_info'); GPU=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):''; }catch(e){}
 if(!settings.quality){ const weak=/Intel|Mali|Adreno|PowerVR|Apple GPU|SwiftShader|llvmpipe|Radeon\(TM\) Graphics|Radeon Graphics/i.test(GPU); settings.quality=isTouch?'low':weak?'med':'high'; }
-const BASE_PR=settings.quality==='high'?Math.min(DPR,1.5):settings.quality==='med'?Math.min(DPR,1.0):Math.min(DPR,1)*0.8;
+const BASE_PR=settings.quality==='high'?Math.min(DPR,1.25):settings.quality==='med'?Math.min(DPR,1.0):Math.min(DPR,1)*0.8;
 let curPR=BASE_PR, lastModeT=0; renderer.setPixelRatio(curPR);
 renderer.setSize(innerWidth,innerHeight);
 renderer.toneMapping=THREE.NeutralToneMapping; renderer.toneMappingExposure=0.9;
@@ -77,7 +78,7 @@ const stars=(()=>{ const g=new THREE.BufferGeometry(), n=1500, p=new Float32Arra
 let composer=null, bloom=null;
 if(settings.quality==='high'){
   composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,camera));
-  try{ const ao=new GTAOPass(scene,camera,innerWidth,innerHeight); ao.updateGtaoMaterial({radius:0.6,distanceExponent:1.4,thickness:1,scale:1.1,samples:12}); ao.blendIntensity=0.85; composer.addPass(ao); }catch(e){ console.warn('AO yok',e); }
+  if(false) try{ const ao=new GTAOPass(scene,camera,innerWidth,innerHeight); ao.updateGtaoMaterial({radius:0.6,distanceExponent:1.4,thickness:1,scale:1.1,samples:12}); ao.blendIntensity=0.85; composer.addPass(ao); }catch(e){ console.warn('AO yok',e); }
   bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth/2,innerHeight/2),0.35,0.5,0.88); composer.addPass(bloom); composer.addPass(new OutputPass());
 }
 
@@ -99,8 +100,9 @@ function ensureWorld(map){
     const lampLights=[]; if(settings.quality!=='low') for(let k=0;k<6;k++){ const L=new THREE.PointLight(0xffe2bf,0,32,1.6); scene.add(L); lampLights.push(L); }
     const svc=buildServices(c.group); const cmap=cityMapCanvas(); drawServiceIcons(cmap,svc.list);
     const cg=c.group.getObjectByName('cityGround'); const reg=buildRegions(c.group,settings.quality,cg&&cg.material); if(cg) cg.visible=false;
+    mergeStatic(c.group,200);
     traffic.hw=new HighwayTraffic(fleet,5); const map=worldMapCanvas(cmap);
-    worlds.city={kind:'city',group:c.group,city:c,svc,reg,traffic,peds,phys:openWorld,lampLights,map,services:svc.list.concat(REGION_POIS.map(p=>({...p,rect:null})))}; }
+    worlds.city={kind:'city',group:c.group,city:c,svc,reg,traffic,peds,phys:openWorld,lampLights,map,services:svc.list.concat(REGION_POIS.map(p=>({...p,rect:null})))}; registerCull(c.group); }
   return worlds[map];
 }
 let W=null;   // active world
@@ -114,6 +116,28 @@ function useWorld(map){
   fleetVisible(map==='city');
   phys.world=W.phys; setTimeout(precompile,0); applyTime(settings.time); miniBg=null; $('mini').classList.toggle('sq',map==='track');
 }
+// static batching: hundreds of small props (station pumps, signs, rails...) become one mesh per material per 200 m cell
+function mergeStatic(group,cell=200){ group.updateMatrixWorld(true); const buckets=new Map(), victims=[]; const v=new THREE.Vector3();
+  group.traverse(o=>{ if(!o.isMesh||o.isInstancedMesh||o.isSkinnedMesh||!o.visible||o.userData.noMerge||Array.isArray(o.material)) return; const g=o.geometry; if(!g||!g.attributes.position||g.morphAttributes&&Object.keys(g.morphAttributes).length) return;
+    if(!g.boundingSphere) g.computeBoundingSphere(); v.copy(g.boundingSphere.center).applyMatrix4(o.matrixWorld);
+    const key=o.material.uuid+'|'+(o.castShadow?1:0)+(o.receiveShadow?1:0)+'|'+o.renderOrder+'|'+Math.floor(v.x/cell)+','+Math.floor(v.z/cell);
+    let b=buckets.get(key); if(!b){ b={mat:o.material,cast:o.castShadow,recv:o.receiveShadow,ro:o.renderOrder,list:[]}; buckets.set(key,b); } b.list.push(o); });
+  let made=0, removed=0;
+  for(const b of buckets.values()){ if(b.list.length<2) continue; const geos=[];
+    for(const o of b.list){ let g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone(); g.applyMatrix4(o.matrixWorld);
+      for(const k of Object.keys(g.attributes)) if(k!=='position'&&k!=='normal'&&k!=='uv') g.deleteAttribute(k);
+      if(!g.attributes.normal) g.computeVertexNormals(); if(!g.attributes.uv) g.setAttribute('uv',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*2),2)); geos.push(g); }
+    const m=mergeGeometries(geos,false); if(!m) continue; for(const g of geos) g.dispose();
+    const mesh=new THREE.Mesh(m,b.mat); mesh.castShadow=b.cast; mesh.receiveShadow=b.recv; mesh.renderOrder=b.ro; mesh.matrixAutoUpdate=false; group.add(mesh); made++;
+    for(const o of b.list){ o.parent&&o.parent.remove(o); removed++; } }
+  return {made,removed}; }
+// distance culling: small static props far away are not drawn (they are hidden by fog anyway) -> far fewer draw calls
+const cullList=[]; const _cs=new THREE.Sphere();
+function registerCull(group){ group.updateMatrixWorld(true); group.traverse(o=>{ if(!(o.isMesh||o.isInstancedMesh)||!o.visible||o.userData.noCull) return; const g=o.geometry; if(!g) return;
+    if(o.isInstancedMesh){ if(!o.boundingSphere) o.computeBoundingSphere(); _cs.copy(o.boundingSphere); } else { if(!g.boundingSphere) g.computeBoundingSphere(); _cs.copy(g.boundingSphere); }
+    _cs.applyMatrix4(o.matrixWorld); const r=_cs.radius; const lim=r<2.5?120:r<8?260:r<30?520:r<80?1100:0; if(lim) cullList.push({o,x:_cs.center.x,z:_cs.center.z,r,lim2:(lim+r)*(lim+r)}); }); }
+function runCull(){ const cx=camera.position.x, cz=camera.position.z, k=camMode===1?0.8:1;
+  for(const c of cullList){ const dx=c.x-cx, dz=c.z-cz; c.o.visible=dx*dx+dz*dz<c.lim2*k; } }
 function fleetVisible(v){ scene.traverse(o=>{ if(o.isInstancedMesh && o.userData.fleet) o.visible=v; }); }
 
 // ---------------- HDR environments (Poly Haven, CC0) ----------------
@@ -274,10 +298,10 @@ const headSpot=new THREE.SpotLight(0xfff2d8,0,90,0.55,0.45,1.2); headSpot.positi
 const headTarget=new THREE.Object3D(); headTarget.position.set(25,-1.5,0); model.body.add(headTarget); headSpot.target=headTarget;
 let headlightsOn=false;
 let cubeRT=null, cubeCam=null;
-if(settings.quality==='high' && model.setEnvMap){ cubeRT=new THREE.WebGLCubeRenderTarget(96,{type:THREE.HalfFloatType}); cubeCam=new THREE.CubeCamera(0.3,220,cubeRT); scene.add(cubeCam); }
+if(settings.quality==='high' && model.setEnvMap){ cubeRT=new THREE.WebGLCubeRenderTarget(96,{type:THREE.HalfFloatType}); cubeCam=new THREE.CubeCamera(0.3,90,cubeRT); scene.add(cubeCam); }
 let cubeFace=0;
 function updateReflections(){
-  if(!cubeCam) return; const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false;
+  if(!cubeCam) return; if(updateReflections.on && (frameNo&1)) return; const au=renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate=false;
   model.root.visible=false; rain.m.visible=false;
   if(!updateReflections.on){ cubeCam.position.set(phys.x,1.0,phys.y); cubeCam.update(renderer,scene); model.setEnvMap(cubeRT.texture); updateReflections.on=true; }
   else { if(cubeFace===0){ cubeCam.position.set(phys.x,1.0,phys.y); cubeCam.updateMatrixWorld(true); }
@@ -1010,6 +1034,12 @@ $('bmClose').onclick=()=>toggleBigMap(false); $('bmClear').onclick=()=>{ setWayp
 
 // traffic horns: positional volume, a different pitch per car, short double toots for impatience
 const hornsOn=new Set();
+// crash effects on bot cars: debris + sparks at the contact point, smoke from the bonnet after a hard hit
+function trafficFx(dt){ if(!W||!W.traffic) return; for(const c of W.traffic.all()){
+    if(c.fx){ const f=c.fx; c.fx=null; const n=Math.min(26,6+f.v*1.6);
+      for(let k=0;k<n;k++) smoke.emit(f.x,0.6+Math.random()*0.5,f.y,(Math.random()-.5)*5,Math.random()*2.5,(Math.random()-.5)*5,k%3?{color:[0.85,0.88,0.9],size:0.06,grow:0.1,life:0.7,alpha:0.95}:{color:[0.2,0.2,0.22],size:0.08,grow:0.15,life:0.9,alpha:0.9});
+      if(f.v>3) audio.crash&&audio.crash(Math.min(1,f.v/14)); }
+    if(c.smoke>0 && Math.random()<dt*14*Math.min(1,c.smoke)){ const ca=Math.cos(c.a), sa=Math.sin(c.a); smoke.emit(c.x+ca*1.6,1.0,c.y+sa*1.6,(Math.random()-.5)*0.4,1.1+Math.random()*0.6,(Math.random()-.5)*0.4,{color:[0.55,0.55,0.57],size:0.5,grow:1.6,life:2.4,alpha:0.45}); } } }
 function trafficHorns(){ const seen=new Set(); if(W&&W.traffic&&!paused&&!audio.muted) for(const c of W.traffic.cars){ if(!(c.honk>0)) continue; const d=Math.hypot(c.x-camera.position.x,c.y-camera.position.z); if(d>140) continue;
     const on=!(c.honk>0.4&&c.honk<0.55); const id='t'+c.id; if(on){ seen.add(id); audio.horn(id,true,Math.min(1,(1-d/140)*1.1),0.82+((c.id*37)%9)/24); } }
   for(const id of hornsOn) if(!seen.has(id)) audio.horn(id,false); hornsOn.clear(); for(const id of seen) hornsOn.add(id); }
@@ -1025,7 +1055,7 @@ function frame(t){
     // keep it smooth: lower the render resolution when the GPU struggles, raise it again when there is headroom
     if(document.visibilityState==='visible' && document.hasFocus() && fps>14 && t-lastModeT>3000){ fpsHist.push(fps); if(fpsHist.length>4) fpsHist.shift();
       const avg=fpsHist.reduce((s,v)=>s+v,0)/fpsHist.length; let pr=curPR;
-      if(fpsHist.length>=3 && avg<40 && t-prT>4000) pr=Math.max(BASE_PR*0.6,curPR-0.15); else if(fpsHist.length>=4 && avg>58 && curPR<BASE_PR && t-prT>8000) pr=Math.min(BASE_PR,curPR+0.1);
+      if(fpsHist.length>=2 && avg<48 && t-prT>2500){ if(curPR>BASE_PR*0.55+1e-3) pr=Math.max(BASE_PR*0.55,curPR-0.15); else if(composer){ composer=null; bloom=null; prT=t; fpsHist.length=0; toast('Akıcılık için efektler kapatıldı',1800); } } else if(fpsHist.length>=4 && avg>58 && curPR<BASE_PR && t-prT>8000) pr=Math.min(BASE_PR,curPR+0.1);
       if(pr!==curPR){ curPR=pr; prT=t; fpsHist.length=0; renderer.setPixelRatio(curPR); if(composer) composer.setPixelRatio(curPR); } } else fpsHist.length=0; }
   handleEdges(); if(respawnCool>0) respawnCool-=fdt;
   const inp=readInput();
@@ -1045,7 +1075,7 @@ function frame(t){
     const sim=!online||net.isHost;
     if(sim){ trafAcc+=fdt; let n=0; while(trafAcc>=1/30 && n<4){ W.traffic.step(1/30,players); trafAcc-=1/30; n++; } if(n>=4) trafAcc=0; W.traffic.remote=null; W.traffic.ahead=trafAcc; } else W.traffic.ahead=0;
     if(online && net.isHost){ trafSend+=fdt; if(trafSend>0.1){ trafSend=0; net.sendAll({t:'x',k:'tr',d:W.traffic.pack(),ht:Date.now()}); } }
-    fleet.cam.copy(camera.position); if(camMode===1&&mode!=='menu'&&mode!=='lobby') fleet.camDir.set(0,0,0); else camera.getWorldDirection(fleet.camDir); W.traffic.render(fdt); fleet.commit(); trafficHorns();
+    fleet.cam.copy(camera.position); if(camMode===1&&mode!=='menu'&&mode!=='lobby') fleet.camDir.set(0,0,0); else camera.getWorldDirection(fleet.camDir); W.traffic.render(fdt); fleet.commit(); trafficHorns(); trafficFx(fdt);
     W.peds.update(fdt,players);
     if(frameNo%15===0) W.city.updateLights();
     // nearest street lamps become real lights at night
@@ -1101,6 +1131,7 @@ function frame(t){
   for(const mp of mirrorPlanes) mp.visible=driving&&camMode===1;
   drawDrops(fdt,driving&&camMode!==0&&wet&&!paused);
   // render
+  if(W&&W.kind==='city'&&frameNo%12===0) runCull();
   renderer.setScissorTest(false); renderer.setViewport(0,0,innerWidth,innerHeight);
   if(composer) composer.render(); else renderer.render(scene,camera);
   if(driving) updateReflections();

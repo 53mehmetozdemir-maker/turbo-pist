@@ -57,6 +57,7 @@ export class Traffic {
     const cars = this.cars, peds = this.peds ? this.peds.onRoad : [];
     this.time = (this.time || 0) + dt;
     for (const c of cars) {
+      if (wreckCheck(c)) { this.place(c); wreckStep(c, dt); continue; }
       const ca = Math.cos(c.a), sa = Math.sin(c.a);
       let gap = 1e9, vl = 0;
       const look = (ox, oy, ovx, ovy, half) => { const dx = ox - c.x, dy = oy - c.y, fwd = dx * ca + dy * sa; if (fwd <= 0 || fwd > 40) return; const lat = Math.abs(-dx * sa + dy * ca); if (lat > 1.9) return;
@@ -111,10 +112,10 @@ export class Traffic {
         const ox = c.x, oy = c.y; c.x += (px - c.x) * k; c.y += (py - c.y) * k; let da = r[2] - c.a; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; c.a += da * k; c.brake = !!r[3]; c.sig = r[5] || 0; c.honk = r[6] ? 0.2 : 0; c.vx = (c.x - ox); c.vy = (c.y - oy); c.v = r[4]; });
     }
     const ah = this.remote ? 0 : (this.ahead || 0);
-    for (const c of this.all()) { const s = (c.v || 0) * ah; f.set(c.id, c.x + Math.cos(c.a) * s, c.y + Math.sin(c.a) * s, c.a, c.brake, true, c.sig || 0); }
+    for (const c of this.all()) { const s = (c.v || 0) * ah; f.set(c.id, c.x + (c.crash ? 0 : Math.cos(c.a) * s), c.y + (c.crash ? 0 : Math.sin(c.a) * s), c.a, c.brake || !!c.crash, true, c.sig || 0); }
   }
   // obstacles for the player's physics
-  obstacles(dt) { return this.all().map(c => ({ x: c.x, y: c.y, a: c.a, vx: Math.cos(c.a) * c.v, vy: Math.sin(c.a) * c.v })); }
+  obstacles(dt) { return this.all().map(c => ({ ref: c, x: c.x, y: c.y, a: c.a, vx: c.crash ? (c.kvx || 0) : Math.cos(c.a) * c.v, vy: c.crash ? (c.kvy || 0) : Math.sin(c.a) * c.v })); }
 }
 function bez(A, C, B, t) { const u = 1 - t; return [u * u * A[0] + 2 * u * t * C[0] + t * t * B[0], u * u * A[1] + 2 * u * t * C[1] + t * t * B[1]]; }
 
@@ -195,4 +196,37 @@ export class Pedestrians {
     });
     for (const m of this.meshes) { m.instanceMatrix.needsUpdate = true; }
   }
+}
+
+// ---- bot cars that get hit: knocked off their lane, spin, stop with hazard lights, honk, smoke if hit hard; then rejoin ----
+// state on the car: kvx/kvy/kw = knock velocity (set by the player's physics), ox/oy/oa = offset from the lane position
+export function wreckCheck(c) {
+  const hit = Math.hypot(c.kvx || 0, c.kvy || 0) + Math.abs(c.kw || 0) * 0.6;
+  if (!c.crash && hit > 1.2) {   // fresh hit: the car keeps its own momentum, then slides
+    c.kvx = (c.kvx || 0) + Math.cos(c.a) * c.v; c.kvy = (c.kvy || 0) + Math.sin(c.a) * c.v; c.v = 0;
+    c.crash = 9 + Math.min(6, (c.hitV || 0) * 0.4); c.ox = c.ox || 0; c.oy = c.oy || 0; c.oa = c.oa || 0;
+    c.smoke = (c.hitV || 0) > 8 ? 7 : 0; c.honk = 1.6; c.cool = 3; c.fx = { x: c.hitX ?? c.x, y: c.hitY ?? c.y, v: c.hitV || 0 }; c.hitV = 0;
+  } else if (c.crash && hit > 1.2 && (c.hitV || 0) > 2) { c.crash = Math.max(c.crash, 8); c.fx = { x: c.hitX ?? c.x, y: c.hitY ?? c.y, v: c.hitV }; if (c.hitV > 8) c.smoke = 7; c.hitV = 0; }
+  else if (!c.crash) { c.kvx = c.kvy = c.kw = 0; c.hitV = 0; }
+  return !!c.crash;
+}
+export function wreckStep(c, dt) {
+  // slide with tyre friction, spin down
+  const sp = Math.hypot(c.kvx, c.kvy), dec = 9.5 * dt;   // tyres sliding + the driver braking
+  if (sp > dec) { c.kvx -= c.kvx / sp * dec; c.kvy -= c.kvy / sp * dec; } else { c.kvx = 0; c.kvy = 0; }
+  c.kw *= Math.exp(-2.6 * dt); if (Math.abs(c.kw) < 0.02) c.kw = 0;
+  c.ox += c.kvx * dt; c.oy += c.kvy * dt; c.oa += c.kw * dt;
+  // stay on the road: at most 4.5 m sideways from the lane (kerb), 14 m along it
+  { const la = Math.cos(c.a), lb = Math.sin(c.a); let al = c.ox * la + c.oy * lb, lat = -c.ox * lb + c.oy * la;
+    const cl = Math.max(-14, Math.min(14, al)), ct = Math.max(-4.5, Math.min(4.5, lat));
+    if (cl !== al || ct !== lat) { const nx = ct !== lat ? -lb * Math.sign(lat) : 0, ny = ct !== lat ? la * Math.sign(lat) : 0; const vn = c.kvx * nx + c.kvy * ny; if (vn > 0) { c.kvx -= nx * vn * 1.3; c.kvy -= ny * vn * 1.3; }
+      if (cl !== al) { const vl = c.kvx * la + c.kvy * lb; c.kvx -= la * vl; c.kvy -= lb * vl; } c.ox = la * cl - lb * ct; c.oy = lb * cl + la * ct; } }
+  c.crash -= dt; c.smoke = Math.max(0, (c.smoke || 0) - dt * 0.4);
+  // last 2.5 s: drive back into the lane
+  if (c.crash < 2.5 && sp < 0.3) { const k = Math.min(1, dt * 1.6); c.ox -= c.ox * k; c.oy -= c.oy * k; c.oa -= c.oa * k; }
+  if (c.crash <= 0) { c.crash = 0; c.ox = c.oy = c.oa = 0; c.kvx = c.kvy = c.kw = 0; c.sig = 0; return; }
+  c.sig = 2; c.brake = sp < 0.5;
+  // horn: a long blast right after the hit, then angry toots
+  c.honk = Math.max(0, (c.honk || 0) - dt); c.cool = (c.cool || 0) - dt; if (c.cool <= 0 && c.crash > 3) { c.honk = 0.9; c.cool = 2.6 + Math.random() * 1.8; }
+  c.x += c.ox; c.y += c.oy; c.a += c.oa;
 }
