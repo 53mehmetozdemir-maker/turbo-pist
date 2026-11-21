@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Turbo Pist — temiz yükleme</title>
+<style>
+html,body{height:100%;margin:0;background:#0c0e14;color:#fff;font:16px/1.5 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center}
+main{max-width:420px;padding:24px}
+h1{font-size:22px;margin:0 0 12px}
+p{opacity:.8;margin:8px 0}
+a{color:#ffd32a}
+</style>
+</head>
+<body>
+<main>
+  <h1>Temiz yükleme</h1>
+  <p id="durum">Önbellek temizleniyor…</p>
+  <p style="font-size:13px">Kayıtların (para, araçlar, rekorlar) silinmez.</p>
+</main>
+<script>
+// Acil çıkış: bu sayfa bağımsızdır (oyun kodu yüklemez) ve service worker ona hiç karışmaz.
+// Bu klasörün service worker kaydını kaldırır, yalnızca bu kapsamın önbelleklerini siler ve oyunu ağdan açar.
+// Aynı alan adındaki diğer kapsamlara (önizleme ↔ canlı) dokunmaz.
+(async () => {
+  const durum = document.getElementById('durum');
+  const kapsam = new URL('./', location.href), onek = 'tp|' + kapsam.pathname + '|';
+  let n = 0, k = 0;
+  try {
+    if ('serviceWorker' in navigator) {
+      const r = await navigator.serviceWorker.getRegistration(kapsam.href);
+      if (r && r.scope === kapsam.href) { await r.unregister(); n++; }
+    }
+    if (self.caches) for (const a of await caches.keys()) if (a.startsWith(onek)) { await caches.delete(a); k++; }
+    try { sessionStorage.removeItem('tp_kurtarma'); } catch (e) {}
+    durum.textContent = 'Tamam (' + n + ' service worker, ' + k + ' önbellek temizlendi). Oyun açılıyor…';
+    setTimeout(() => location.replace(kapsam.href), 800);
+  } catch (e) {
+    durum.innerHTML = 'Temizlenemedi: ' + e.message + '<br><a href="./">Oyuna dön</a>';
+  }
+})();
+</script>
+</body>
+</html>

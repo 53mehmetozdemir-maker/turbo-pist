@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { loadSave } from './save.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -26,9 +27,13 @@ import { buildRegions, terrainH, regionSurface, regionName, collideRegions, High
 const $=id=>document.getElementById(id);
 const COLORS=['#e8202a','#1f6fe0','#ff9f1a','#20b956','#8e44ef','#f1f2f6','#202226','#ffd400'];
 const LAPS=3, TRAFFIC_N=50;
-const store={ get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} } };
+// Depolama. Önizleme aynı alan adında olduğu için (53mehmetozdemir-maker.github.io) canlıyla aynı
+// localStorage'ı görür; önizleme derlemesi VITE_DEPO_ONEK verir ve kendi anahtarlarına yazar.
+// Okurken kendi anahtarı yoksa canlıdakini okur (oyuncunun kaydıyla dener ama ona hiç yazmaz).
+const DEPO_ONEK=import.meta.env.VITE_DEPO_ONEK||'';
+const store={ get(k){ try{ const v=localStorage.getItem(DEPO_ONEK+k); return v===null&&DEPO_ONEK?localStorage.getItem(k):v; }catch(e){return null;} }, set(k,v){ try{localStorage.setItem(DEPO_ONEK+k,v);}catch(e){} } };
 // save game: money, per-vehicle fuel & damage, distance, best laps (settings live in their own keys)
-const SAVE=(()=>{ try{ return JSON.parse(store.get('tp8_save'))||{}; }catch(e){ return {}; } })();
+const SAVE=loadSave(store);   // sürüm alanı + geçiş: js/save.js
 SAVE.money??=2500; SAVE.veh??={}; SAVE.km??=0; SAVE.best??={};
 if(!SAVE.econ2){ SAVE.econ2=1; SAVE.money=Math.max(0,SAVE.money)+3000; }   // economy rebalance: one-off top-up
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;

@@ -3,7 +3,7 @@
 Her aşamadan sonra bu listedeki her madde işaretlenir: ✅ çalışıyor · ⚠️ test edilemedi (neden) · ❌ sorunlu.
 
 ## 1. Sayfalar ve açılış
-1.1 `index.html` (ana oyun) · 1.2 `klasik.html` (eski sürüm, kendi içinde tek dosya) · 1.3 yükleme ekranı · 1.4 favicon, apple-touch-icon, manifest (ana ekrana ekle, tam ekran, yatay) · 1.5 `?oda=KOD` davet linki · 1.6 `?bot` test parametresi · 1.7 `window.__game` test kancası · 1.8 yazı tipleri: başlıklarda Bungee, metinlerde Inter (400/600/800), Türkçe harflerle
+1.1 `index.html` (ana oyun) · 1.2 `klasik.html` (eski sürüm, kendi içinde tek dosya) · 1.3 yükleme ekranı · 1.4 favicon, apple-touch-icon, manifest (ana ekrana ekle, tam ekran, yatay) · 1.5 `?oda=KOD` davet linki · 1.6 `?bot` test parametresi · 1.7 `window.__game` test kancası · 1.8 yazı tipleri: başlıklarda Bungee, metinlerde Inter (400/600/800), Türkçe harflerle · 1.9 çevrimdışı açılış (service worker) · 1.10 "Yeni sürüm hazır" uyarısı (sadece menü ve serbest sürüş duraklatması) · 1.11 acil çıkış: `?sifirla`, `sifirla.html`, açılış bekçisi
 
 ## 2. Menü
 2.1 İsim · 2.2 araç seçimi (kartlar) · 2.3 8 boya rengi · 2.4 harita: Şehir / Pist · 2.5 saat: Gündüz / Akşam / Gece · 2.6 hava: Açık / Yağmurlu · 2.7 oda kodu + 🎲 yeni kod · 2.8 grafik: Düşük / Orta / Yüksek (+ otomatik ilk seçim) · 2.9 vites: Oto / Manuel · 2.10 yardımlar: Açık / Kapalı · 2.11 "Odaya Gir" · 2.12 "Tek Başına Gez/Antrenman" · 2.13 bağlantı durumu notu · 2.14 Kontroller listesi (menüdeki yazı; tuşların kendisi → bölüm 16) · 2.15 3D model kredileri · 2.16 menü arkasında dönen araç önizlemesi · 2.17 tüm ayarların localStorage'da kalıcılığı
@@ -38,7 +38,7 @@ Her araçta: 3.a gerçek motor/vites/tork değerleri · 3.b motor sesi profili �
 11.1 oda kur/katıl (PeerJS) · 11.2 lobi, hazır olma · 11.3 davet linkini kopyala · 11.4 şehirde birlikte serbest sürüş · 11.5 "arkadaşına git" (T) · 11.6 ESC/duraklatma herkeste · 11.7 hava/saat değişimi herkeste · 11.8 trafik host'tan senkron · 11.9 oyuncu adı/renk · 11.10 diğer oyuncunun aracı (model, farlar, korna)
 
 ## 12. Kayıt
-12.1 `tp8_save`: para, araç başına yakıt+hasar, km, rekorlar, econ2 bayrağı · 12.2 5 sn'de bir + sayfa kapanırken + menüye dönerken kayıt · 12.3 yeniden açınca hasar göçükleriyle geri gelir · 12.4 ayar anahtarları (tp7_veh, tp3_cam, tp4_time, tp4_map, tp6_wx, tp8_tilt …)
+12.1 `tp8_save`: para, araç başına yakıt+hasar, km, rekorlar, econ2 bayrağı · 12.2 5 sn'de bir + sayfa kapanırken + menüye dönerken kayıt · 12.3 yeniden açınca hasar göçükleriyle geri gelir · 12.4 ayar anahtarları (tp7_veh, tp3_cam, tp4_time, tp4_map, tp6_wx, tp8_tilt …) · 12.x kayıt sürümü (`v`) ve geçiş; daha yeni sürümün kaydı korunur; bozuk kayıt yedeklenir (`saves_gecis/`)
 
 ## 13. Ses
 13.1 sentezlenmiş motor sesleri (V8, V12, F6, I4, VTEC, turbo, elektrik, motosiklet I4) · 13.2 vites, kesici, backfire · 13.3 lastik sesi/patinaj · 13.4 çarpma sesi · 13.5 korna (oyuncu + trafik, konumsal) · 13.6 K ile sessiz

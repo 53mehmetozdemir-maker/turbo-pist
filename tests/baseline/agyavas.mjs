@@ -4,7 +4,7 @@
 import { serve, launch, sleep } from './lib.mjs';
 const N = +(process.argv[2] || 2); const { srv, url } = await serve(); const b = await launch(); const out = [];
 for (let i = 0; i < N; i++) {
-  const ctx = await b.newContext({ viewport: { width: 960, height: 540 } }); const page = await ctx.newPage(); let bytes = 0;
+  const ctx = await b.newContext({ viewport: { width: 960, height: 540 }, serviceWorkers: 'block' }); const page = await ctx.newPage(); let bytes = 0;
   page.on('response', async r => { try { bytes += (await r.body()).length; } catch (e) {} });
   const cdp = await ctx.newCDPSession(page); await cdp.send('Network.enable'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 40, downloadThroughput: 10e6 / 8, uploadThroughput: 5e6 / 8 });

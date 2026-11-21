@@ -25,7 +25,25 @@ npm run preview   # derlenmiş hali yerelde açar
 - `main`'e push → `.github/workflows/yayin.yml` derleyip GitHub Pages'e yayınlar.
 - Önizleme: https://53mehmetozdemir-maker.github.io/turbo-pist-onizleme/ (ayrı repo).
 
+## Çevrimdışı oyun ve güncellemeler (service worker)
+
+- Oyun ilk açılıştan birkaç saniye sonra kendini önbelleğe alır; sonra internetsiz de açılır.
+  Menüdeki Ferrari, kod, dokular ve yazı tipleri hemen; diğer araçlar ve gökyüzü dosyaları ilk kullanıldıklarında.
+- Yeni sürüm yayınlanınca arka planda iner. Oyun **asla kendiliğinden yenilenmez**: "🔄 Yeni sürüm hazır"
+  düğmesi sadece ana menüde ve serbest sürüşün duraklatma ekranında görünür (yarışta/geri sayımda görünmez).
+- Önizleme ve canlı aynı alan adında: service worker'lar ve önbellekler kapsam yoluna göre ayrılır
+  (`tp|/turbo-pist/|…`). Önizleme derlemesi kayıtları `onizleme_` ön ekiyle yazar; canlı kaydı okur ama ona yazmaz.
+- Kayıt biçiminin sürümü var (`js/save.js`); eski kayıtlar otomatik yükseltilir, daha yeni sürümün kaydı bozulmaz.
+
+### Acil çıkış (bir sürüm oyuncuları takılı bırakırsa)
+1. **Kendiliğinden:** oyun önbellekten açılamazsa (hata ya da 45 sn) bir kez önbelleği temizleyip ağdan açar.
+2. **Oyuncu:** adrese `?sifirla` ekler (ör. `…/turbo-pist/?sifirla`) ya da `…/turbo-pist/sifirla.html` açar.
+   Service worker ve önbellek silinir, kayıtlar kalır.
+3. **Herkes için, sunucudan:** GitHub → Actions → **yayin** → Run workflow → **acil_sw_kapat** kutusunu işaretle → Run.
+   O yayın bütün oyuncularda service worker'ı kaldırır, oyun doğrudan ağdan açılır. Sorun düzelince normal yayın yap
+   (kutusuz); service worker yeniden kurulur.
+
 ## Testler
 
-`tests/baseline/README.md` — fizik, görsel, kayıt, klavye kısayolu ve performans karşılaştırmaları.
+`tests/baseline/README.md` — fizik, görsel, kayıt, klavye kısayolu, service worker ve performans testleri.
 Derlenmiş oyuna karşı çalıştırmak için: `npx vite build --base=/ --outDir /tmp/dist-test` ve ardından `GAME_ROOT=/tmp/dist-test node baseline/<test>.mjs check`.

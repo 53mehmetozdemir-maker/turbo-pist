@@ -5,9 +5,11 @@
 // - Draco çözücüyü three'nin DRACOLoader'ı kendi paketinden gösterir; Vite onu hash'li adla çıkarır.
 // - klasik.html modül kullanmayan eski tek dosya; PeerJS'i node_modules'tan vendor/ altına kopyalanır.
 // Böylece dışarıdan (unpkg) hiçbir şey yüklenmez.
+// - sw.js pwa/sw.js şablonundan üretilir (dosya listesi + sürüm). ACIL_SW_KAPAT=1 → pwa/sw-acil-kapat.js.
 import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const ROOT = import.meta.dirname;
 const NM = path.join(ROOT, 'node_modules');
@@ -15,11 +17,14 @@ const NM = path.join(ROOT, 'node_modules');
 const VENDOR = {
   'vendor/peerjs.min.js': path.join(NM, 'peerjs/dist/peerjs.min.js'),
 };
-const STATIC = ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest'];
+const STATIC = ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest', 'sifirla.html'];
+// service worker'ın önbelleğe ALMADIĞI dosyalar: acil çıkış sayfası (hep ağdan gelmeli), kullanılmayan
+// (glTF olmayan) Draco çözücüsü, .woff yedekleri (her tarayıcı woff2 alır)
+const SW_DISI = f => f === 'sifirla.html' || /\.woff$/.test(f);
 const MIME = { '.js': 'text/javascript', '.wasm': 'application/wasm' };
 
 function kopyalar() {
-  let outDir;
+  let outDir, paket = null, istege = new Set();
   return {
     name: 'turbo-pist-kopyalar',
     configResolved(c) { outDir = path.resolve(c.root, c.build.outDir); },
@@ -39,9 +44,31 @@ function kopyalar() {
         next();
       });
     },
+    // service worker için sürümün dosya listesi (Vite'in ürettikleri)
+    generateBundle(_, bundle) {
+      paket = []; istege = new Set();
+      for (const f of Object.values(bundle)) {
+        const kaynak = (f.originalFileNames || []).join(' ');
+        if (f.type === 'asset' && /libs\/draco\/(?!gltf\/)/.test(kaynak)) continue;     // kullanılmayan çözücü
+        paket.push(f.fileName);
+        // ilk kullanımda önbelleğe girenler: menüde olmayan araçlar ve HDR'ler (mobil veriyi boşa harcamamak için)
+        if (/assets\/cars\/.*\.glb$|\.hdr$/.test(kaynak)) istege.add(f.fileName);
+      }
+    },
     closeBundle() {
       for (const s of STATIC) fs.cpSync(path.join(ROOT, s), path.join(outDir, s), { recursive: true });
       for (const [dst, src] of Object.entries(VENDOR)) fs.cpSync(src, path.join(outDir, dst), { recursive: true });
+      if (!paket) return;
+      // sw.js: dosya listesi + içerikten türeyen sürüm (aynı içerik → aynı sürüm → gereksiz güncelleme yok)
+      const dosyalar = [...new Set(['index.html', 'klasik.html', ...paket, ...STATIC, ...Object.keys(VENDOR)])].filter(f => !SW_DISI(f) && fs.existsSync(path.join(outDir, f))).sort();   // (Vite CSS-only parçaların boş JS'ini siler)
+      const ozet = crypto.createHash('sha256');
+      for (const f of dosyalar) ozet.update(f + '\0' + crypto.createHash('sha256').update(fs.readFileSync(path.join(outDir, f))).digest('hex') + '\n');
+      const surum = ozet.digest('hex').slice(0, 12);
+      const sablon = process.env.ACIL_SW_KAPAT === '1' ? 'pwa/sw-acil-kapat.js' : 'pwa/sw.js';
+      const sw = fs.readFileSync(path.join(ROOT, sablon), 'utf8').replace("const SURUM = '__SURUM__';", `const SURUM = '${surum}';`).replace('const DOSYALAR = __DOSYALAR__;', 'const DOSYALAR = ' + JSON.stringify(dosyalar.filter(f => !istege.has(f))) + ';')
+        .replace('const ISTEGE = __ISTEGE__;', 'const ISTEGE = ' + JSON.stringify(dosyalar.filter(f => istege.has(f))) + ';');
+      fs.writeFileSync(path.join(outDir, 'sw.js'), sw);
+      fs.writeFileSync(path.join(outDir, 'sw-surum.txt'), surum + '\n');
     },
   };
 }
@@ -78,6 +105,8 @@ function onYukleme() {
 
 export default defineConfig({
   base: '/turbo-pist/',
+  // acil kapatma derlemesi service worker'ı yeniden kaydetmesin (yoksa kapat → kaydet → kapat döngüsü)
+  define: { 'import.meta.env.VITE_SW_KAPALI': JSON.stringify(process.env.ACIL_SW_KAPAT === '1' ? '1' : '') },
   publicDir: false,
   plugins: [kopyalar(), onYukleme()],
   server: { watch: { ignored: ['**/tests/**'] } },

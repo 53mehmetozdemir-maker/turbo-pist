@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = process.env.GAME_ROOT || path.resolve(HERE, '../..');        // folder with index.html
 export const NM = process.env.NM || path.resolve(HERE, '../node_modules');
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.hdr': 'application/octet-stream', '.webmanifest': 'application/manifest+json', '.ktx2': 'image/ktx2', '.webp': 'image/webp', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff' };
+export const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.hdr': 'application/octet-stream', '.webmanifest': 'application/manifest+json', '.ktx2': 'image/ktx2', '.webp': 'image/webp', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff' };
 export function serve(root = ROOT, port = 0) {
   return new Promise(res => { const srv = http.createServer((q, r) => { let p = decodeURIComponent(q.url.split('?')[0]); if (p.endsWith('/')) p += 'index.html';
       const f = path.join(root, p); if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); r.end(); return; }
@@ -34,7 +34,7 @@ export async function googleFonts(ctx) {
   await ctx.route('https://fonts.gstatic.com/local/**', r => { const p = path.join(FS, r.request().url().split('/local/')[1]); fs.existsSync(p) ? r.fulfill({ path: p, contentType: p.endsWith('2') ? 'font/woff2' : 'font/woff' }) : r.fulfill({ status: 404 }); });
 }
 export async function gamePage(browser, base, { viewport = { width: 960, height: 540 }, storage = {}, touch = false, freeze = true, query = '', onPage = null } = {}) {
-  const ctx = await browser.newContext({ viewport, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ viewport, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1, serviceWorkers: 'block' });   // SW'nin kendi testi: sw.mjs
   if (freeze) await ctx.addInitScript(FREEZE);
   await ctx.addInitScript(`try{ localStorage.clear(); const s=${JSON.stringify(storage)}; for(const k in s) localStorage.setItem(k,s[k]); }catch(e){}`);
   await ctx.route('https://unpkg.com/three@0.187.0/**', r => { const p = path.join(NM, 'three', r.request().url().split('three@0.187.0/')[1].split('?')[0]); fs.existsSync(p) ? r.fulfill({ path: p, contentType: MIME[path.extname(p)] || 'application/octet-stream' }) : r.fulfill({ status: 404 }); });

@@ -10,6 +10,33 @@
 <link rel="manifest" vite-ignore href="manifest.webmanifest">
 <meta name="theme-color" content="#07090d">
 <link href="fonts.css" rel="stylesheet">
+<script>
+// Açılış bekçisi + acil çıkış (oyun kodundan bağımsız; HTML her zaman ağdan geldiği için hep güncel).
+// - ?sifirla → sifirla.html (service worker'ı kaldırır, bu kapsamın önbelleğini siler; kayıtlar kalır).
+// - Sayfa service worker'dan geliyorsa ve oyun açılamazsa (hata ya da 45 sn): bu oturumda BİR kez
+//   önbelleği temizleyip yeniden yükler. Yine olmazsa yükleme ekranında "Temiz yükle" düğmesi çıkar.
+(function(){
+  var kapsam=new URL('./',location.href), onek='tp|'+kapsam.pathname+'|';
+  if(/[?&]sifirla(=|&|$)/.test(location.search)){ location.replace(kapsam.href+'sifirla.html'); return; }
+  function temizle(){ var is=[];
+    if('serviceWorker' in navigator) is.push(navigator.serviceWorker.getRegistration(kapsam.href).then(function(r){ if(r&&r.scope===kapsam.href) return r.unregister(); }));
+    if(window.caches) is.push(caches.keys().then(function(ks){ return Promise.all(ks.filter(function(a){ return a.indexOf(onek)===0; }).map(function(a){ return caches.delete(a); })); }));
+    return Promise.all(is).catch(function(){}); }
+  window.__tpTemizYukle=function(){ temizle().then(function(){ try{ sessionStorage.removeItem('tp_kurtarma'); }catch(e){} location.replace(kapsam.href); }); };
+  var denetli=!!(navigator.serviceWorker&&navigator.serviceWorker.controller);
+  window.__tpAcilisHatasi=function(neden){
+    if(window.__game||!denetli) return false;
+    var once=null; try{ once=sessionStorage.getItem('tp_kurtarma'); }catch(e){}
+    if(once) return false;
+    try{ sessionStorage.setItem('tp_kurtarma',String(neden||'1')); }catch(e){}
+    console.warn('Açılış başarısız ('+neden+'): önbellek temizlenip yeniden yükleniyor');
+    temizle().then(function(){ location.reload(); }); return true; };
+  if(denetli){
+    setTimeout(function(){ window.__tpAcilisHatasi('zaman aşımı'); },45000);
+    window.addEventListener('error',function(e){ window.__tpAcilisHatasi('hata: '+(e&&e.message)); });
+  }
+})();
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:#9fc3e0;font-family:Inter,system-ui,sans-serif;color:#fff;touch-action:none;-webkit-user-select:none;user-select:none}
@@ -45,6 +72,7 @@ button{cursor:pointer;border:0;border-radius:12px;padding:13px 16px;font:800 15p
 button:hover{filter:brightness(1.08)}button:active{transform:scale(.97)}
 button.sec{background:rgba(255,255,255,.1);color:#fff}
 button.go{background:#2ed573}
+button.upd{background:#1e90ff;color:#fff}
 button:disabled{opacity:.4;cursor:not-allowed}
 .btns{display:flex;flex-direction:column;gap:10px;margin-top:18px}
 .note{font-size:12.5px;opacity:.72;margin-top:12px;line-height:1.45;text-align:center}
@@ -213,6 +241,7 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
   </div>
   </div></div>
   <div class="btns">
+    <button class="upd updBtn hidden" id="updMenu">🔄 Yeni sürüm hazır · Yenile</button>
     <button class="go" id="joinBtn" disabled>Odaya Gir</button>
     <button class="sec" id="soloBtn">Tek Başına Antrenman</button>
   </div>
@@ -265,6 +294,7 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
 
 <div id="pause" class="panel hidden">
   <h1 style="font-size:30px">DURAKLATILDI</h1>
+  <button class="upd updBtn hidden" id="updPause" style="width:100%;margin-top:12px">🔄 Yeni sürüm hazır · Kaydet ve yenile</button>
   <label>Kamera</label>
   <div class="seg" id="pCam"><button data-v="0">Takip</button><button data-v="1">Kokpit</button><button data-v="2">Kaput</button></div>
   <div class="cols2">
@@ -304,8 +334,11 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
 <div id="rotate" class="hidden"><div>📱↻</div><p>Telefonu yatay çevir</p></div>
 
 <script type="module">
-  import('./js/main.js').then(()=>{ document.getElementById('loading').remove(); })
-    .catch(e=>{ document.getElementById('loading').textContent='Yüklenemedi: '+e.message; console.error(e); });
+  import { surumBaslat } from './js/surum.js';
+  import('./js/main.js').then(()=>{ document.getElementById('loading').remove(); surumBaslat(); })
+    .catch(e=>{ console.error(e); if(window.__tpAcilisHatasi && window.__tpAcilisHatasi('yükleme: '+e.message)) return;
+      const l=document.getElementById('loading'); l.textContent='Yüklenemedi: '+e.message;
+      const b=document.createElement('button'); b.textContent='Temiz yükle'; b.style.cssText='margin-left:12px'; b.onclick=()=>window.__tpTemizYukle(); l.appendChild(b); });
 </script>
 </body>
 </html>
