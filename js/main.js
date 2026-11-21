@@ -638,6 +638,11 @@ function touchHudTick(){ if(!isTouch) return; const s=currentService();
   $('tSvc').classList.toggle('hidden',!(s&&mode==='free')); if(s) $('tSvc').textContent=s.kind==='repair'?'🔧 Tamir':s.kind==='charge'?'⚡ Şarj':'⛽ Yakıt';
   $('tTow').classList.toggle('hidden',!(mode==='free'&&((phys.fuel??1)<=0.02||phys.damage>=90)));
   $('tUp').classList.toggle('hidden',!phys.manual); $('tDn').classList.toggle('hidden',!phys.manual); }
+// responsive scaling: the HUD follows the window size (reference 1600×900), panels grow on big screens and shrink on short ones
+function fitUI(){ const w=innerWidth, h=innerHeight; const r=Math.min(w/1500,h/850);
+  const ui=isTouch?1:Math.max(0.74,Math.min(1.6,r)), up=isTouch?Math.max(0.8,Math.min(1,h/520)):Math.max(0.78,Math.min(1.5,h/1000));
+  document.documentElement.style.setProperty('--ui',ui.toFixed(3)); document.documentElement.style.setProperty('--up',up.toFixed(3)); }
+addEventListener('resize',fitUI); fitUI();
 if(isTouch){ document.body.classList.add('touch'); $('rotate').classList.add('need'); }
 let padPrev=[];
 function readInput(){
