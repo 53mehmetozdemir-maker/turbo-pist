@@ -19,6 +19,7 @@ import { Particles, SkidMarks } from './effects.js';
 import { Net } from './net.js';
 import { loadCityImages, buildCity, cityWorld, streetName, district, nearestLane, cityMapCanvas, SIZE, P as CP, LANES, CLOCK } from './city.js';
 import { Traffic, Pedestrians } from './traffic.js';
+import { findRoute, routeLength } from './route.js';
 import { buildRegions, terrainH, regionSurface, regionName, collideRegions, HighwayTraffic, worldMapCanvas, REGION_POIS, nearestRoadSpot, _dbg as REGDBG } from './regions.js';
 
 const $=id=>document.getElementById(id);
@@ -804,12 +805,13 @@ const mini=$('mini'), mctx=mini.getContext('2d'); let miniBg=null;
 function renderMini(){
   const w=mini.width, h=mini.height;
   if(W.kind==='city'){   // rotating radar centred on the player (GTA style)
-    const M=W.map, s=0.9; mctx.save(); mctx.clearRect(0,0,w,h);
+    const M=W.map; miniZ+=((Math.max(0.42,0.95-phys.speed*0.013))-miniZ)*0.05; const s=miniZ; mctx.save(); mctx.clearRect(0,0,w,h);
     mctx.beginPath(); mctx.arc(w/2,h/2,Math.min(w,h)/2-2,0,7); mctx.clip();
     mctx.translate(w/2,h/2+18); mctx.rotate(-phys.a-Math.PI/2); mctx.scale(s,s); mctx.translate(-phys.x-M.offset,-phys.y-M.offset);
     mctx.drawImage(M.canvas,0,0,M.canvas.width/(M.k||1),M.canvas.height/(M.k||1));
     const dot=(x,y,c,r)=>{ mctx.fillStyle=c; mctx.beginPath(); mctx.arc(x+M.offset,y+M.offset,r/s,0,7); mctx.fill(); mctx.strokeStyle='#000'; mctx.lineWidth=1.5/s; mctx.stroke(); };
-    if(waypoint&&waypoint.route){ mctx.strokeStyle='rgba(167,139,250,.95)'; mctx.lineWidth=6/s; mctx.lineJoin='round'; mctx.lineCap='round'; mctx.beginPath(); routeFromPlayer().forEach((q,i)=>i?mctx.lineTo(q[0]+M.offset,q[1]+M.offset):mctx.moveTo(q[0]+M.offset,q[1]+M.offset)); mctx.stroke(); }
+    if(waypoint){ const rp=routeFromPlayer(); const path=()=>{ mctx.beginPath(); rp.forEach((q,i)=>i?mctx.lineTo(q[0]+M.offset,q[1]+M.offset):mctx.moveTo(q[0]+M.offset,q[1]+M.offset)); };
+      mctx.lineJoin='round'; mctx.lineCap='round'; path(); mctx.strokeStyle='rgba(30,10,60,.85)'; mctx.lineWidth=11/s; mctx.stroke(); path(); mctx.strokeStyle='#b388ff'; mctx.lineWidth=7/s; mctx.stroke(); }
     if(W.traffic) for(const t of W.traffic.all()) dot(t.x,t.y,'rgba(230,230,230,.8)',2);
     if(W.services) for(const sv of W.services) dot(sv.x,sv.y,SERVICE_STYLE[sv.kind].color,6);
     if(waypoint) dot(waypoint.x,waypoint.y,'#a78bfa',7);
@@ -832,7 +834,7 @@ function renderMini(){
   const dot=(x,y,c,r)=>{ mctx.fillStyle=c; mctx.beginPath(); mctx.arc(mox+x*ms,moy+y*ms,r,0,7); mctx.fill(); mctx.strokeStyle='#000'; mctx.lineWidth=1.5; mctx.stroke(); };
   for(const r of remotes.values()) dot(r.x,r.y,r.color,4.5); dot(phys.x,phys.y,settings.color,6);
 }
-let frameNo=0, fps=0, fpsN=0, fpsT=performance.now(); const fpsHist=[]; let prT=0;
+let miniZ=0.9; let frameNo=0, fps=0, fpsN=0, fpsT=performance.now(); const fpsHist=[]; let prT=0;
 // ---- instrument cluster (canvas): rev counter arc, needle, speed, gear, nitro, damage ----
 const gcv=$('gauge'), gdpr=Math.min(2,DPR); gcv.width=300*gdpr; gcv.height=220*gdpr; const gx=gcv.getContext('2d'); let gNeedle=0;
 function drawCluster(){
@@ -935,7 +937,7 @@ function freeRoamTick(dt){
   if(f<=0 && fuelWarn<=0){ fuelWarn=6; toast((SPEC.ev?'🔋 Batarya bitti':'⛽ Yakıt bitti')+' · Çekici için G (₺'+PRICE.tow+') · Harita M',4500); }
   else if(f>0&&f<0.12 && fuelWarn<=0){ fuelWarn=30; toast((SPEC.ev?'🔋 Şarj azaldı':'⛽ Yakıt azaldı')+' · En yakın '+(SPEC.ev?'şarj':'benzinlik')+' için M',3500); }
   // waypoint arrival
-  if(waypoint){ const dd=Math.hypot(waypoint.x-phys.x,waypoint.y-phys.y); if(frameNo%10===0) setText('wpInfo','📍 '+waypoint.name+' · '+(dd>1000?(dd/1000).toFixed(1)+' km':Math.round(dd)+' m'));
+  if(waypoint){ const dd=Math.hypot(waypoint.x-phys.x,waypoint.y-phys.y); routeFromPlayer(); const rl=Math.max(dd,waypoint.len||dd); if(frameNo%10===0) setText('wpInfo','📍 '+waypoint.name+' · '+(rl>1000?(rl/1000).toFixed(1)+' km':Math.round(rl)+' m'));
     if(dd<14){ toast('📍 Hedefe ulaştın: '+waypoint.name,2500); setWaypoint(null); } }
   $('wpInfo').classList.toggle('hidden',!waypoint);
   if(wpMarker){ wpMarker.visible=!!waypoint; if(waypoint){ wpMarker.position.set(waypoint.x,W.phys&&W.phys.ground?W.phys.ground(waypoint.x,waypoint.y):0,waypoint.y); wpMarker.children[1].position.y=6+Math.sin(performance.now()/300)*0.6; } }
@@ -945,9 +947,12 @@ let waypoint=null, wpMarker=null;
 function routeTo(x0,y0,x1,y1){ const R=v=>Math.round(v/CP)*CP; const onH=Math.abs(y0-R(y0))<Math.abs(x0-R(x0));
   const A=onH?[R(x0),R(y0)]:[R(x0),R(y0)]; const tl=nearestLane(x1,y1); const tH=Math.abs(tl.y-R(tl.y))<Math.abs(tl.x-R(tl.x)); const T=tH?[tl.x,R(tl.y)]:[R(tl.x),tl.y]; const B=[R(T[0]),R(T[1])];
   const C=[B[0],A[1]]; return [[x0,y0],A,C,B,T,[x1,y1]]; }
-function routePts(x0,y0,x1,y1){ return inCityArea(x0,y0)&&inCityArea(x1,y1)?routeTo(x0,y0,x1,y1):[[x0,y0],[x1,y1]]; }
-function routeFromPlayer(){ if(!waypoint) return []; if(!waypoint.route||frameNo%30===0) waypoint.route=routePts(phys.x,phys.y,waypoint.x,waypoint.y); return waypoint.route; }
-function setWaypoint(t){ waypoint=t?{...t,route:null}:null; if(t&&!wpMarker){ wpMarker=new THREE.Group();
+function routePts(x0,y0,x1,y1){ try{ return findRoute(x0,y0,x1,y1); }catch(e){ console.warn(e); return [[x0,y0],[x1,y1]]; } }
+// GPS route from the car: recomputed twice a second (and right away when a destination is set); the first point always follows the car
+function routeFromPlayer(){ if(!waypoint) return []; const now=performance.now();
+  if(!waypoint.route||now-(waypoint.rt||0)>500){ waypoint.route=routePts(phys.x,phys.y,waypoint.x,waypoint.y); waypoint.rt=now; waypoint.len=routeLength(waypoint.route); }
+  waypoint.route[0]=[phys.x,phys.y]; return waypoint.route; }
+function setWaypoint(t){ waypoint=t?{...t,route:null}:null; if(waypoint) routeFromPlayer(); if(t&&!wpMarker){ wpMarker=new THREE.Group();
     const beam=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,70,24,1,true),new THREE.MeshBasicMaterial({color:0xa78bfa,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false})); beam.position.y=35; wpMarker.add(beam);
     const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'); g.fillStyle='#7c3aed'; g.beginPath(); g.arc(64,64,58,0,7); g.fill(); g.font='72px sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('📍',64,70);
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,toneMapped:false})); sp.scale.set(3,3,1); wpMarker.add(sp); scene.add(wpMarker); }
@@ -965,7 +970,7 @@ function drawBigMap(){ if(!bigMapOpen) return; const r=bmC.getBoundingClientRect
   const sc=Math.min(bmC.width,bmC.height)/S*bmZ.z, ox=bmC.width/2-(bmZ.cx+M.offset)*sc, oy=bmC.height/2-(bmZ.cy+M.offset)*sc; bmView={sc,ox,oy,dpr,off:M.offset};
   const g=bmG; g.fillStyle='#1f4f66'; g.fillRect(0,0,bmC.width,bmC.height); g.imageSmoothingEnabled=true; g.drawImage(M.canvas,ox,oy,S*sc,S*sc);
   const P=(x,y)=>[ox+(x+M.offset)*sc,oy+(y+M.offset)*sc];
-  if(waypoint){ g.strokeStyle='#a78bfa'; g.lineWidth=6*dpr; g.lineJoin='round'; g.lineCap='round'; g.beginPath(); routePts(phys.x,phys.y,waypoint.x,waypoint.y).forEach((q,i)=>{ const p=P(q[0],q[1]); i?g.lineTo(...p):g.moveTo(...p); }); g.stroke(); }
+  if(waypoint){ g.strokeStyle='#a78bfa'; g.lineWidth=6*dpr; g.lineJoin='round'; g.lineCap='round'; const rp=routeFromPlayer(); const path=()=>{ g.beginPath(); rp.forEach((q,i)=>{ const p=P(q[0],q[1]); i?g.lineTo(...p):g.moveTo(...p); }); }; path(); g.strokeStyle='rgba(30,10,60,.85)'; g.lineWidth=10*dpr; g.stroke(); path(); g.strokeStyle='#b388ff'; g.lineWidth=6*dpr; g.stroke(); }
   g.textAlign='center'; g.textBaseline='middle';
   for(const s of W.services){ const st=SERVICE_STYLE[s.kind], [px,py]=P(s.x,s.y); g.fillStyle=st.color; g.beginPath(); g.arc(px,py,14*dpr,0,7); g.fill(); g.strokeStyle='#fff'; g.lineWidth=2*dpr; g.stroke(); g.font=(16*dpr)+'px sans-serif'; g.fillStyle='#fff'; g.fillText(st.icon,px,py+dpr); }
   if(waypoint){ const [px,py]=P(waypoint.x,waypoint.y); g.font=(26*dpr)+'px sans-serif'; g.fillText('📍',px,py-14*dpr); }

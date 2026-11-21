@@ -405,4 +405,4 @@ export function nearestRoadSpot(x, y) { let best = null, bd = 1e18;
   for (const F of [ringF, mtnF]) for (let i = 0; i < F.length; i += 2) { const f = F[i], d = (f.x - x) ** 2 + (f.y - y) ** 2; if (d < bd) { bd = d; best = { f, F }; } }
   const f = best.f; let off = 0; if (best.F === ringF) { const side = Math.sign((x - f.x) * f.nx + (y - f.y) * f.ny) || 1; off = side * (HW.median + 0.6 + HW.lane * 1.5); }
   const a = Math.atan2(f.ty, f.tx) + (off < 0 ? Math.PI : 0); return { x: f.x + f.nx * off, y: f.y + f.ny * off, a }; }
-export const _dbg = { ringF, mtnF, SUMMIT, PAD };
+export const _dbg = { ringF, mtnF, SUMMIT, PAD, links, padLink };
