@@ -1,6 +1,6 @@
 # Aşama 1 — Vite derleme + GitHub Actions (unpkg kaldırıldı)
 
-Referans: main @ e771e2a (canlı). Ölçülen: altyapi dalı, `vite build --base=/` çıktısı.
+Referans: main @ e771e2a (canlı). Aşama 1 noktası: altyapi @ 1ac04e2. Ölçülen: altyapi dalı, `vite build --base=/` çıktısı.
 
 ## Değişenler
 - `package.json` + `package-lock.json`: three 0.187.0, peerjs 1.5.4, vite 8.3.8 (hepsi sabit).
