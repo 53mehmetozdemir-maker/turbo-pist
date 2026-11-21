@@ -6,7 +6,7 @@ Her aşamadan sonra bu listedeki her madde işaretlenir: ✅ çalışıyor · �
 1.1 `index.html` (ana oyun) · 1.2 `klasik.html` (eski sürüm, kendi içinde tek dosya) · 1.3 yükleme ekranı · 1.4 favicon, apple-touch-icon, manifest (ana ekrana ekle, tam ekran, yatay) · 1.5 `?oda=KOD` davet linki · 1.6 `?bot` test parametresi · 1.7 `window.__game` test kancası
 
 ## 2. Menü
-2.1 İsim · 2.2 araç seçimi (kartlar) · 2.3 8 boya rengi · 2.4 harita: Şehir / Pist · 2.5 saat: Gündüz / Akşam / Gece · 2.6 hava: Açık / Yağmurlu · 2.7 oda kodu + 🎲 yeni kod · 2.8 grafik: Düşük / Orta / Yüksek (+ otomatik ilk seçim) · 2.9 vites: Oto / Manuel · 2.10 yardımlar: Açık / Kapalı · 2.11 "Odaya Gir" · 2.12 "Tek Başına Gez/Antrenman" · 2.13 bağlantı durumu notu · 2.14 Kontroller listesi · 2.15 3D model kredileri · 2.16 menü arkasında dönen araç önizlemesi · 2.17 tüm ayarların localStorage'da kalıcılığı
+2.1 İsim · 2.2 araç seçimi (kartlar) · 2.3 8 boya rengi · 2.4 harita: Şehir / Pist · 2.5 saat: Gündüz / Akşam / Gece · 2.6 hava: Açık / Yağmurlu · 2.7 oda kodu + 🎲 yeni kod · 2.8 grafik: Düşük / Orta / Yüksek (+ otomatik ilk seçim) · 2.9 vites: Oto / Manuel · 2.10 yardımlar: Açık / Kapalı · 2.11 "Odaya Gir" · 2.12 "Tek Başına Gez/Antrenman" · 2.13 bağlantı durumu notu · 2.14 Kontroller listesi (menüdeki yazı; tuşların kendisi → bölüm 16) · 2.15 3D model kredileri · 2.16 menü arkasında dönen araç önizlemesi · 2.17 tüm ayarların localStorage'da kalıcılığı
 
 ## 3. Araçlar (7)
 3.1 Ferrari 458 Spider · 3.2 Ferrari F40 (açılır farlar) · 3.3 Tesla Model 3 Performance (elektrikli) · 3.4 Peugeot e-2008 (elektrikli) · 3.5 Suzuki GSX-R 750 (motosiklet, prosedürel sürücü, yatma, ön takım) · 3.6 Porsche 911 GT3 (992) · 3.7 Honda Civic Type R (FK8)
@@ -48,3 +48,29 @@ Her araçta: 3.a gerçek motor/vites/tork değerleri · 3.b motor sesi profili �
 
 ## 15. Telefon
 15.1 dokunmatik algılama, yatay ekran uyarısı · 15.2 analog direksiyon pedi · 15.3 eğerek sürüş (izinli) · 15.4 gaz/fren pedalları · 15.5 el freni, nitro, korna, vites +/- · 15.6 üst tuşlar (duraklat, kamera, harita, far, geri dön) · 15.7 servis ve çekici tuşları (bağlama göre) · 15.8 titreşim
+
+## 16. Klavye kısayolları (her biri ayrı test: `keys.mjs`, oyun durumuna bakarak)
+| # | Tuş | Beklenen etki | Testte bakılan |
+|---|---|---|---|
+| 16.1 | W / ↑ | gaz | `phys.throttle` > 0.5 |
+| 16.2 | S / ↓ (giderken) | fren | `phys.brake` > 0.5, gaz 0 |
+| 16.3 | S / ↓ (dururken) | geri vites | `phys.reversing` = true |
+| 16.4 | A / ← · D / → | direksiyon sol / sağ | `phys.steer` işareti −1 / +1 |
+| 16.5 | Space | el freni | `phys.hand` = 1 |
+| 16.6 | N | nitro | `phys.nitroOn` = true |
+| 16.7 | Shift (sol/sağ) | nitro | `phys.nitroOn` = true |
+| 16.8 | E · X | manuel vites yükselt | vites +1 (her biri ayrı) |
+| 16.9 | Q · Z | manuel vites düşür | vites −1 (her biri ayrı) |
+| 16.10 | C | kamera değiştir (3 mod, döngü) + kayıt | `tp3_cam` 1→2→0 |
+| 16.11 | K | ses kapat/aç | bildirim "Ses kapalı (K)" / "Ses açık (K)" |
+| 16.12 | L | far aç/kapat | bildirim "Farlar açık" / "Farlar kapalı" |
+| 16.13 | H | korna | korna sesi başlıyor (osilatör) |
+| 16.14 | M | büyük harita aç/kapat | harita açık → M ile kapanıyor |
+| 16.15 | ESC (harita açıkken) | önce haritayı kapatır, duraklatmaz | harita kapalı, duraklatma menüsü yok |
+| 16.16 | ESC | duraklat / devam | duraklatma menüsü açılıp kapanıyor |
+| 16.17 | R | yola dön | yol dışı (yüzey 3) → yol (yüzey 0) |
+| 16.18 | T | arkadaşa git | tek başınayken uyarı bildirimi |
+| 16.19 | F (benzinlikte) | yakıt al | yakıt artıyor |
+| 16.20 | F (tamircide) | tamir | hasar 0 |
+| 16.21 | G (yakıt bitince) | çekici | araç taşındı, ₺100 ödendi |
+| 16.22 | — | konsol hatası yok | 0 |

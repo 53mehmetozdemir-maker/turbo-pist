@@ -12,7 +12,7 @@ Her madde ayrı commit ile düzeltilir; düzeltme sürüşü değiştiriyorsa ö
 | H6 | Arayüz | Büyük harita kısa/küçük pencerede (örn. 640×360) yan panel aşağı kayıp listeyi gösteremiyor | Aşama 5 |
 | H7 | Arayüz | Yarış modunda yakıt/hasar kullanılmadığı hâlde HUD'da YAKIT ve HASAR barları görünüyor | Aşama 5 |
 | H8 | Arayüz | Kısa ekranda (≤ 400 px yükseklik) menüde boya renkleri sabit başlat düğmelerinin altında kalıyor (kaydırınca görünüyor) | Aşama 5 |
-| H9 | Kayıt | Kayıt formatında sürüm alanı yok; konum kaydedilmiyor (her açılışta başlangıç noktası) | Aşama 3 (sürüm + migrasyon; konum için onay) |
-| H10 | Multiplayer | Diğer oyuncunun aracındaki göçük/hasar karşı tarafa yansımıyor | Aşama 4 (onayla) |
+| H9 | Kayıt | Kayıt formatında sürüm alanı yok; konum kaydedilmiyor (her açılışta başlangıç noktası) | **Altyapı bittikten sonra ayrı iş** (şimdilik sadece listede) |
+| H10 | Multiplayer | Diğer oyuncunun aracındaki göçük/hasar karşı tarafa yansımıyor | **Altyapı bittikten sonra ayrı iş** (şimdilik sadece listede) |
 | H11 | Kod | js/caddy.js hiçbir yerden yüklenmiyor (Caddy menüden kaldırıldı). Kullanıcı kararı: dosya silinmeyecek, olduğu gibi kalacak. (fleetcar.js → car.js'te, props.js → city.js, track.js, traffic.js'te kullanılıyor.) | karar verildi: dokunulmayacak |
 | H12 | Test ortamı | FPS sayacı test sırasında "0 FPS" gösteriyor (sanal saat; oyun hatası değil) | — |

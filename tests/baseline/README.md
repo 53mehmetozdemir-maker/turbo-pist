@@ -17,6 +17,7 @@ cd tests && npm ci
 node baseline/physics.mjs check     # birebir aynı olmalı
 node baseline/visual.mjs check      # her görüntü ≤ %0,5 piksel farkı; farklar tests/out/screens/ altına
 node baseline/saves.mjs check
+node baseline/keys.mjs check        # 28 klavye kısayolu kontrolü, hepsi ✅ olmalı (~2 dk)
 node baseline/perf.mjs check        # hiçbir sahne daha yavaş olmamalı
 ```
 Testler zamanı (60 Hz sanal saat) ve rastgeleliği oyunun koduna dokunmadan sabitler; three.js/PeerJS'i yerel npm kopyasından verir. Yazılım tabanlı WebGL (SwiftShader) kullanıldığı için gerçek FPS burada ölçülmez; gerçek cihazda ayrıca kontrol edilir.

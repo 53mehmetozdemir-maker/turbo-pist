@@ -1,0 +1,112 @@
+{
+ "W gaz": {
+  "throttle": true,
+  "brake": false,
+  "steer": 0
+ },
+ "↑ gaz": {
+  "throttle": true,
+  "brake": false,
+  "steer": 0
+ },
+ "S fren": {
+  "throttle": false,
+  "brake": true,
+  "steer": 0
+ },
+ "↓ fren": {
+  "throttle": false,
+  "brake": true,
+  "steer": 0
+ },
+ "A sol": {
+  "throttle": false,
+  "brake": false,
+  "steer": -1
+ },
+ "← sol": {
+  "throttle": false,
+  "brake": false,
+  "steer": -1
+ },
+ "D sağ": {
+  "throttle": false,
+  "brake": false,
+  "steer": 1
+ },
+ "→ sağ": {
+  "throttle": false,
+  "brake": false,
+  "steer": 1
+ },
+ "S dururken geri": {
+  "reversing": true
+ },
+ "Space el freni": {
+  "hand": true
+ },
+ "N nitro": {
+  "nitroOn": true
+ },
+ "Shift nitro": {
+  "nitroOn": true
+ },
+ "E vites": {
+  "delta": 1
+ },
+ "X vites": {
+  "delta": 1
+ },
+ "Q vites": {
+  "delta": -1
+ },
+ "Z vites": {
+  "delta": -1
+ },
+ "C kamera": {
+  "seq": [
+   "1",
+   "2",
+   "0"
+  ]
+ },
+ "K ses": {
+  "a": "Ses kapalı (K)",
+  "b": "Ses açık (K)"
+ },
+ "L far": {
+  "a": "Farlar açık",
+  "b": "Farlar kapalı"
+ },
+ "H korna": {
+  "oscillatorsStarted": true
+ },
+ "M harita": {
+  "open": true,
+  "closedByEsc": true,
+  "pausedAfterMapEsc": false,
+  "closedByM": true
+ },
+ "ESC duraklat": {
+  "pause": true,
+  "resume": true
+ },
+ "R yola dön": {
+  "before": 3,
+  "after": 0
+ },
+ "T arkadaşa git": {
+  "toast": "Arkadaşına gitmek için şehirde bir odada olmalısın"
+ },
+ "F yakıt": {
+  "fuelRose": true
+ },
+ "F tamir": {
+  "repaired": true
+ },
+ "G çekici": {
+  "moved": true,
+  "paid": 100
+ },
+ "konsol hataları": 0
+}
