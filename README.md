@@ -15,8 +15,10 @@ npm run preview   # derlenmiş hali yerelde açar
 ```
 
 - `index.html` ana oyun, `klasik.html` eski 2D sürüm; ikisi de derlenir.
-- three.js ve PeerJS npm'den gelir; dışarıdan (unpkg vb.) kod yüklenmez.
-- `assets/` olduğu gibi kopyalanır; derlenen JS `dist/app/` altına hash'li adla çıkar.
+- three.js, PeerJS ve yazı tipleri (Bungee, Inter) npm'den gelir; dışarıdan (unpkg, Google Fonts) bir şey yüklenmez.
+- Modeller, dokular ve HDR'ler kodda `new URL('../assets/…', import.meta.url)` ile gösterilir; derlenen her şey `dist/app/` altına hash'li adla çıkar.
+  Yeni bir asset eklerken de bu kalıbı kullan (düz `'assets/…'` yazısı derlemeye girmez).
+- Açılışta gereken dosyalar (Ferrari, şehir dokuları, Draco çözücü, three, oyun kodu) HTML'de önceden istenir (`vite.config.js` → `ON_YUKLE`).
 
 ## Yayın
 

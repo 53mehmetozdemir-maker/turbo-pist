@@ -1,11 +1,11 @@
 // klasik.html (eski 2D sürüm): hatasız açılış, PeerJS yüklü (Odaya Gir aktif), menü görüntüsü aynı.
 // usage: node baseline/klasik.mjs [record|check]
 import fs from 'node:fs'; import path from 'node:path'; import { PNG } from 'pngjs'; import pixelmatch from 'pixelmatch';
-import { serve, launch, FREEZE, HERE_DIR, ROOT, NM } from './lib.mjs';
+import { serve, launch, FREEZE, HERE_DIR, ROOT, NM, googleFonts } from './lib.mjs';
 const MODE = process.argv[2] || 'check', REF = path.join(HERE_DIR, 'screens/klasik_menu.png'), OUT = path.join(HERE_DIR, 'klasik_expected.json');
 const { srv, url } = await serve(); const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 }); await ctx.addInitScript(FREEZE);
-await ctx.addInitScript(`try{ localStorage.clear(); }catch(e){}`);
+await ctx.addInitScript(`try{ localStorage.clear(); }catch(e){}`); await googleFonts(ctx);
 await ctx.route('https://unpkg.com/peerjs@1.5.4/**', r => r.fulfill({ path: path.join(NM, 'peerjs/dist/peerjs.min.js'), contentType: 'text/javascript' }));
 const page = await ctx.newPage(); const log = []; const ext = [];
 page.on('console', m => { if (m.type() === 'error' && !/ERR_TUNNEL|ERR_CONNECTION/.test(m.text())) log.push(m.text()); }); page.on('pageerror', e => log.push('pageerror: ' + e.message));

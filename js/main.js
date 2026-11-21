@@ -141,10 +141,10 @@ function runCull(){ const cx=camera.position.x, cz=camera.position.z, k=camMode=
 function fleetVisible(v){ scene.traverse(o=>{ if(o.isInstancedMesh && o.userData.fleet) o.visible=v; }); }
 
 // ---------------- HDR environments (Poly Haven, CC0) ----------------
-const ENV_FILES={day:'pedestrian_overpass_1k.hdr',dusk:'venice_sunset_1k.hdr',night:'moonless_golf_1k.hdr'}, envCache={};
+const ENV_FILES={day:new URL('../assets/pedestrian_overpass_1k.hdr',import.meta.url).href,dusk:new URL('../assets/venice_sunset_1k.hdr',import.meta.url).href,night:new URL('../assets/moonless_golf_1k.hdr',import.meta.url).href}, envCache={};
 const hdr=new HDRLoader();
 function loadEnv(t){ if(envCache[t]) return envCache[t];
-  envCache[t]=hdr.loadAsync('assets/'+ENV_FILES[t]).then(tex=>{ tex.mapping=THREE.EquirectangularReflectionMapping; const e=pmrem.fromEquirectangular(tex).texture; tex.dispose(); return e; }).catch(()=>null); return envCache[t]; }
+  envCache[t]=hdr.loadAsync(ENV_FILES[t]).then(tex=>{ tex.mapping=THREE.EquirectangularReflectionMapping; const e=pmrem.fromEquirectangular(tex).texture; tex.dispose(); return e; }).catch(()=>null); return envCache[t]; }
 // ---------------- time of day ----------------
 let nightF=0;
 function applyTime(t){

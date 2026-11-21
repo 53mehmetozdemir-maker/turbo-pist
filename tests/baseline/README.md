@@ -30,4 +30,10 @@ cd .. && npx vite build --base=/ --outDir /tmp/dist-test && cd tests
 export GAME_ROOT=/tmp/dist-test
 node baseline/physics.mjs check   # (ve diğerleri)
 ```
+Yavaş ağ ölçümü: `node baseline/agyavas.mjs 3` (≈4G, açılış dosyalarının iniş süresi).
+
+Görsel referans canlıdaki yazı tipleriyle çekilmiştir. main'in kodundan yeniden çekmek gerekirse
+`GFONTS=1` ver (Google Fonts istekleri aynı yazı tipi dosyalarıyla yanıtlanır):
+`GAME_ROOT=<main kopyası> GFONTS=1 node baseline/visual.mjs record`
+
 Aşama raporları: `raporlar/`.

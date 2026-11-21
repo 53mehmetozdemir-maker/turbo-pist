@@ -109,12 +109,14 @@ function wheelGroup(R,detail=1){
 
 // ---------- real car model (Ferrari 458 Italia glTF) ----------
 let FERRARI=null, AO_TEX=null;
-export async function loadCarModel(base='assets/'){
+// Vite bu adresleri hash'li dosya adına çevirir (önbellek/güncelleme güvenliği).
+const FERRARI_URL=new URL('../assets/ferrari.glb',import.meta.url).href, FERRARI_AO_URL=new URL('../assets/ferrari_ao.png',import.meta.url).href;
+export async function loadCarModel(base){
   try{
     const draco=new DRACOLoader(); draco.setDecoderPath(window.DRACO_PATH||DRACO_GLTF_CONFIG);
     const loader=new GLTFLoader(); loader.setDRACOLoader(draco);
-    const g=await loader.loadAsync(base+'ferrari.glb'); FERRARI=g.scene;
-    AO_TEX=await new THREE.TextureLoader().loadAsync(base+'ferrari_ao.png');
+    const g=await loader.loadAsync(base?base+'ferrari.glb':FERRARI_URL); FERRARI=g.scene;
+    AO_TEX=await new THREE.TextureLoader().loadAsync(base?base+'ferrari_ao.png':FERRARI_AO_URL);
     return true;
   }catch(e){ console.warn('Araba modeli yüklenemedi, yedek model kullanılıyor',e); FERRARI=null; return false; }
 }

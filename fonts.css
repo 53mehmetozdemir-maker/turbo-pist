@@ -1,0 +1,7 @@
+/* Yazı tipleri oyunla birlikte gelir (npm @fontsource, sabit sürüm). Eskiden Google Fonts'tan yükleniyordu;
+   aynı aileler ve aynı kalınlıklar: Bungee 400, Inter 400/600/800. Harf alt kümeleri (latin, latin-ext…)
+   unicode-range ile yalnızca gerekince indirilir. */
+@import '@fontsource/bungee/400.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/800.css';

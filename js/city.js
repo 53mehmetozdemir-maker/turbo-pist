@@ -101,8 +101,9 @@ export const cityWorld = {
 
 // ---------- photo textures ----------
 const IMG = {};
-export async function loadCityImages(base = 'assets/') {
-  const load = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = base + src; });
+const CITY_IMG_URLS = { 'brick.jpg': new URL('../assets/brick.jpg', import.meta.url).href, 'brick_bump.jpg': new URL('../assets/brick_bump.jpg', import.meta.url).href, 'grass.jpg': new URL('../assets/grass.jpg', import.meta.url).href };
+export async function loadCityImages(base) {
+  const load = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = base ? base + src : CITY_IMG_URLS[src]; });
   [IMG.brick, IMG.brickBump, IMG.grass] = await Promise.all(['brick.jpg', 'brick_bump.jpg', 'grass.jpg'].map(load));
 }
 // ---------- textures ----------

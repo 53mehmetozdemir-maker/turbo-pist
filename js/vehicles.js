@@ -21,7 +21,7 @@ export const VEHICLES = {
   },
   f40: {
     name: 'Ferrari F40', short: 'F40', info: '2.9 çift turbo V8 · 478 PS · 577 Nm · 5 ileri · arkadan itiş',
-    file: 'assets/cars/f40.glb', length: 4.358, front: '+z', sound: { cyl: 8, kind: 'turbo' },
+    file: new URL('../assets/cars/f40.glb', import.meta.url).href, length: 4.358, front: '+z', sound: { cyl: 8, kind: 'turbo' },
     credit: 'Ferrari F40: Black Snow (Sketchfab, CC-BY-4.0)',
     spec: { mass: 1255, inertia: 2050, a: 1.42, b: 1.03, cgH: 0.42, r: 0.33,
       gears: [2.769, 1.947, 1.512, 1.2, 0.966], reverse: 2.7, final: 3.08, idle: 1000, redline: 7750, shiftUp: 7400, shiftDown: 3800, shiftTime: 0.22,
@@ -43,7 +43,7 @@ export const VEHICLES = {
   model3: {
     exhaust: { y: 0.33, z: [-0.35, 0.35], ev: true },
     name: 'Tesla Model 3 Performance', short: 'Model 3', info: 'Elektrik · 2 motor · 460 PS · 660 Nm · dört çeker',
-    file: 'assets/cars/model3.glb', length: 4.694, front: '+z', sound: { kind: 'ev' },
+    file: new URL('../assets/cars/model3.glb', import.meta.url).href, length: 4.694, front: '+z', sound: { kind: 'ev' },
     credit: 'Tesla Model 3: David_Holiday (Sketchfab, CC-BY-4.0)',
     spec: { mass: 1919, inertia: 3300, a: 1.5, b: 1.375, cgH: 0.5, r: 0.341, ev: true,
       gears: [9.04], reverse: 9.04, final: 1, idle: 0, redline: 18400, shiftUp: 99999, shiftDown: 0, eff: 0.92,
@@ -63,7 +63,7 @@ export const VEHICLES = {
   e2008: {
     exhaust: { y: 0.38, z: [-0.38, 0.38], ev: true },
     name: 'Peugeot e-2008', short: 'e-2008', info: 'Elektrik · 136 PS · 260 Nm · önden çekiş · 150 km/sa',
-    file: 'assets/cars/e2008.glb', length: 4.3, front: '+z', sound: { kind: 'ev' },
+    file: new URL('../assets/cars/e2008.glb', import.meta.url).href, length: 4.3, front: '+z', sound: { kind: 'ev' },
     credit: 'Peugeot e-2008: David_Holiday (Sketchfab, CC-BY-4.0)',
     spec: { mass: 1623, inertia: 2700, a: 1.04, b: 1.565, cgH: 0.58, r: 0.334, ev: true,
       gears: [8.6], reverse: 8.6, final: 1, idle: 0, redline: 10500, shiftUp: 99999, shiftDown: 0, eff: 0.92,
@@ -81,7 +81,7 @@ export const VEHICLES = {
 };
 VEHICLES.gsxr = {
   name: 'Suzuki GSX-R 750', short: 'GSX-R 750', info: 'Motosiklet · 750 cc sıralı dört · 150 PS / 13.200 d/dk · 86 Nm · 6 ileri · 190 kg',
-  proc: 'bikeglb', file: 'assets/cars/gsxr.glb', length: 2.06, front: '-z', axleF: 0.70, sound: { cyl: 4, kind: 'i4moto' },
+  proc: 'bikeglb', file: new URL('../assets/cars/gsxr.glb', import.meta.url).href, length: 2.06, front: '-z', axleF: 0.70, sound: { cyl: 4, kind: 'i4moto' },
   credit: 'Suzuki GSX-R 750: kullanıcının gönderdiği model',
   parts: { 'Srad750.001': 'fwheel', 'Srad750001': 'fwheel', 'Srad750.004': 'rwheel', 'Srad750004': 'rwheel', 'Srad750.006': 'front', 'Srad750006': 'front' },
   mats: { paint: ['Car_Paint_-_Red.001'], tail: ['Matte__FFFF3C00__spec_RR_'], head: ['Material.003'], glass: ['Matte__662F2F2F__spec_trans_'], lens: ['Matte__6BFFFFFF__prim_spec_trans_', 'Matte__57CCCCCC__trans_'] },
@@ -96,7 +96,7 @@ VEHICLES.gsxr = {
 };
 VEHICLES.gt3 = {
   name: 'Porsche 911 GT3 (992)', short: '911 GT3', info: '4.0 atmosferik boxer 6 · 510 PS / 8.400 d/dk · 470 Nm · 7 ileri PDK · arkadan itiş · 9.000 d/dk',
-  file: 'assets/cars/gt3.glb', length: 4.573, front: '+z', sound: { cyl: 6, kind: 'f6' }, keepStd: true,
+  file: new URL('../assets/cars/gt3.glb', import.meta.url).href, length: 4.573, front: '+z', sound: { cyl: 6, kind: 'f6' }, keepStd: true,
   credit: 'Porsche 911 GT3 (2022): kullanıcının gönderdiği model',
   spec: { mass: 1510, inertia: 2350, a: 1.5, b: 0.957, cgH: 0.45, r: 0.352,
     gears: [3.75, 2.38, 1.72, 1.34, 1.11, 0.96, 0.84], reverse: 3.3, final: 4.47, idle: 950, redline: 9000, shiftUp: 8800, shiftDown: 4500, shiftTime: 0.07,
@@ -111,7 +111,7 @@ VEHICLES.gt3 = {
 };
 VEHICLES.civic = {
   name: 'Honda Civic Type R (FK8)', short: 'Civic Type R', info: '2.0 VTEC Turbo K20C1 · 320 PS · 400 Nm · 6 ileri manuel · önden çekiş · 272 km/sa',
-  file: 'assets/cars/civic.glb', length: 4.557, front: '+z', sound: { cyl: 4, kind: 'k20t' },
+  file: new URL('../assets/cars/civic.glb', import.meta.url).href, length: 4.557, front: '+z', sound: { cyl: 4, kind: 'k20t' },
   credit: 'Honda Civic Type R FK8: CGTrader ücretsiz model',
   spec: { mass: 1450, inertia: 2350, a: 1.03, b: 1.67, cgH: 0.5, r: 0.3275,
     gears: [3.625, 2.115, 1.529, 1.125, 0.911, 0.734], reverse: 3.3, final: 4.111, idle: 850, redline: 7000, shiftUp: 6800, shiftDown: 3000, shiftTime: 0.12,
