@@ -1,0 +1,73 @@
+{
+ "load": {
+  "bytes_kb": 7324,
+  "requests": 54,
+  "ms_to_game": 9237,
+  "console_errors": 0
+ },
+ "scenes": {
+  "sehir_merkez": {
+   "draw_calls": 340,
+   "tris_k": 2120,
+   "geometries": 583,
+   "textures": 84,
+   "programs": 86,
+   "js_ms_per_frame": 11.5,
+   "heap_mb": 36.2
+  },
+  "sehir_kose": {
+   "draw_calls": 420,
+   "tris_k": 2275,
+   "geometries": 615,
+   "textures": 85,
+   "programs": 86,
+   "js_ms_per_frame": 9.2,
+   "heap_mb": 38.8
+  },
+  "benzinlik": {
+   "draw_calls": 494,
+   "tris_k": 2155,
+   "geometries": 616,
+   "textures": 85,
+   "programs": 86,
+   "js_ms_per_frame": 13.7,
+   "heap_mb": 27
+  },
+  "otoyol": {
+   "draw_calls": 232,
+   "tris_k": 1574,
+   "geometries": 616,
+   "textures": 85,
+   "programs": 86,
+   "js_ms_per_frame": 7.7,
+   "heap_mb": 27.2
+  },
+  "dag": {
+   "draw_calls": 114,
+   "tris_k": 1007,
+   "geometries": 618,
+   "textures": 85,
+   "programs": 86,
+   "js_ms_per_frame": 7,
+   "heap_mb": 27.6
+  },
+  "drift": {
+   "draw_calls": 111,
+   "tris_k": 1238,
+   "geometries": 618,
+   "textures": 85,
+   "programs": 86,
+   "js_ms_per_frame": 6.8,
+   "heap_mb": 27.3
+  },
+  "sahil": {
+   "draw_calls": 350,
+   "tris_k": 1959,
+   "geometries": 620,
+   "textures": 85,
+   "programs": 86,
+   "js_ms_per_frame": 8.7,
+   "heap_mb": 27.5
+  }
+ }
+}

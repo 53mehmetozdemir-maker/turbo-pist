@@ -1,0 +1,51 @@
+{
+ "elektrikli_hasarli.json": {
+  "money": 50,
+  "km": 999.9,
+  "best": {
+   "model3": 70000,
+   "gsxr": 58000
+  },
+  "econ2": 1,
+  "fuel": 0.03,
+  "damage": 95,
+  "dents": true,
+  "crack": true,
+  "persisted": true
+ },
+ "eski_kayit_econ2_yok.json": {
+  "money": 3800,
+  "km": 5,
+  "best": {},
+  "econ2": 1,
+  "fuel": 0.1,
+  "damage": 80,
+  "dents": true,
+  "crack": true,
+  "persisted": true
+ },
+ "orta_seviye.json": {
+  "money": 12345,
+  "km": 123.4,
+  "best": {
+   "f458": 61234
+  },
+  "econ2": 1,
+  "fuel": 0.42,
+  "damage": 37.5,
+  "dents": true,
+  "crack": true,
+  "persisted": true
+ },
+ "yeni_oyuncu.json": {
+  "money": 5500,
+  "km": 0,
+  "best": {},
+  "econ2": 1,
+  "fuel": 1,
+  "damage": 0,
+  "dents": false,
+  "crack": false,
+  "persisted": true
+ }
+}

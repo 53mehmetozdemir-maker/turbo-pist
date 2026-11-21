@@ -1,0 +1,19 @@
+{
+  "name": "turbo-pist-tests",
+  "private": true,
+  "type": "module",
+  "description": "Altın referans ve duman testleri (Playwright)",
+  "scripts": {
+    "baseline:physics": "node baseline/physics.mjs",
+    "baseline:visual": "node baseline/visual.mjs",
+    "baseline:saves": "node baseline/saves.mjs",
+    "baseline:perf": "node baseline/perf.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.56.1",
+    "pngjs": "7.0.0",
+    "pixelmatch": "5.3.0",
+    "three": "0.187.0",
+    "peerjs": "1.5.4"
+  }
+}
