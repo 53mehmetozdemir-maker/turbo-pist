@@ -128,7 +128,10 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
 #svcPrompt button{margin-top:8px;padding:8px 16px;font-size:14px}
 #bigMap{position:fixed;inset:0;background:rgba(5,7,11,.88);z-index:50;display:flex;gap:18px;padding:24px;box-sizing:border-box}
 #bigMap canvas{flex:1;min-width:0;height:100%;border-radius:14px;cursor:crosshair;background:#2c3a28}
-#bigMap .side{width:270px;display:flex;flex-direction:column;gap:8px;color:#fff;font:600 14px Inter,sans-serif;overflow:auto}
+#bigMap .side{width:270px;display:flex;flex-direction:column;gap:8px;color:#fff;font:600 14px Inter,sans-serif;overflow:hidden;min-height:0}
+#bmList{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+#bigMap .side button{flex:none}
+@media (max-height:500px){ #bigMap{padding:10px;gap:10px} #bigMap .side p{display:none} #bigMap .side h3{font-size:16px} #bigMap .item{padding:7px 10px} #bigMap .side{width:240px} }
 #bigMap .side h3{margin:0 0 4px;font:800 20px Inter,sans-serif} #bigMap .side p{margin:0 0 6px;color:rgba(255,255,255,.6);font-size:12px}
 #bigMap .item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.07);cursor:pointer;border:1px solid transparent}
 #bigMap .item:hover,#bigMap .item.on{border-color:#a78bfa;background:rgba(167,139,250,.18)} #bigMap .item .ic{font-size:20px} #bigMap .item small{display:block;color:rgba(255,255,255,.55);font-weight:500}

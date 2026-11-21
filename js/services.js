@@ -204,7 +204,7 @@ export function buildServices(scene) {
       { const bk = add(new THREE.Mesh(new THREE.PlaneGeometry(3.0, 6.0), M.cladD), 75.5, G0 + 4.4, 3.92); }
       // perimeter planters with shrubs to frame the lot
       for (const [u0, v0, u1, v1] of [[0.6, 62, 40, 63.4], [0.6, 63.4, 2, 83.4]]) { box(u0, v0, u1, v1, G0, G0 + 0.45, M.concrete, true); for (let u = u0 + 0.8; u < u1 - 0.4; u += 1.6) for (let v = v0 + 0.7; v < v1 - 0.3; v += 1.6) { const s = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.62, 1), std({ color: 0x3f7a35, roughness: 0.9, flatShading: true })), u, G0 + 0.85, v); s.scale.y = 0.8; s.castShadow = true; } }
-      list.push({ kind: 'fuel', name: d.name, x: X + 42, y: Y + 25, rect: [X + cu0, Y + cv0, X + cu1, Y + cv1] });
+      list.push({ kind: 'fuel', name: d.name, x: X + 35.5, y: Y + 25, rect: [X + cu0, Y + cv0, X + cu1, Y + cv1] });
       list.push({ kind: 'charge', name: d.name + ' Şarj', x: X + 17.5, y: Y + 53.5, rect: [X + 5, Y + 50, X + 32, Y + 58] });
     } else {
       // ---------- repair garage: three bays with roller shutters, office, tool walls ----------

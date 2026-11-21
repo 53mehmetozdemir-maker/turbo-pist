@@ -115,12 +115,12 @@ export class Car {
     if(P.vmax && Math.abs(vLong)*3.6>=P.vmax*(this.nitroOn?1.24:1)) Te=Math.min(Te,0);
     // fuel / battery: burn with load and revs; an empty tank kills the drive
     if(this.fuel<=0) Te=Math.min(Te,0);
-    { const rr=Math.min(1,this.rpm/P.redline); let use=(P.ev?0.00008:0.0004)+0.0042*thr*(0.35+0.65*rr)*(this.nitroOn?1.8:1);
+    { const rr=Math.min(1,this.rpm/P.redline); let use=(P.ev?0.00005:0.00025)+0.0028*thr*(0.35+0.65*rr)*(this.nitroOn?1.8:1);
       if(P.ev && thr<0.05 && Math.abs(vLong)>3) use-=0.0006*Math.min(1,Math.abs(vLong)/15);   // regen puts a little back
       if(this.fuelUse!==false) this.fuel=Math.max(0,Math.min(1,this.fuel-use*dt)); }
     if(this.reversing && Math.abs(vLong)*3.6>=(P.ev?30:45)) Te=Math.min(Te,0);   // reverse speed limit   // electronic top-speed limiter
     if(P.ev) Te -= (1-thr)*P.regen*Math.min(1,Math.abs(vLong)/3);   // regenerative braking when you lift
-    else Te -= (1-thr)*45*(this.rpm/7000);              // engine braking
+    else Te -= (1-thr)*45*(this.rpm/7000)*Math.min(1,Math.abs(vLong)/3);   // engine braking (fades out at walking pace, so a car never creeps backwards at idle)
     let Fdrive = (this.shiftT>0||this.launch) ? 0 : Te*ratio*P.eff/P.r;
     if(this.reversing) Fdrive=-Fdrive;
 
@@ -186,7 +186,7 @@ export class Car {
     // gravity along the slope (mountain road): grade from the ground height under both axles
     if(this.world.ground){ const gF=this.world.ground(fx,fy), gR=this.world.ground(rx,ry), grade=(gF-gR)/(P.a+P.b);
       if(Math.abs(grade)>0.004){ let sl=-G*grade/Math.sqrt(1+grade*grade);
-        if(speed<0.4 && (this.brake>0.2||this.hand>0.5||(this.throttle<0.05&&!this.reversing&&this.gear===1&&speed<0.05&&Math.abs(sl)<1.2))) sl=0;   // brakes / handbrake hold the car on the hill
+        if(speed<0.4 && (this.brake>0.2||this.hand>0.5||(this.throttle<0.05&&Math.abs(sl)<1.5))) sl=0;   // brakes / handbrake hold the car on the hill
         this.vx += ca*sl*dt; this.vy += sa*sl*dt; } }
     this.yawRate += torque/P.inertia*dt;
     // stability control (assists): pull yaw toward the driver's intent, not while handbraking

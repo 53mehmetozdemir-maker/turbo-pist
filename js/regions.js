@@ -123,7 +123,7 @@ export function terrainH(x, y) {
   let h = Math.max(natural(x, y), ridge(x, y) * smooth(1170, 1200, x));
   const ds = Math.hypot(x - SUMMIT.x, y - SUMMIT.y);
   if (ds < SUMMIT.r + 6) { const w = smooth(SUMMIT.r, SUMMIT.r + 6, ds); h = SUMMIT.h + 0.05 + (h - SUMMIT.h - 0.05) * w; }
-  const n = nearestMtn(x, y); if (n) { const w = smooth(MTN_HALF + 0.8, MTN_HALF + 3, n.d); h = n.h + 0.04 + (h - n.h - 0.04) * w; }
+  const n = nearestMtn(x, y); if (n) { const w = smooth(MTN_HALF + 0.8, MTN_HALF + 3 + Math.min(14, Math.abs(h - n.h) * 1.2), n.d); h = n.h + 0.04 + (h - n.h - 0.04) * w; }
   return h;
 }
 
@@ -149,7 +149,7 @@ export function regionName(x, y) {
   if ((x > PAD.x0 - 5 && x < PAD.x1 && y > PAD.y0 && y < PAD.y1) || distSeg(x, y, padLink.a[0], padLink.a[1], padLink.b[0], padLink.b[1]) < 9) return { name: 'TP Drift Park & Otopark', area: 'Drift Alanı' };
   if (x > 1170) { if (Math.hypot(x - SUMMIT.x, y - SUMMIT.y) < SUMMIT.r + 8) return { name: 'Zirve Seyir Terası', area: 'Dağ Yolu · ' + Math.round(MTN_TOP) + ' m' }; const n = nearestMtn(x, y, 1); if (n && n.d < 14) return { name: 'Kartal Tepe Dağ Yolu', area: 'Dağ Yolu · ' + Math.round(n.h) + ' m' }; return { name: 'Kartal Tepe', area: 'Dağlık Alan' }; }
   if (x < RING.x0 - HW_HALF) return { name: 'Altın Kum Plajı', area: 'Sahil' };
-  return { name: 'Şehir Dışı', area: 'Kırsal' };
+  return { name: 'Kırsal alan', area: 'Şehir dışı' };
 }
 
 // ---------------- collisions (segment walls) ----------------
@@ -223,6 +223,9 @@ export function buildRegions(scene, quality, grassMat) {
   if (grassMat) for (const [x0, y0, x1, y1] of [[-168, WORLD_MIN, 1172, WORLD_MAX], [1170, 898, WORLD_MAX, WORLD_MAX]]) { const m = grassMat.clone(); m.map = grassMat.map.clone(); m.map.repeat.set((x1 - x0) / 10, (y1 - y0) / 10); m.map.needsUpdate = true;
     const g = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, y1 - y0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, -0.02, (y0 + y1) / 2), m); g.receiveShadow = true; group.add(g); }
   const low = quality === 'low';
+  const poolTex = canvasTex(128, 128, (c, w, h) => { const gr = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); }, false);
+  const pools = []; const poolMat = (col, k) => { const m = new THREE.MeshBasicMaterial({ map: poolTex, color: col, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 }); m.userData.k = k; pools.push(m); return m; };
+  const poolGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const std = o => new THREE.MeshStandardMaterial(o);
   const hwTex = roadTex('hw'), r2Tex = roadTex('road2'), mtTex = roadTex('mtn'), padTex = canvasTex(1024, 1024, (g, w, h) => { asphalt(g, w, h, '#36383c');
     for (let i = 0; i < 60; i++) { g.strokeStyle = `rgba(12,12,12,${0.15 + rnd() * 0.3})`; g.lineWidth = 6 + rnd() * 8; g.beginPath(); const cx = rnd() * w, cy = rnd() * h, r = 60 + rnd() * 260; g.arc(cx, cy, r, rnd() * 6, rnd() * 6 + 1 + rnd() * 3); g.stroke(); } });   // tyre marks
@@ -269,7 +272,11 @@ export function buildRegions(scene, quality, grassMat) {
   // ---- terrain: mountain heightfield with grass/rock colouring ----
   { const X0 = 1170, X1 = WORLD_MAX, Y0 = WORLD_MIN, Y1 = 900, st = low ? 14 : 9; const nx = Math.ceil((X1 - X0) / st), ny = Math.ceil((Y1 - Y0) / st);
     const g = new THREE.PlaneGeometry(X1 - X0, Y1 - Y0, nx, ny).rotateX(-Math.PI / 2); const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i) + (X0 + X1) / 2, y = pos.getZ(i) + (Y0 + Y1) / 2; const h = terrainH(x, y); pos.setXYZ(i, x, h - 0.04, y); }
+    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i) + (X0 + X1) / 2, y = pos.getZ(i) + (Y0 + Y1) / 2; let h = terrainH(x, y) - 0.04;
+      // the coarse grid must never poke up through the road: vertices near the road sit just below it
+      const n = nearestMtn(x, y, 1); if (n && n.d < MTN_HALF + st) h = Math.min(h, n.h - 0.12 - Math.max(0, MTN_HALF + st - n.d) * 0.02);
+      const ds = Math.hypot(x - SUMMIT.x, y - SUMMIT.y); if (ds < SUMMIT.r + st) h = Math.min(h, SUMMIT.h - 0.1);
+      pos.setXYZ(i, x, h, y); }
     g.computeVertexNormals(); const nrm = g.attributes.normal;
     for (let i = 0; i < pos.count; i++) { const ny2 = nrm.getY(i), h = pos.getY(i), rock = smooth(0.86, 0.7, ny2) * 0.9 + smooth(110, 170, h) * 0.6, k = Math.min(1, rock); const v = 0.9 + hash2(i, 3) * 0.2;
       col[i * 3] = (0.42 * (1 - k) + 0.55 * k) * v; col[i * 3 + 1] = (0.55 * (1 - k) + 0.52 * k) * v; col[i * 3 + 2] = (0.3 * (1 - k) + 0.48 * k) * v; }
@@ -338,7 +345,8 @@ export function buildRegions(scene, quality, grassMat) {
     // light masts with glowing heads, a grandstand and the park sign
     const mastM = std({ color: 0x9aa0a6, roughness: 0.5, metalness: 0.7 }), headM = std({ color: 0x222, emissive: 0xfff4e0, emissiveIntensity: 0.2 }); headM.userData.base = 0.2; headM.userData.night = 3; glow.push(headM);
     for (const [x, y] of [[PAD.x0 + 6, PAD.y0 + 30], [PAD.x1 - 6, PAD.y0 + 30], [PAD.x0 + 6, PAD.y1 - 6], [PAD.x1 - 6, PAD.y1 - 6], [(PAD.x0 + PAD.x1) / 2, PAD.y1 - 6]]) { const m = mesh(new THREE.CylinderGeometry(0.18, 0.3, 18, 8).translate(x, 9, y), mastM); group.add(m);
-      const h = mesh(new THREE.BoxGeometry(2.6, 0.5, 1.2).translate(x, 18.2, y), headM); group.add(h); }
+      const h = mesh(new THREE.BoxGeometry(2.6, 0.5, 1.2).translate(x, 18.2, y), headM); group.add(h);
+      const pl = mesh(poolGeo.clone().scale(80, 1, 80).translate(x + (x < 1300 ? 25 : x > 1400 ? -25 : 0), 0.07, y + (y < 950 ? 25 : -25)), poolMat(0xfff4e0, 0.38), false, false); pl.renderOrder = 3; group.add(pl); }
     const stand = new THREE.Group(); for (let k = 0; k < 5; k++) stand.add(mesh(new THREE.BoxGeometry(34, 0.5, 1.4).translate(0, 0.25 + k * 0.55, k * 1.3), std({ color: k % 2 ? 0x9aa0a6 : 0xb5bbc1, roughness: 0.8 })));
     stand.add(mesh(new THREE.BoxGeometry(34, 0.2, 7).translate(0, 4.6, 2.6), std({ color: 0xd62828, roughness: 0.6 }))); for (const s of [-16.5, 16.5]) stand.add(mesh(new THREE.BoxGeometry(0.2, 4.6, 0.2).translate(s, 2.3, 5.8), mastM));
     stand.position.set(1330, 0, PAD.y1 + 3); group.add(stand);
@@ -351,6 +359,9 @@ export function buildRegions(scene, quality, grassMat) {
     const heads = new THREE.InstancedMesh(headG, lm, N); const M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3(); let n = 0;
     for (let i = 0; i < ringF.length && n < N; i += 12) { const f = ringF[i]; if (atJoin(HW_HALF + 14)(f)) continue; q.setFromAxisAngle(up, -Math.atan2(f.ty, f.tx)); pv.set(f.x, 0.8, f.y); M4.compose(pv, q, one); poles.setMatrixAt(n, M4); heads.setMatrixAt(n, M4); n++; }
     poles.count = heads.count = n; group.add(poles, heads);
+    { const PI = new THREE.InstancedMesh(poolGeo, poolMat(0xffd9a0, 0.42), n * 2); const sc = new THREE.Vector3(18, 1, 18); let m = 0; const tmp = new THREE.Matrix4(), M5 = new THREE.Matrix4();
+      let k2 = 0; for (let i = 0; i < ringF.length && k2 < n * 2; i += 12) { const f = ringF[i]; if (atJoin(HW_HALF + 14)(f)) continue; for (const sg of [-1, 1]) { pv.set(f.x + f.nx * sg * 6, 0.06, f.y + f.ny * sg * 6); M5.compose(pv, q.identity(), sc); PI.setMatrixAt(k2++, M5); } }
+      PI.count = k2; PI.renderOrder = 3; group.add(PI); }
     // gantries
     const gantry = (s, dir, lines) => { const f = ringF[Math.round(s / 4) % ringF.length]; const gr = new THREE.Group(); const gm = std({ color: 0x9aa0a6, roughness: 0.5, metalness: 0.6 });
       for (const o of [-1, 1]) gr.add(mesh(new THREE.BoxGeometry(0.35, 7.6, 0.35).translate(0, 3.8, o * (HW_HALF + 1)), gm)); gr.add(mesh(new THREE.BoxGeometry(0.5, 0.8, HW_HALF * 2 + 2.4).translate(0, 7.2, 0), gm));
@@ -362,7 +373,7 @@ export function buildRegions(scene, quality, grassMat) {
     gantry(sAt(720, RING.y1), 1, [['SAHİL YOLU ↑', 'Altın Kum Plajı 2 km'], ['ŞEHİR MERKEZİ →', 'Güney Çıkışı 200 m']]);
     gantry(sAt(RING.x0, 720), 1, [['KUZEY OTOYOLU ↑', 'Dağ Yolu 4 km'], ['ŞEHİR MERKEZİ →', 'Sahil Çıkışı 200 m']]); }
   if (posts.length) { const PI = new THREE.InstancedMesh(postGeo, steel, posts.length); const M4 = new THREE.Matrix4(); posts.forEach((p, i) => { M4.makeTranslation(p[0], p[1], p[2]); PI.setMatrixAt(i, M4); }); group.add(PI); }
-  function setNight(f) { for (const m of glow) m.emissiveIntensity = m.userData.base + (m.userData.night - m.userData.base) * f; }
+  function setNight(f) { for (const m of glow) m.emissiveIntensity = m.userData.base + (m.userData.night - m.userData.base) * f; for (const m of pools) m.opacity = m.userData.k * f; }
   return { group, setNight };
 }
 function mesh(g, m, cast = false, recv = true) { const o = new THREE.Mesh(g, m); o.castShadow = cast; o.receiveShadow = recv; return o; }

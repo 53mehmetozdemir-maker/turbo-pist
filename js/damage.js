@@ -19,7 +19,7 @@ function deformables(m) {
 const _v = new THREE.Vector3(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3();
 // lx, lz: impact point in car coordinates (x forward, z right); strength 0..3
 export function dentModel(m, lx, lz, strength, halfL = 2.2, halfW = 0.95) {
-  if (!m || !m.body) return; const D = deformables(m);
+  if (!m || !m.body || m.bike) return; const D = deformables(m);
   const R = 0.35 + 0.22 * strength, amt = 0.05 * strength, maxOff = 0.16;
   // push direction: from the impact point towards the middle of the car (mostly horizontal)
   const dir = new THREE.Vector3(-lx / halfL, 0, -lz / halfW); if (dir.lengthSq() < 1e-6) dir.set(-1, 0, 0); dir.normalize();
@@ -34,7 +34,7 @@ export function dentModel(m, lx, lz, strength, halfL = 2.2, halfW = 0.95) {
     if (!D.orig.has(o)) { g = o.geometry = g.clone(); D.orig.set(o, new Float32Array(g.attributes.position.array)); }
     const a = o.geometry.attributes.position.array, O = D.orig.get(o); let changed = false; const R2 = Rl * Rl;
     for (let i = 0; i < a.length; i += 3) { const dx = a[i] - _p.x, dy = (a[i + 1] - _p.y) * 0.6, dz = a[i + 2] - _p.z; const d2 = dx * dx + dy * dy + dz * dz; if (d2 > R2) continue;
-      const f = 1 - Math.sqrt(d2) / Rl, k = amtL * f * f * (0.75 + 0.5 * Math.abs(Math.sin(O[i] * 37 / sc + O[i + 2] * 53 / sc)));
+      const f = 1 - Math.sqrt(d2) / Rl, w = f * f * (3 - 2 * f), k = amtL * w * (0.88 + 0.12 * Math.sin(O[i] * 4.1 * sc + O[i + 2] * 3.3 * sc));   // smooth bowl-shaped dent, gentle low-frequency variation
       a[i] += _d.x * k; a[i + 1] += _d.y * k - k * 0.2; a[i + 2] += _d.z * k;
       const ox = a[i] - O[i], oy = a[i + 1] - O[i + 1], oz = a[i + 2] - O[i + 2], ol = Math.hypot(ox, oy, oz); if (ol > maxL) { const s = maxL / ol; a[i] = O[i] + ox * s; a[i + 1] = O[i + 1] + oy * s; a[i + 2] = O[i + 2] + oz * s; }
       changed = true; }
