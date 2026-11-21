@@ -101,6 +101,20 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
 .ldbar div{height:100%;width:35%;border-radius:4px;background:linear-gradient(90deg,#ffd32a,#ff4757);animation:ld 1.2s ease-in-out infinite}
 @keyframes ld{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
 .ldm{font-size:13px;opacity:.65}
+#wallet{position:absolute;top:62px;left:12px;padding:7px 12px;border-radius:10px;background:rgba(8,10,14,.7);font:800 15px Inter,sans-serif;color:#9ee6a8;pointer-events:none}
+#wallet small{color:rgba(255,255,255,.55);font-weight:600;margin-left:6px}
+#wpInfo{position:absolute;top:98px;left:12px;padding:6px 11px;border-radius:10px;background:rgba(124,58,237,.85);font:700 13px Inter,sans-serif;color:#fff;pointer-events:none}
+#svcPrompt{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);padding:12px 18px;border-radius:14px;background:rgba(8,10,14,.82);border:1px solid rgba(255,255,255,.15);font:600 15px Inter,sans-serif;color:#fff;text-align:center;min-width:280px;pointer-events:auto}
+#svcPrompt b{font-weight:800} #svcPrompt .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);margin-top:8px;overflow:hidden} #svcPrompt .bar i{display:block;height:100%;background:#22c55e;width:0}
+#svcPrompt button{margin-top:8px;padding:8px 16px;font-size:14px}
+#bigMap{position:fixed;inset:0;background:rgba(5,7,11,.88);z-index:50;display:flex;gap:18px;padding:24px;box-sizing:border-box}
+#bigMap canvas{flex:1;min-width:0;height:100%;border-radius:14px;cursor:crosshair;background:#2c3a28}
+#bigMap .side{width:270px;display:flex;flex-direction:column;gap:8px;color:#fff;font:600 14px Inter,sans-serif;overflow:auto}
+#bigMap .side h3{margin:0 0 4px;font:800 20px Inter,sans-serif} #bigMap .side p{margin:0 0 6px;color:rgba(255,255,255,.6);font-size:12px}
+#bigMap .item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.07);cursor:pointer;border:1px solid transparent}
+#bigMap .item:hover,#bigMap .item.on{border-color:#a78bfa;background:rgba(167,139,250,.18)} #bigMap .item .ic{font-size:20px} #bigMap .item small{display:block;color:rgba(255,255,255,.55);font-weight:500}
+#bigMap .close{margin-top:auto}
+@media (max-width:760px){ #bigMap{flex-direction:column;padding:10px} #bigMap .side{width:auto;max-height:34vh} }
 </style>
 </head>
 <body>
@@ -122,6 +136,7 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
   <canvas id="mini" width="190" height="190"></canvas>
   <div id="street" class="hidden"><div id="stName"></div><div id="stDist"></div></div>
   <div id="freeBar" class="box hidden"><span id="freeInfo"></span><button class="sec" id="freeCopy">🔗 Davet</button><button class="sec hidden" id="freeGo">👋 Arkadaşına git (T)</button></div>
+  <div id="wallet" class="hidden">₺ 0</div><div id="wpInfo" class="hidden"></div><div id="svcPrompt" class="hidden"></div>
   <div id="br"><canvas id="gauge" width="300" height="220"></canvas></div>
   <div id="bl"><span id="hNet"></span></div>
   <div id="lights" class="hidden"><div></div><div></div><div></div><div></div><div></div></div>
@@ -170,7 +185,10 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
       <span><kbd>L</kbd></span><span>Farlar</span>
       <span><kbd>R</kbd></span><span>Yola geri dön</span>
       <span><kbd>Esc</kbd></span><span>Duraklat / menü</span>
-      <span><kbd>M</kbd></span><span>Ses aç/kapa</span>
+      <span><kbd>M</kbd></span><span>Harita: benzinlik ⛽, şarj ⚡, tamirci 🔧 · tıkla, rota çizilsin</span>
+      <span><kbd>F</kbd></span><span>Benzinlikte yakıt al / şarj et · tamircide tamir ettir (dururken)</span>
+      <span><kbd>G</kbd></span><span>Yakıt bitince çekici çağır</span>
+      <span><kbd>K</kbd></span><span>Ses aç/kapa</span>
       <span>🎮</span><span>Oyun kolu: sol çubuk, RT/LT, A el freni, B nitro, Y kamera, LB/RB vites</span>
     </div>
   </details>
@@ -215,6 +233,7 @@ kbd{font:600 11px Inter;background:rgba(255,255,255,.14);border-radius:5px;paddi
   <div class="note" id="pauseNote">Esc ile devam edebilirsin.</div>
 </div>
 <div id="toast" style="opacity:0"></div>
+<div id="bigMap" class="hidden"><canvas id="bigMapC"></canvas><div class="side"><h3>🗺️ Harita</h3><p>Bir yere tıkla ya da listeden seç: rota çizilir. Kapatmak için M veya Esc.</p><div id="bmList"></div><button class="sec" id="bmClear">Rotayı kaldır</button><button class="close" id="bmClose">Kapat (M)</button></div></div>
 
 <div id="touch" class="hidden">
   <div class="grp"><div class="tb" data-k="left">◀</div><div class="tb" data-k="right">▶</div></div>

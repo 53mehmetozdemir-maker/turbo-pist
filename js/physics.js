@@ -26,10 +26,12 @@ const CUT = () => !P.ev;
 export class Car {
   constructor(){ this.reset(0,0,0); this.manual=false; this.assists=true; }
   reset(x,y,a){
+    const keep=this.fuelUse? {fuel:this.fuel??1,damage:this.damage??0}:null;
     Object.assign(this,{ x,y,a, vx:0, vy:0, yawRate:0, steer:0, gear:1, rpm:P.idle, shiftT:0, clutch:1,
-      throttle:0, brake:0, hand:0, axPrev:0, ayPrev:0, nitro:1, nitroOn:false, damage:0, hint:-1,
+      throttle:0, brake:0, hand:0, axPrev:0, ayPrev:0, nitro:1, nitroOn:false, damage:0, fuel:1, odo:0, hint:-1,
       wheelSpin:[0,0,0,0], wheelAng:[0,0,0,0], slipF:0, slipR:0, spinR:0, surfF:0, surfR:0, lat:0,
       impact:0, impactAt:null, scrape:0, bump:0, bumpV:0, hitV:0, kerb:0, speed:0, vLong:0, vLat:0, pitch:0, rollA:0, reversing:false });
+    if(keep) Object.assign(this,keep);
   }
   get kmh(){ return Math.round(Math.abs(this.vLong)*3.6); }
   gearLabel(){ if(P.ev) return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 ? 'P' : 'D'); return this.reversing ? 'R' : (this.speed<0.5 && this.throttle===0 && this.gear===1 ? 'N' : String(this.gear)); }
@@ -111,6 +113,11 @@ export class Car {
     if(this.cutT>0) Te=0;                               // limiter cut
     if(wheelRpm*ratio>=P.redline-20) Te=Math.min(Te,0);  // engine at the limiter: no more drive, the car can't go faster in this gear
     if(P.vmax && Math.abs(vLong)*3.6>=P.vmax*(this.nitroOn?1.24:1)) Te=Math.min(Te,0);
+    // fuel / battery: burn with load and revs; an empty tank kills the drive
+    if(this.fuel<=0) Te=Math.min(Te,0);
+    { const rr=Math.min(1,this.rpm/P.redline); let use=(P.ev?0.00008:0.0004)+0.0042*thr*(0.35+0.65*rr)*(this.nitroOn?1.8:1);
+      if(P.ev && thr<0.05 && Math.abs(vLong)>3) use-=0.0006*Math.min(1,Math.abs(vLong)/15);   // regen puts a little back
+      if(this.fuelUse!==false) this.fuel=Math.max(0,Math.min(1,this.fuel-use*dt)); }
     if(this.reversing && Math.abs(vLong)*3.6>=(P.ev?30:45)) Te=Math.min(Te,0);   // reverse speed limit   // electronic top-speed limiter
     if(P.ev) Te -= (1-thr)*P.regen*Math.min(1,Math.abs(vLong)/3);   // regenerative braking when you lift
     else Te -= (1-thr)*45*(this.rpm/7000);              // engine braking

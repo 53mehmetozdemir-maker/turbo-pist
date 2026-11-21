@@ -53,7 +53,7 @@ export function streetName(x, y) {
   const onV = Math.abs(x - kx * P) < ROAD / 2 + SW && kx >= 0 && kx <= NB, onH = Math.abs(y - ky * P) < ROAD / 2 + SW && ky >= 0 && ky <= NB;
   if (onV && onH) return V_NAMES[kx] + ' / ' + H_NAMES[ky];
   if (onH) return H_NAMES[ky]; if (onV) return V_NAMES[kx];
-  const b = blockAt(x, y); if (b) return b.type === 'park' ? 'Park' : b.type === 'lot' ? 'Otopark' : (b.district === 'downtown' ? 'Şehir Merkezi' : b.district === 'mid' ? 'Çarşı' : 'Mahalle');
+  const b = blockAt(x, y); if (b) return b.type === 'park' ? 'Park' : b.type === 'lot' ? (b.serviceName || 'Otopark') : (b.district === 'downtown' ? 'Şehir Merkezi' : b.district === 'mid' ? 'Çarşı' : 'Mahalle');
   return 'Şehir dışı';
 }
 export function district(x, y) { const r = Math.hypot(x / P - NB / 2, y / P - NB / 2); return r < 2 ? 'Şehir Merkezi' : r < 3.7 ? 'Çarşı' : 'Mahalle'; }
@@ -243,7 +243,7 @@ export function buildCity(scene, quality, fleet) {
     }
   }
   // parking lot stalls
-  for (const b of blocks) if (b.type === 'lot') { for (let row = 0; row < 3; row++) { const z = b.y0 + 12 + row * 22; for (let x = b.x0 + 8; x < b.x0 + BL - 8; x += 2.8) { colQuad(mk, x, z - 2.6, x + 0.12, z + 2.6, 0.17, WHITE); } } }
+  for (const b of blocks) if (b.type === 'lot' && !b.service) { for (let row = 0; row < 3; row++) { const z = b.y0 + 12 + row * 22; for (let x = b.x0 + 8; x < b.x0 + BL - 8; x += 2.8) { colQuad(mk, x, z - 2.6, x + 0.12, z + 2.6, 0.17, WHITE); } } }
   const marks = new THREE.Mesh(mk.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   marks.receiveShadow = true; group.add(marks);
 
@@ -421,7 +421,7 @@ export function buildCity(scene, quality, fleet) {
 
   // ---- parked cars in lots ----
   const parked = [];
-  if (fleet) for (const b of blocks) if (b.type === 'lot') for (let row = 0; row < 3; row++) { const z = b.y0 + 12 + row * 22; for (let x = b.x0 + 8; x < b.x0 + BL - 10; x += 2.8) { if (rnd() < 0.35) continue;
+  if (fleet) for (const b of blocks) if (b.type === 'lot' && !b.service) for (let row = 0; row < 3; row++) { const z = b.y0 + 12 + row * 22; for (let x = b.x0 + 8; x < b.x0 + BL - 10; x += 2.8) { if (rnd() < 0.35) continue;
         const kind = pick(['sedan', 'sedan', 'suv', 'hatch', 'hatch', 'van']); const S = fleet.shape(kind); const cx = x + 1.4, cz = z + (rnd() < 0.5 ? 0 : 0);
         const id = fleet.add(kind, pick(CAR_COLORS)); const a = rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2; fleet.items[id].h = CURB + 0.005; fleet.items[id].parked = true; fleet.set(id, cx, cz, a, false); parked.push(id);
         b.boxes.push([cx - 0.95, cz - S.L / 2, cx + 0.95, cz + S.L / 2]); } }

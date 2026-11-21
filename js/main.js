@@ -10,6 +10,8 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { TP, N, WORLD, buildTrack, drawMinimapTrack, nearest, trackWorld } from './track.js';
 import { buildCar, dentCar, repairCar, drawGauges, CAR, makeFleet, loadCarModel } from './car.js';
+import { buildServices, SERVICE_STYLE } from './services.js';
+import { dentModel, crackWindscreen, repairModel, breakLamps } from './damage.js';
 import { Car, OPTS as PHYS, setSpec, P as SPEC } from './physics.js';
 import { VEHICLES, VEHICLE_IDS, loadVehicle, buildVehicle, vehicleReady } from './vehicles.js';
 import { CarAudio } from './audio.js';
@@ -22,6 +24,9 @@ const $=id=>document.getElementById(id);
 const COLORS=['#e8202a','#1f6fe0','#ff9f1a','#20b956','#8e44ef','#f1f2f6','#202226','#ffd400'];
 const LAPS=3, TRAFFIC_N=50;
 const store={ get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} } };
+// save game: money, per-vehicle fuel & damage, distance, best laps (settings live in their own keys)
+const SAVE=(()=>{ try{ return JSON.parse(store.get('tp8_save'))||{}; }catch(e){ return {}; } })();
+SAVE.money??=2500; SAVE.veh??={}; SAVE.km??=0; SAVE.best??={};
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
 const settings={
@@ -85,7 +90,8 @@ function ensureWorld(map){
   else { const c=buildCity(scene,settings.quality,fleet); const traffic=new Traffic(fleet,TRAFFIC_N);
     const peds=new Pedestrians(scene,110);   // same crowd for every player (positions follow the shared clock)
     const lampLights=[]; if(settings.quality!=='low') for(let k=0;k<6;k++){ const L=new THREE.PointLight(0xffe2bf,0,32,1.6); scene.add(L); lampLights.push(L); }
-    worlds.city={kind:'city',group:c.group,city:c,traffic,peds,phys:cityWorld,lampLights,map:cityMapCanvas()}; }
+    const svc=buildServices(c.group); const map=cityMapCanvas(); drawServiceIcons(map,svc.list);
+    worlds.city={kind:'city',group:c.group,city:c,svc,traffic,peds,phys:cityWorld,lampLights,map,services:svc.list}; }
   return worlds[map];
 }
 let W=null;   // active world
@@ -125,7 +131,7 @@ function applyTime(t){
   // reflections & ambient light from a real HDR photo of the sky
   scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=t==='night'?0.06:0.35;
   const want=t; if(rainy && t!=='night'){ scene.environmentIntensity=t==='day'?0.55:0.35; } else loadEnv(t).then(e=>{ if(e && settings.time===want && !wet){ scene.environment=e; scene.environmentIntensity=(t==='day'?0.9:t==='dusk'?0.85:0.9)*(wet?0.6:1); } });
-  for(const k in worlds) if(worlds[k].city){ worlds[k].city.setNight(nightF); worlds[k].city.setHaze(t,rainy); }
+  for(const k in worlds) if(worlds[k].city){ worlds[k].city.setNight(nightF); worlds[k].svc&&worlds[k].svc.setNight(nightF); worlds[k].city.setHaze(t,rainy); }
   smoke.mat.uniforms.lit.value=t==='night'?0.32:t==='dusk'?0.75:1;
   fleet.night=nightF>0.5; headlightsOn=nightF>0.5;
   if(bloom){ bloom.enabled=nightF>0; bloom.strength=nightF===1?0.32:0.18; bloom.radius=0.35; bloom.threshold=nightF===1?0.96:1.05; }
@@ -274,7 +280,7 @@ function updateReflections(){
 function setMyColor(c){ settings.color=c; model.paint.color.set(c); }
 // swap the player's car: real model, real figures
 async function setVehicle(id){
-  if(!VEHICLES[id]) return; settings.vehicle=id; store.set('tp7_veh',id); renderVehicleCards();
+  if(!VEHICLES[id]) return; if(phys.fuelUse){ SAVE.veh[settings.vehicle]={fuel:+(phys.fuel??1).toFixed(4),damage:+phys.damage.toFixed(1)}; store.set('tp8_save',JSON.stringify(SAVE)); } settings.vehicle=id; store.set('tp7_veh',id); renderVehicleCards();
   if(!vehicleReady(id)){ toast(VEHICLES[id].name+' yükleniyor…',1500); const ok=await loadVehicle(id); if(!ok){ toast('Araç yüklenemedi',2500); return; } if(settings.vehicle!==id) return; }
   const old=model; const nm=makeVehicleModel(id,settings.color);
   scene.remove(old.root); model=nm; scene.add(model.root); model.body.add(headSpot); model.body.add(headTarget); attachMirrors();
@@ -531,7 +537,7 @@ function startFree(){
   const k=Math.floor(Math.random()*8); const i=1+Math.floor(Math.random()*8);
   let sp=[{x:i*CP+30,y:k*CP+LANES[1],a:0},{x:k*CP-LANES[1],y:i*CP+30,a:Math.PI/2}][Math.random()<0.5?0:1];
   const fr=online&&friendSpot(); if(fr) sp=fr;
-  phys.reset(sp.x,sp.y,sp.a); phys.manual=settings.manual; phys.assists=settings.assists;
+  phys.reset(sp.x,sp.y,sp.a); phys.manual=settings.manual; phys.assists=settings.assists; repairModel(model); loadVehState(); phys.fuelUse=true;
   mode='free'; show(null); hud(true); camInit=false; lastModeT=performance.now();
   toast(online?`Şehirde arkadaşlarınla · Arkadaşına git (T) · ${CAM_NAMES[camMode]} (C) · Esc menü`:`Şehirde serbest sürüş · ${CAM_NAMES[camMode]} (C) · Korna (H) · Esc menü`,4500);
   if(online) net.set({...myPres(), st:'free', ready:false, raceId:null, map:net.isHost?'city':undefined});
@@ -542,7 +548,7 @@ function gridPos(slot){ const row=Math.floor(slot/2), col=slot%2; const gi=(N-6-
 function startRace(r){
   useWorld('track'); raceId=r.id; racers=r.p.slice(0,8); clearRemotes(); skids.clear(); repairCar(model);
   const me_id=online?net.myId:'me'; const g=gridPos(Math.max(0,racers.indexOf(me_id)));
-  phys.reset(g.x,g.y,g.a); phys.manual=settings.manual; phys.assists=settings.assists; phys.hint=g.i;
+  phys.reset(g.x,g.y,g.a); phys.manual=settings.manual; phys.assists=settings.assists; phys.hint=g.i; repairModel(model); phys.fuelUse=false; phys.damage=0; phys.fuel=1;
   Object.assign(me,{lap:0,cp:0,idx:g.i,prevIdx:g.i,fin:false,ft:0}); lastLap=0; bestLap=0; elapsed=0; resultsShown=false; lightsShown=-1;
   mode='countdown'; countStart=performance.now(); show(null); hud(true); $('lights').classList.remove('hidden');
   toast(`${CAM_NAMES[camMode]} · C ile değiştir`,2500);
@@ -567,9 +573,10 @@ function lapLogic(){
   if(me.cp<3){ const lo=Math.floor((me.cp+1)*N/4); if(ni>=lo && ni<lo+Math.floor(N*0.12)) me.cp++; }
   else if(me.prevIdx>N*0.85 && ni<N*0.15){
     const now=performance.now(); const lt=now-lapStart; lapStart=now; lastLap=lt; if(!bestLap||lt<bestLap) bestLap=lt;
+    const rec=SAVE.best[settings.vehicle]; let pb=false; if(!rec||lt<rec){ SAVE.best[settings.vehicle]=Math.round(lt); pb=!!rec; store.set('tp8_save',JSON.stringify(SAVE)); }
     me.lap++; me.cp=0;
-    if(me.lap>=LAPS){ me.fin=true; me.ft=elapsed; toast('🏁 Bitiş! '+fmt(elapsed),3500); setTimeout(showResults,1500); }
-    else toast((lt===bestLap?'🟣 En iyi tur ':'Tur ')+fmt(lt)+(me.lap===LAPS-1?' · Son tur! 🔥':''),3000);
+    if(me.lap>=LAPS){ me.fin=true; me.ft=elapsed; const pos=1+[...remotes.values()].filter(r=>r.fin&&r.ft<elapsed).length; const prize=[1500,900,600,400][Math.min(3,pos-1)]; SAVE.money+=prize; store.set('tp8_save',JSON.stringify(SAVE)); toast('🏁 Bitiş! '+fmt(elapsed)+' · Ödül '+money(prize),3500); setTimeout(showResults,1500); }
+    else toast((pb?'🏆 Rekor! ':lt===bestLap?'🟣 En iyi tur ':'Tur ')+fmt(lt)+(me.lap===LAPS-1?' · Son tur! 🔥':''),3000);
   }
 }
 function showResults(){ resultsShown=true; show('results'); $('touch').classList.add('hidden'); $('againBtn').textContent=online?'Lobiye Dön':'Tekrar Yarış'; renderResults(); }
@@ -617,10 +624,14 @@ function readInput(){
 function handleEdges(){
   while(edges.length){ const k=edges.shift();
     if(k==='KeyC'){ camMode=(camMode+1)%3; store.set('tp3_cam',camMode); toast(CAM_NAMES[camMode],1500); }
-    else if(k==='KeyM'){ audio.setMuted(!audio.muted); toast(audio.muted?'Ses kapalı':'Ses açık',1200); }
+    else if(k==='KeyK'){ audio.setMuted(!audio.muted); toast(audio.muted?'Ses kapalı (K)':'Ses açık (K)',1200); }
+    else if(k==='KeyM'){ toggleBigMap(); }
+    else if(k==='KeyF'){ serviceAction(); }
+    else if(k==='KeyG'){ callTow(); }
     else if(k==='KeyL'){ headlightsOn=!headlightsOn; toast(headlightsOn?'Farlar açık':'Farlar kapalı',1000); }
     else if(k==='KeyR') respawn();
     else if(k==='KeyT') goToFriend();
+    else if(k==='Escape' && bigMapOpen){ toggleBigMap(false); }
     else if(k==='Escape' && (mode==='free'||mode==='race')){ setPause(!paused); }
     else if((k==='KeyE'||k==='KeyX') && phys.manual){ phys.shift(1); audio.shiftBlip(); }
     else if((k==='KeyQ'||k==='KeyZ') && phys.manual){ phys.shift(-1); audio.shiftBlip(); }
@@ -662,9 +673,10 @@ const _fw=new THREE.Vector3(), _cd=new THREE.Vector3();
 // a lamp only glows towards the side it shines to (no halos seen through the bodywork from the side)
 function facing(s,sign){ s.getWorldPosition(_lv); _cd.subVectors(camera.position,_lv).normalize(); return Math.max(0,Math.min(1,(_cd.dot(_fw)*sign-0.05)/0.45)); }
 function updateLamps(m,brake,lights,rev,isMe){ if(isMe&&window.__brk) brake=true; const L=ensureLamps(m); const t=performance.now(); _fw.set(1,0,0).transformDirection(m.body.matrixWorld);
-  for(const s of L.tail){ const w=s.userData.w, k=brake?1:lights?0.38:0; s.material.opacity=k*(brake?0.95:0.7)*facing(s,-1); const sz=Math.min(1.1,w*(brake?3.0:1.9)+0.12); s.scale.set(sz,sz,1); s.visible=k>0; }
-  for(const s of L.rev){ s.material.opacity=rev?0.9*facing(s,-1):0; s.visible=rev; s.scale.set(0.42,0.42,1); }
-  for(const s of L.head){ const w=s.userData.w, k=lights?1:0.22; s.material.opacity=(m.hasPopups?(lights?0.35:0.25):(lights?0.85:0.45))*facing(s,1); const sz=Math.min(1.4,w*(lights?3.4:1.5)+0.1); s.scale.set(sz,sz,1); s.visible=k>0; }
+  for(const s of [...L.tail,...L.head,...L.rev]) if(s.userData.broken) s.material.opacity=0;
+  for(const s of L.tail){ if(s.userData.broken){ s.visible=false; continue; } const w=s.userData.w, k=brake?1:lights?0.38:0; s.material.opacity=k*(brake?0.95:0.7)*facing(s,-1); const sz=Math.min(1.1,w*(brake?3.0:1.9)+0.12); s.scale.set(sz,sz,1); s.visible=k>0; }
+  for(const s of L.rev){ if(s.userData.broken){ s.visible=false; continue; } s.material.opacity=rev?0.9*facing(s,-1):0; s.visible=rev; s.scale.set(0.42,0.42,1); }
+  for(const s of L.head){ if(s.userData.broken){ s.visible=false; continue; } const w=s.userData.w, k=lights?1:0.22; s.material.opacity=(m.hasPopups?(lights?0.35:0.25):(lights?0.85:0.45))*facing(s,1); const sz=Math.min(1.4,w*(lights?3.4:1.5)+0.1); s.scale.set(sz,sz,1); s.visible=k>0; }
   if(isMe){ if(!lampLight){ lampLight=new THREE.PointLight(0xff2010,0,6,2); scene.add(lampLight); }
     if(L.tail.length){ L.tail[0].parent.localToWorld(_lv.set((L.tail[0].position.x-0.6),0.5,0)); lampLight.position.copy(_lv); }
     const want=(brake?2.2:lights?0.5:0)+(rev?0:0); lampLight.color.set(rev&&!brake?0xe8eeff:0xff2010); lampLight.intensity+=((rev&&!brake?1.6:want)-lampLight.intensity)*0.35; } }
@@ -766,12 +778,19 @@ function renderMini(){
     mctx.translate(w/2,h/2+18); mctx.rotate(-phys.a-Math.PI/2); mctx.scale(s,s); mctx.translate(-phys.x-M.offset,-phys.y-M.offset);
     mctx.drawImage(M.canvas,0,0);
     const dot=(x,y,c,r)=>{ mctx.fillStyle=c; mctx.beginPath(); mctx.arc(x+M.offset,y+M.offset,r/s,0,7); mctx.fill(); mctx.strokeStyle='#000'; mctx.lineWidth=1.5/s; mctx.stroke(); };
+    if(waypoint&&waypoint.route){ mctx.strokeStyle='rgba(167,139,250,.95)'; mctx.lineWidth=6/s; mctx.lineJoin='round'; mctx.lineCap='round'; mctx.beginPath(); routeFromPlayer().forEach((q,i)=>i?mctx.lineTo(q[0]+M.offset,q[1]+M.offset):mctx.moveTo(q[0]+M.offset,q[1]+M.offset)); mctx.stroke(); }
     if(W.traffic) for(const t of W.traffic.cars) dot(t.x,t.y,'rgba(230,230,230,.8)',2);
+    if(W.services) for(const sv of W.services) dot(sv.x,sv.y,SERVICE_STYLE[sv.kind].color,6);
+    if(waypoint) dot(waypoint.x,waypoint.y,'#a78bfa',7);
     for(const r of remotes.values()) dot(r.x,r.y,r.color,5);
     mctx.restore();
     // player arrow
     mctx.save(); mctx.translate(w/2,h/2+18); mctx.fillStyle=settings.color; mctx.strokeStyle='#fff'; mctx.lineWidth=2; mctx.beginPath(); mctx.moveTo(0,-9); mctx.lineTo(6,7); mctx.lineTo(0,3); mctx.lineTo(-6,7); mctx.closePath(); mctx.fill(); mctx.stroke(); mctx.restore();
     mctx.strokeStyle='rgba(0,0,0,.6)'; mctx.lineWidth=4; mctx.beginPath(); mctx.arc(w/2,h/2,Math.min(w,h)/2-2,0,7); mctx.stroke();
+    // service icons upright on the radar
+    if(W.services){ mctx.font='12px sans-serif'; mctx.textAlign='center'; mctx.textBaseline='middle'; const ca=Math.cos(-phys.a-Math.PI/2), sa=Math.sin(-phys.a-Math.PI/2);
+      for(const sv of [...W.services,...(waypoint?[{x:waypoint.x,y:waypoint.y,wp:1}]:[])]){ const dx=(sv.x-phys.x)*s, dy=(sv.y-phys.y)*s; let px=w/2+dx*ca-dy*sa, py=h/2+18+dx*sa+dy*ca; const R0=Math.min(w,h)/2-10, ddx=px-w/2, ddy=py-h/2, dd=Math.hypot(ddx,ddy); if(dd>R0){ px=w/2+ddx/dd*R0; py=h/2+ddy/dd*R0; }
+        mctx.fillStyle=sv.wp?'#7c3aed':SERVICE_STYLE[sv.kind].color; mctx.beginPath(); mctx.arc(px,py,8,0,7); mctx.fill(); mctx.fillStyle='#fff'; mctx.fillText(sv.wp?'📍':SERVICE_STYLE[sv.kind].icon,px,py+0.5); } }
     mctx.fillStyle='#fff'; mctx.font='bold 12px Inter'; mctx.textAlign='center'; const north=-phys.a-Math.PI/2-Math.PI/2; mctx.fillText('K',w/2+Math.cos(north)*(h/2-12),h/2+Math.sin(north)*(h/2-12)+4);
     return;
   }
@@ -815,7 +834,10 @@ function drawCluster(){
   if(!SPEC.ev && phys.rpm>red-700){ g.fillStyle=phys.rpm>red-150&&frameNo%8<4?'#ff2a2a':'#ff8c1a'; g.beginPath(); g.arc(cx,cy-R+30,4,0,Math.PI*2); g.fill(); }
   // nitro + damage (left)
   const bx=12, by=150; g.textAlign='left'; g.textBaseline='alphabetic';
-  g.fillStyle='rgba(8,10,14,.72)'; g.beginPath(); g.roundRect(bx-6,by-16,104,62,10); g.fill();
+  g.fillStyle='rgba(8,10,14,.72)'; g.beginPath(); g.roundRect(bx-6,by-36,104,82,10); g.fill();
+  { const f=phys.fuel??1, low=f<0.15; g.fillStyle='rgba(255,255,255,.6)'; g.font='700 9px Inter,sans-serif'; g.fillText(SPEC.ev?'ŞARJ':'YAKIT',bx,by-23);
+    g.fillStyle=low?(frameNo%30<15?'#ff5a4a':'#ff9a8a'):'#e8ebef'; g.font='800 11px Inter,sans-serif'; g.textAlign='right'; g.fillText(Math.round(f*100)+'%',bx+90,by-22); g.textAlign='left';
+    g.fillStyle='rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(bx,by-18,90,6,3); g.fill(); g.fillStyle=low?'#ff5a4a':SPEC.ev?'#4fb3ff':'#f5b83d'; g.beginPath(); g.roundRect(bx,by-18,Math.max(0.01,90*f),6,3); g.fill(); }
   g.fillStyle='rgba(255,255,255,.6)'; g.font='700 9px Inter,sans-serif'; g.fillText('NİTRO',bx,by-3);
   g.fillStyle='rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(bx,by+2,90,7,3.5); g.fill();
   const ng=g.createLinearGradient(bx,0,bx+90,0); ng.addColorStop(0,'#3a7bd5'); ng.addColorStop(1,'#66e0ff'); g.fillStyle=phys.nitroOn?'#a6f0ff':phys.nitroLock?'#5b6270':ng; g.beginPath(); g.roundRect(bx,by+2,Math.max(0.01,90*phys.nitro),7,3.5); g.fill();
@@ -824,6 +846,7 @@ function drawCluster(){
   g.fillStyle='rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(bx,by+31,90,4,2); g.fill(); g.fillStyle=dmg>60?'#ff6b5a':dmg>25?'#ffd32a':'#9ee6a8'; g.beginPath(); g.roundRect(bx,by+31,Math.max(0.01,0.9*dmg),4,2); g.fill();
 }
 function updateHud(){
+  if(frameNo%6===0){ $('wallet').classList.toggle('hidden',mode!=='free'); setText('wallet','₺ '+Math.floor(SAVE.money).toLocaleString('tr-TR')); }
   if(mode!=='free'){ const st=standings(), pos=st.findIndex(x=>x.me)+1;
     setText('hLap',Math.min(me.lap+1,LAPS)+'/'+LAPS); setText('hPos',pos+'/'+st.length);
     setText('hTime',fmt(me.fin?me.ft:elapsed)); setText('hLast',fmt(lastLap)); setText('hBest',fmt(bestLap));
@@ -833,6 +856,95 @@ function updateHud(){
   setText('hNet',fps+' FPS'+(online?(net.isHost?' · oda kurucusu':(net.ping!=null?' · '+net.ping+' ms':'')):'')+(phys.manual?' · manuel':'')+(phys.assists?'':' · yardımsız'));
   if(frameNo%2===0) renderMini();
 }
+
+// ================= save game · fuel · services · damage · map =================
+function saveGame(){ if(mode==='free') SAVE.veh[settings.vehicle]={fuel:+(phys.fuel??1).toFixed(4),damage:+phys.damage.toFixed(1)}; store.set('tp8_save',JSON.stringify(SAVE)); }
+setInterval(()=>{ if(mode==='free') saveGame(); },5000); addEventListener('beforeunload',saveGame);
+function loadVehState(){ const v=SAVE.veh[settings.vehicle]||{}; phys.fuel=v.fuel??1; phys.damage=v.damage??0; if(phys.damage>35) crackWindscreen(model,1+Math.floor((phys.damage-35)/20)); }
+const PRICE={fuel:1350,charge:420,repair:22,tow:250};   // full tank ₺, full battery ₺, ₺ per % damage, tow ₺
+const money=v=>'₺'+Math.round(v).toLocaleString('tr-TR');
+function onCrash(lx,lz,v){
+  const st=Math.min(3,v/8); dentModel(model,lx,lz,st,SPEC.hl||2.2,SPEC.hw||0.92);
+  if(v>9){ const n=breakLamps(model,lx,lz); if(n){ const w=worldOf(model,lx,0.7,lz); for(let k=0;k<10;k++) smoke.emit(w.x,w.y,w.z,(Math.random()-.5)*4+phys.vx*0.3,Math.random()*2,(Math.random()-.5)*4+phys.vy*0.3,{color:lx>0?[0.9,0.92,0.95]:[0.8,0.15,0.1],size:0.07,grow:0.2,life:0.6,alpha:0.9}); } }
+  if(phys.damage>35) crackWindscreen(model,1+Math.floor((phys.damage-35)/20)); }
+function drawServiceIcons(map,list){ const g=map.canvas.getContext('2d'); g.save(); g.translate(map.offset,map.offset);
+  for(const s of list){ const st=SERVICE_STYLE[s.kind]; g.fillStyle=st.color; g.globalAlpha=0.35; g.fillRect(s.rect[0],s.rect[1],s.rect[2]-s.rect[0],s.rect[3]-s.rect[1]); g.globalAlpha=1; } g.restore(); }
+function inRect(s){ const r=s.rect; return phys.x>r[0]&&phys.x<r[2]&&phys.y>r[1]&&phys.y<r[3]; }
+let svcBusy=null, odoAcc=0, fuelWarn=0;
+function currentService(){ if(W.kind!=='city'||!W.services) return null; return W.services.find(inRect)||null; }
+function serviceAction(){ const s=currentService(); if(!s||mode!=='free') return;
+  if(phys.speed>1.5){ toast('Önce dur',1200); return; }
+  if(s.kind==='repair'){ const cost=Math.ceil(phys.damage*PRICE.repair)+((model.lampsBroken||0)>0?150:0); if(phys.damage<0.5&&!(model.lampsBroken>0)){ toast('Araçta hasar yok 👍',1500); return; }
+    if(SAVE.money<cost){ toast('Para yetersiz: '+money(cost)+' gerekiyor',2200); return; } svcBusy={kind:'repair',t:0,dur:2.5,cost}; }
+  else { const ev=!!SPEC.ev; if((s.kind==='charge')!==ev){ toast(ev?'Bu araç elektrikli: ⚡ şarj noktasına git':'Bu araç benzinli: ⛽ pompaya git',2200); return; }
+    if((phys.fuel??1)>0.995){ toast(ev?'Batarya dolu':'Depo dolu',1200); return; } svcBusy={kind:s.kind,t:0}; } }
+function callTow(){ if(mode!=='free'||W.kind!=='city') return; const ev=!!SPEC.ev; if((phys.fuel??1)>0.02&&phys.damage<90){ toast('Çekici sadece yakıt bitince ya da araç ağır hasarlıyken gelir',2000); return; }
+  const want=(phys.fuel??1)<=0.02?(ev?'charge':'fuel'):'repair'; const s=W.services.filter(v=>v.kind===want).sort((a,b)=>Math.hypot(a.x-phys.x,a.y-phys.y)-Math.hypot(b.x-phys.x,b.y-phys.y))[0]; if(!s) return;
+  const cost=Math.min(PRICE.tow,SAVE.money); SAVE.money-=cost; phys.reset(s.x,s.y,0); loadVehStateKeep(); if((phys.fuel??1)<0.1) phys.fuel=0.1;
+  toast('🚚 Çekici seni '+s.name+' noktasına getirdi'+(cost?' ('+money(cost)+')':''),3000); saveGame(); }
+let keepState=null; function loadVehStateKeep(){ if(keepState){ phys.fuel=keepState.fuel; phys.damage=keepState.damage; } }
+function freeRoamTick(dt){
+  // odometer: driving earns money
+  const d=phys.speed*dt; SAVE.km+=d/1000; if(phys.speed>4){ odoAcc+=d; if(odoAcc>=100){ odoAcc-=100; SAVE.money+=8; } }
+  keepState={fuel:phys.fuel,damage:phys.damage};
+  const s=currentService(), P=$('svcPrompt');
+  if(svcBusy){ if(!s||phys.speed>1.5){ svcBusy=null; } else if(svcBusy.kind==='repair'){ svcBusy.t+=dt; if(svcBusy.t>=svcBusy.dur){ SAVE.money-=svcBusy.cost; repairModel(model); phys.damage=0; toast('🔧 Araç tamir edildi ('+money(svcBusy.cost)+')',2500); svcBusy=null; saveGame(); } }
+    else { const ev=svcBusy.kind==='charge', rate=ev?0.08:0.2, price=ev?PRICE.charge:PRICE.fuel; const add=Math.min(rate*dt,1-phys.fuel), cost=add*price;
+      if(SAVE.money<cost){ toast('Para bitti',1500); svcBusy=null; } else { phys.fuel+=add; SAVE.money-=cost; svcBusy.spent=(svcBusy.spent||0)+cost; if(phys.fuel>=0.999){ phys.fuel=1; toast((ev?'⚡ Şarj tamam':'⛽ Depo doldu')+' ('+money(svcBusy.spent)+')',2500); svcBusy=null; saveGame(); } } } }
+  if(s){ P.classList.remove('hidden'); const st=SERVICE_STYLE[s.kind]; let html=`<div>${st.icon} <b>${s.name}</b></div>`;
+    if(svcBusy){ const pr=svcBusy.kind==='repair'?svcBusy.t/svcBusy.dur:phys.fuel; html+=`<div>${svcBusy.kind==='repair'?'Tamir ediliyor…':svcBusy.kind==='charge'?'Şarj oluyor… '+Math.round(phys.fuel*100)+'%':'Yakıt dolduruluyor… '+Math.round(phys.fuel*100)+'%'}</div><div class="bar"><i style="width:${Math.round(pr*100)}%"></i></div>`; }
+    else if(s.kind==='repair'){ const cost=Math.ceil(phys.damage*PRICE.repair)+((model.lampsBroken||0)>0?150:0); html+=phys.damage<0.5&&!(model.lampsBroken>0)?'<div>Araçta hasar yok</div>':`<div>Hasar %${Math.round(phys.damage)} · Tamir: <b>${money(cost)}</b></div><button class="sec" id="svcGo">🔧 Tamir et (F)</button>`; }
+    else { const ev=!!SPEC.ev, ok=(s.kind==='charge')===ev; const need=(1-(phys.fuel??1))*(ev?PRICE.charge:PRICE.fuel);
+      html+=ok&&(phys.fuel??1)>0.995?`<div>${ev?'Batarya dolu ✓':'Depo dolu ✓'}</div>`:ok?`<div>${ev?'Batarya':'Depo'} %${Math.round((phys.fuel??1)*100)} · Doldurmak: <b>${money(need)}</b></div><button class="sec" id="svcGo">${ev?'⚡ Şarj et':'⛽ Yakıt al'} (F)</button>`:`<div>${ev?'Bu araç elektrikli — ⚡ şarj noktasına git':'Bu araç benzinli — ⛽ pompaya git'}</div>`; }
+    if(phys.speed>1.5&&!svcBusy) html+='<div style="opacity:.7;font-size:12px;margin-top:4px">Durunca işlem yapabilirsin</div>';
+    if(P._h!==html){ P.innerHTML=html; P._h=html; const b=$('svcGo'); if(b) b.onclick=e=>{ e.currentTarget.blur(); serviceAction(); }; } }
+  else if(!P.classList.contains('hidden')){ P.classList.add('hidden'); P._h=''; }
+  // low fuel / empty
+  const f=phys.fuel??1; fuelWarn-=dt;
+  if(f<=0 && fuelWarn<=0){ fuelWarn=6; toast((SPEC.ev?'🔋 Batarya bitti':'⛽ Yakıt bitti')+' · Çekici için G (₺'+PRICE.tow+') · Harita M',4500); }
+  else if(f>0&&f<0.12 && fuelWarn<=0){ fuelWarn=30; toast((SPEC.ev?'🔋 Şarj azaldı':'⛽ Yakıt azaldı')+' · En yakın '+(SPEC.ev?'şarj':'benzinlik')+' için M',3500); }
+  // waypoint arrival
+  if(waypoint){ const dd=Math.hypot(waypoint.x-phys.x,waypoint.y-phys.y); if(frameNo%10===0) setText('wpInfo','📍 '+waypoint.name+' · '+(dd>1000?(dd/1000).toFixed(1)+' km':Math.round(dd)+' m'));
+    if(dd<14){ toast('📍 Hedefe ulaştın: '+waypoint.name,2500); setWaypoint(null); } }
+  $('wpInfo').classList.toggle('hidden',!waypoint);
+  if(wpMarker){ wpMarker.visible=!!waypoint; if(waypoint){ wpMarker.position.set(waypoint.x,0,waypoint.y); wpMarker.children[1].position.y=6+Math.sin(performance.now()/300)*0.6; } }
+}
+// ---- waypoint & route on the road grid ----
+let waypoint=null, wpMarker=null;
+function routeTo(x0,y0,x1,y1){ const R=v=>Math.round(v/CP)*CP; const onH=Math.abs(y0-R(y0))<Math.abs(x0-R(x0));
+  const A=onH?[R(x0),R(y0)]:[R(x0),R(y0)]; const tl=nearestLane(x1,y1); const tH=Math.abs(tl.y-R(tl.y))<Math.abs(tl.x-R(tl.x)); const T=tH?[tl.x,R(tl.y)]:[R(tl.x),tl.y]; const B=[R(T[0]),R(T[1])];
+  const C=[B[0],A[1]]; return [[x0,y0],A,C,B,T,[x1,y1]]; }
+function routeFromPlayer(){ if(!waypoint) return []; if(!waypoint.route||frameNo%30===0) waypoint.route=routeTo(phys.x,phys.y,waypoint.x,waypoint.y); return waypoint.route; }
+function setWaypoint(t){ waypoint=t?{...t,route:null}:null; if(t&&!wpMarker){ wpMarker=new THREE.Group();
+    const beam=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,70,24,1,true),new THREE.MeshBasicMaterial({color:0xa78bfa,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false})); beam.position.y=35; wpMarker.add(beam);
+    const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'); g.fillStyle='#7c3aed'; g.beginPath(); g.arc(64,64,58,0,7); g.fill(); g.font='72px sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('📍',64,70);
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,toneMapped:false})); sp.scale.set(3,3,1); wpMarker.add(sp); scene.add(wpMarker); }
+  if(t) toast('📍 Rota: '+t.name,1800); }
+// ---- full-screen map (M) ----
+let bigMapOpen=false; const bmC=$('bigMapC'), bmG=bmC.getContext('2d'); let bmView=null;
+function toggleBigMap(on=!bigMapOpen){ if(on&&(W.kind!=='city'||!(mode==='free'))){ toast('Harita şehirde serbest sürüşte açılır',1500); return; }
+  bigMapOpen=on; $('bigMap').classList.toggle('hidden',!on); if(on){ buildBmList(); drawBigMap(); } }
+function buildBmList(){ const box=$('bmList'); box.innerHTML=''; const items=[...W.services].sort((a,b)=>Math.hypot(a.x-phys.x,a.y-phys.y)-Math.hypot(b.x-phys.x,b.y-phys.y));
+  for(const s of items){ const st=SERVICE_STYLE[s.kind]; const d=Math.hypot(s.x-phys.x,s.y-phys.y); const el=document.createElement('div'); el.className='item'+(waypoint&&waypoint.name===s.name?' on':'');
+    el.innerHTML=`<span class="ic">${st.icon}</span><span>${s.name}<small>${st.label} · ${d>1000?(d/1000).toFixed(1)+' km':Math.round(d)+' m'}</small></span>`; el.onclick=()=>{ setWaypoint({x:s.x,y:s.y,name:s.name}); buildBmList(); drawBigMap(); }; box.appendChild(el); } }
+function drawBigMap(){ if(!bigMapOpen) return; const r=bmC.getBoundingClientRect(), dpr=Math.min(2,devicePixelRatio||1); bmC.width=r.width*dpr; bmC.height=r.height*dpr; const M=W.map, S=M.canvas.width;
+  const sc=Math.min(bmC.width,bmC.height)/S, ox=(bmC.width-S*sc)/2, oy=(bmC.height-S*sc)/2; bmView={sc,ox,oy,dpr,off:M.offset};
+  const g=bmG; g.clearRect(0,0,bmC.width,bmC.height); g.imageSmoothingEnabled=true; g.drawImage(M.canvas,ox,oy,S*sc,S*sc);
+  const P=(x,y)=>[ox+(x+M.offset)*sc,oy+(y+M.offset)*sc];
+  if(waypoint){ g.strokeStyle='#a78bfa'; g.lineWidth=6*dpr; g.lineJoin='round'; g.lineCap='round'; g.beginPath(); routeTo(phys.x,phys.y,waypoint.x,waypoint.y).forEach((q,i)=>{ const p=P(q[0],q[1]); i?g.lineTo(...p):g.moveTo(...p); }); g.stroke(); }
+  g.textAlign='center'; g.textBaseline='middle';
+  for(const s of W.services){ const st=SERVICE_STYLE[s.kind], [px,py]=P(s.x,s.y); g.fillStyle=st.color; g.beginPath(); g.arc(px,py,14*dpr,0,7); g.fill(); g.strokeStyle='#fff'; g.lineWidth=2*dpr; g.stroke(); g.font=(16*dpr)+'px sans-serif'; g.fillStyle='#fff'; g.fillText(st.icon,px,py+dpr); }
+  if(waypoint){ const [px,py]=P(waypoint.x,waypoint.y); g.font=(26*dpr)+'px sans-serif'; g.fillText('📍',px,py-14*dpr); }
+  for(const rm of remotes.values()){ const [px,py]=P(rm.x,rm.y); g.fillStyle="#22d3ee"; g.beginPath(); g.arc(px,py,7*dpr,0,7); g.fill(); g.strokeStyle='#fff'; g.stroke(); }
+  { const [px,py]=P(phys.x,phys.y); g.save(); g.translate(px,py); g.rotate(phys.a+Math.PI/2); g.fillStyle=settings.color; g.strokeStyle='#fff'; g.lineWidth=2*dpr; g.beginPath(); g.moveTo(0,-12*dpr); g.lineTo(8*dpr,9*dpr); g.lineTo(0,4*dpr); g.lineTo(-8*dpr,9*dpr); g.closePath(); g.fill(); g.stroke(); g.restore(); }
+  g.fillStyle='rgba(255,255,255,.85)'; g.font='700 '+(13*dpr)+'px Inter,sans-serif'; g.textAlign='left'; g.fillText('Sen: '+streetName(phys.x,phys.y)+' · '+money(SAVE.money),12*dpr,20*dpr); }
+setInterval(()=>{ if(bigMapOpen) drawBigMap(); },250);
+bmC.addEventListener('click',e=>{ if(!bmView) return; const r=bmC.getBoundingClientRect(); const cx=(e.clientX-r.left)*bmView.dpr, cy=(e.clientY-r.top)*bmView.dpr;
+  const wx=(cx-bmView.ox)/bmView.sc-bmView.off, wy=(cy-bmView.oy)/bmView.sc-bmView.off;
+  let best=null, bd=22*bmView.dpr/bmView.sc; for(const s of W.services){ const d=Math.hypot(s.x-wx,s.y-wy); if(d<bd){ bd=d; best=s; } }
+  if(best) setWaypoint({x:best.x,y:best.y,name:best.name}); else { const l=nearestLane(wx,wy); setWaypoint({x:l.x,y:l.y,name:streetName(l.x,l.y)}); }
+  buildBmList(); drawBigMap(); });
+$('bmClose').onclick=()=>toggleBigMap(false); $('bmClear').onclick=()=>{ setWaypoint(null); buildBmList(); drawBigMap(); };
 
 // ---------------- main loop ----------------
 const STEP=1/120; let interp=null; const pPrev={x:0,y:0,a:0}; let acc=0, last=performance.now(), trafAcc=0, trafSend=0, lampT=0;
@@ -885,7 +997,7 @@ function frame(t){
       const hx=phys.x,hy=phys.y,ha=phys.a; pPrev.x=hx; pPrev.y=hy; pPrev.a=ha;
       phys.step(STEP,drive,others);
       if(mode==='countdown'){ phys.x=hx; phys.y=hy; phys.a=ha; phys.vx=phys.vy=phys.yawRate=0; }
-      if(phys.impact>4){ dentCar(model,phys.impactAt.lx,phys.impactAt.lz,Math.min(3,phys.impact/8)); audio.impact(phys.impact); shake=Math.min(1.5,shake+phys.impact*0.06); phys.impact=0; }
+      if(phys.impact>4){ dentCar(model,phys.impactAt.lx,phys.impactAt.lz,Math.min(3,phys.impact/8)); onCrash(phys.impactAt.lx,phys.impactAt.lz,phys.impact); audio.impact(phys.impact); shake=Math.min(1.5,shake+phys.impact*0.06); phys.impact=0; }
       acc-=STEP;
     }
     if(mode==='race') lapLogic();
@@ -894,7 +1006,7 @@ function frame(t){
     horn=!!inp.horn; audio.horn('me',horn,1);
     if(online) net.set({x:+phys.x.toFixed(2),y:+phys.y.toFixed(2),a:+phys.a.toFixed(3),v:+phys.vLong.toFixed(2),sr:+phys.steer.toFixed(3),bk:phys.brake>0.1||phys.hand>0,nt:phys.nitroOn,hn:horn,hl:headlightsOn,lap:me.lap,cp:me.cp,idx:me.idx,fin:me.fin,ft:Math.round(me.ft),best:Math.round(bestLap)});
     if(phys.kerb||phys.surfF===2) shake=Math.max(shake,Math.min(0.35,phys.speed*0.01));
-    carEffects(fdt);
+    carEffects(fdt); if(mode==='free') freeRoamTick(fdt);
   } else if(paused){ acc=0; }
   lastFdt=fdt; if(model.bike){ const parked=!driving||phys.speed<0.3&&phys.throttle===0; model.leanT=parked&&!driving?-0.13:Math.max(-0.95,Math.min(0.95,Math.atan(phys.vLong*phys.yawRate/9.81))); model.rider.visible=driving&&camMode!==1; if(model.stand) model.stand.visible=!driving; }
   placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,(phys.brake>0.1&&!phys.burnout)||phys.hand>0,phys.nitroOn,phys.bump*0.25,headlightsOn,groundUnder(phys),phys.reversing&&phys.speed>0.05||phys.reversing&&phys.throttle>0,true);
@@ -913,7 +1025,7 @@ function frame(t){
     const dist=Math.hypot(r.x-phys.x,r.y-phys.y); audio.horn(id,r.hn&&dist<150,Math.max(0.05,1-dist/150));
   }
   sun.position.set(phys.x+sunDir.x*200, sunDir.y*200, phys.y+sunDir.z*200); sun.target.position.set(phys.x,0,phys.y);
-  audio.update(phys,fdt,driving&&!paused);
+  audio.update(phys,fdt,driving&&!paused&&(phys.fuel>0||SPEC.ev));
   updateCamera(fdt);
   updateBackfire(fdt); smoke.update(fdt,renderer.domElement.height); skids.update(); updateRain(fdt); if(frameNo%2===0) updateStreaks();
   if(model.shiftMat) model.shiftMat.emissiveIntensity=driving&&phys.rpm>6200?(phys.rpm>7300&&frameNo%6<3?0.3:4):0;
@@ -942,4 +1054,4 @@ function frame(t){
 requestAnimationFrame(frame);
 // test hook
 const BOT=new URLSearchParams(location.search).has('bot');
-window.__game={THREE,model,showResults,camera,GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene};
+window.__game={THREE,showResults,camera,GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene,SAVE,toggleBigMap,setWaypoint,serviceAction,onCrash,get model(){return model;}};
