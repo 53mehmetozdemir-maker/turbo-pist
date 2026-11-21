@@ -603,13 +603,37 @@ addEventListener('keydown',e=>{ if(document.activeElement&&document.activeElemen
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup',e=>{ keys[e.code]=false; });
 addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
-document.querySelectorAll('.tb').forEach(b=>{ const k=b.dataset.k;
-  const on=e=>{ e.preventDefault(); if(k==='cam'){ edges.push('KeyC'); return; } tkeys[k]=true; b.classList.add('on'); };
+// ---- touch controls: analog steering pad (or tilt), pedals, action buttons ----
+document.querySelectorAll('#touch .tb[data-k]').forEach(b=>{ const k=b.dataset.k;
+  const on=e=>{ e.preventDefault(); try{ b.setPointerCapture(e.pointerId); }catch(_){} tkeys[k]=true; b.classList.add('on'); if(k==='up') edges.push('KeyE'); if(k==='dn') edges.push('KeyQ'); navigator.vibrate&&k!=='gas'&&k!=='down'&&navigator.vibrate(8); };
   const off=e=>{ e.preventDefault(); tkeys[k]=false; b.classList.remove('on'); };
-  b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointercancel',off); b.addEventListener('pointerleave',off); });
+  b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointercancel',off); b.addEventListener('lostpointercapture',off); });
+document.querySelectorAll('#touch .tb[data-e]').forEach(b=>b.addEventListener('pointerdown',e=>{ e.preventDefault(); edges.push(b.dataset.e); b.classList.add('on'); setTimeout(()=>b.classList.remove('on'),140); navigator.vibrate&&navigator.vibrate(8); }));
+{ const pad=$('tSteer'), knob=$('tKnob'); let pid=null;
+  const set=v=>{ tkeys.steerA=v; const w=pad.clientWidth/2-40; knob.style.transform=`translateX(${v*w}px) rotate(${v*35}deg)`; };
+  const move=e=>{ const r=pad.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width*2-1; const dz=0.06, ax=Math.abs(x); set(ax<dz?0:Math.sign(x)*Math.min(1,(ax-dz)/(0.86-dz))); };
+  pad.addEventListener('pointerdown',e=>{ e.preventDefault(); if(tilt.on) return; pid=e.pointerId; try{ pad.setPointerCapture(pid); }catch(_){} pad.classList.add('drag'); move(e); });
+  pad.addEventListener('pointermove',e=>{ if(e.pointerId===pid) move(e); });
+  const end=e=>{ if(e.pointerId!==pid) return; pid=null; pad.classList.remove('drag'); set(0); tkeys.steerA=null; };
+  pad.addEventListener('pointerup',end); pad.addEventListener('pointercancel',end); pad.addEventListener('lostpointercapture',end); }
+const tilt={on:false,v:0,zero:null};
+function onTilt(e){ if(!tilt.on) return; const ang=(screen.orientation&&screen.orientation.angle)||window.orientation||0; let g=ang===90?e.beta:ang===-90||ang===270?-e.beta:e.gamma; if(g==null) return;
+  if(tilt.zero==null) tilt.zero=g; const d=g-tilt.zero; tilt.v=Math.max(-1,Math.min(1,d/28)); if(Math.abs(tilt.v)<0.04) tilt.v=0; tkeys.steerA=tilt.v;
+  const w=$('tSteer').clientWidth/2-40; $('tKnob').style.transform=`translateX(${tilt.v*w}px) rotate(${tilt.v*35}deg)`; }
+$('tTilt').addEventListener('pointerdown',async e=>{ e.preventDefault();
+  if(!tilt.on){ try{ if(typeof DeviceOrientationEvent!=='undefined'&&DeviceOrientationEvent.requestPermission){ const r=await DeviceOrientationEvent.requestPermission(); if(r!=='granted'){ toast('Hareket sensörü izni verilmedi',2000); return; } } }catch(_){ }
+    tilt.on=true; tilt.zero=null; addEventListener('deviceorientation',onTilt); toast('📱 Eğerek sürüş açık · telefonu düz tuttuğun an sıfır kabul edildi',2500); }
+  else { tilt.on=false; removeEventListener('deviceorientation',onTilt); tkeys.steerA=null; $('tKnob').style.transform=''; toast('Eğerek sürüş kapalı',1200); }
+  $('tTilt').classList.toggle('on',tilt.on); $('tSteer').classList.toggle('tilt',tilt.on); store.set('tp8_tilt',tilt.on?'1':''); });
+function touchHudTick(){ if(!isTouch) return; const s=currentService();
+  $('tSvc').classList.toggle('hidden',!(s&&mode==='free')); if(s) $('tSvc').textContent=s.kind==='repair'?'🔧 Tamir':s.kind==='charge'?'⚡ Şarj':'⛽ Yakıt';
+  $('tTow').classList.toggle('hidden',!(mode==='free'&&((phys.fuel??1)<=0.02||phys.damage>=90)));
+  $('tUp').classList.toggle('hidden',!phys.manual); $('tDn').classList.toggle('hidden',!phys.manual); }
+if(isTouch){ document.body.classList.add('touch'); $('rotate').classList.add('need'); }
 let padPrev=[];
 function readInput(){
   let steer=((keys.ArrowRight||keys.KeyD||tkeys.right)?1:0)-((keys.ArrowLeft||keys.KeyA||tkeys.left)?1:0);
+  let analogT=false; if(tkeys.steerA!=null&&steer===0){ steer=Math.sign(tkeys.steerA)*Math.pow(Math.abs(tkeys.steerA),1.25); analogT=true; }
   let gas=(keys.ArrowUp||keys.KeyW||tkeys.gas)?1:0, brake=(keys.ArrowDown||keys.KeyS||tkeys.down)?1:0;
   let hand=!!(keys.Space||tkeys.hand), nitro=!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyN||tkeys.nitro), analog=false, hn=!!(keys.KeyH||tkeys.horn);
   const pads=navigator.getGamepads?navigator.getGamepads():[];
@@ -619,7 +643,7 @@ function readInput(){
     gas=Math.max(gas,b(7)); brake=Math.max(brake,b(6)); hand=hand||b(0)>0.5; nitro=nitro||b(1)>0.5; hn=hn||b(10)>0.5||b(11)>0.5;
     const press=i=>b(i)>0.5 && !padPrev[i]; if(press(3)) edges.push('KeyC'); if(press(5)) edges.push('KeyE'); if(press(4)) edges.push('KeyQ'); if(press(2)) edges.push('KeyR'); if(press(9)) edges.push('Escape');
     padPrev=gp.buttons.map(x=>x.pressed); break; }
-  return {steer,gas,brake,hand,nitro,analog,horn:hn};
+  return {steer,gas,brake,hand,nitro,analog:analog||analogT,horn:hn};
 }
 function handleEdges(){
   while(edges.length){ const k=edges.shift();
@@ -718,10 +742,10 @@ const camPos=new THREE.Vector3(), camLook=new THREE.Vector3(), headG={x:0,z:0}; 
 const look={yaw:0,pitch:0,drag:false,lx:0,ly:0,rel:0,zoom:1};
 { const cv=renderer.domElement;
   cv.addEventListener('contextmenu',e=>e.preventDefault());
-  cv.addEventListener('pointerdown',e=>{ if(e.pointerType==='touch'||!(mode==='free'||mode==='race'||mode==='countdown')||paused) return; look.drag=true; look.lx=e.clientX; look.ly=e.clientY; cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener('pointermove',e=>{ if(!look.drag) return; const dx=e.clientX-look.lx, dy=e.clientY-look.ly; look.lx=e.clientX; look.ly=e.clientY;
+  cv.addEventListener('pointerdown',e=>{ if(look.drag||!(mode==='free'||mode==='race'||mode==='countdown')||paused) return; look.pid=e.pointerId; look.drag=true; look.lx=e.clientX; look.ly=e.clientY; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove',e=>{ if(!look.drag||e.pointerId!==look.pid) return; const dx=e.clientX-look.lx, dy=e.clientY-look.ly; look.lx=e.clientX; look.ly=e.clientY;
     look.yaw=Math.max(-2.7,Math.min(2.7,look.yaw-dx*0.0045)); look.pitch=Math.max(-0.5,Math.min(0.9,look.pitch+dy*0.0035)); look.rel=performance.now(); });
-  const up=e=>{ if(!look.drag) return; look.drag=false; look.rel=performance.now(); try{ cv.releasePointerCapture(e.pointerId); }catch(_){} };
+  const up=e=>{ if(!look.drag||e.pointerId!==look.pid) return; look.drag=false; look.rel=performance.now(); try{ cv.releasePointerCapture(e.pointerId); }catch(_){} };
   cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
   cv.addEventListener('wheel',e=>{ if(mode==='free'||mode==='race'){ look.zoom=Math.max(0.6,Math.min(2.2,look.zoom*(e.deltaY>0?1.1:0.9))); e.preventDefault(); } },{passive:false}); }
 function easeLook(dt){ if(look.drag||performance.now()-look.rel<1500) return; const k=1-Math.exp(-dt*3); look.yaw-=look.yaw*k; look.pitch-=look.pitch*k; if(Math.abs(look.yaw)<1e-3) look.yaw=0; if(Math.abs(look.pitch)<1e-3) look.pitch=0; }
@@ -1006,7 +1030,7 @@ function frame(t){
     horn=!!inp.horn; audio.horn('me',horn,1);
     if(online) net.set({x:+phys.x.toFixed(2),y:+phys.y.toFixed(2),a:+phys.a.toFixed(3),v:+phys.vLong.toFixed(2),sr:+phys.steer.toFixed(3),bk:phys.brake>0.1||phys.hand>0,nt:phys.nitroOn,hn:horn,hl:headlightsOn,lap:me.lap,cp:me.cp,idx:me.idx,fin:me.fin,ft:Math.round(me.ft),best:Math.round(bestLap)});
     if(phys.kerb||phys.surfF===2) shake=Math.max(shake,Math.min(0.35,phys.speed*0.01));
-    carEffects(fdt); if(mode==='free') freeRoamTick(fdt);
+    carEffects(fdt); if(mode==="free") freeRoamTick(fdt); if(frameNo%6===0) touchHudTick();
   } else if(paused){ acc=0; }
   lastFdt=fdt; if(model.bike){ const parked=!driving||phys.speed<0.3&&phys.throttle===0; model.leanT=parked&&!driving?-0.13:Math.max(-0.95,Math.min(0.95,Math.atan(phys.vLong*phys.yawRate/9.81))); model.rider.visible=driving&&camMode!==1; if(model.stand) model.stand.visible=!driving; }
   placeCar(model,phys.x,phys.y,phys.a,phys.pitch,phys.rollA,phys.steer,phys.wheelAng,(phys.brake>0.1&&!phys.burnout)||phys.hand>0,phys.nitroOn,phys.bump*0.25,headlightsOn,groundUnder(phys),phys.reversing&&phys.speed>0.05||phys.reversing&&phys.throttle>0,true);
