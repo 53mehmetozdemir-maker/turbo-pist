@@ -205,12 +205,13 @@ export class Car {
     this.x += this.vx*dt; this.y += this.vy*dt;
 
     // ---- walls ----
-    this.impact=0; this.scrape=Math.max(0,this.scrape-dt*3); this.hitV=0;
+    // (impact is kept until the game reads it, so hits in any physics sub-step reach the dents / sound)
+    this.scrape=Math.max(0,this.scrape-dt*3); this.hitV=0;
     this.collideWalls(dt);
-    // one damage event per crash (cooldown), scaled by impact speed
-    this.hitCool=Math.max(0,(this.hitCool||0)-dt);
-    if(this.hitV>4 && this.hitCool<=0){ this.damage=Math.min(100,this.damage+Math.pow(this.hitV-4,1.3)*0.9); this.hitCool=0.4; }
     if(others) for(const o of others) this.collideCar(o);
+    // one damage event per crash (cooldown), scaled by impact speed: walls, buildings and other cars
+    this.hitCool=Math.max(0,(this.hitCool||0)-dt);
+    if(this.hitV>3.5 && this.hitCool<=0){ this.damage=Math.min(100,this.damage+Math.pow(this.hitV-3.5,1.3)*0.9); this.hitCool=0.4; }
 
     // ---- bookkeeping ----
     const c2=Math.cos(this.a), s2=Math.sin(this.a);

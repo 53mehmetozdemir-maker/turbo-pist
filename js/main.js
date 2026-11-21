@@ -1094,7 +1094,7 @@ function frame(t){
       const hx=phys.x,hy=phys.y,ha=phys.a; pPrev.x=hx; pPrev.y=hy; pPrev.a=ha;
       phys.step(STEP,drive,others);
       if(mode==='countdown'){ phys.x=hx; phys.y=hy; phys.a=ha; phys.vx=phys.vy=phys.yawRate=0; }
-      if(phys.impact>4){ dentCar(model,phys.impactAt.lx,phys.impactAt.lz,Math.min(3,phys.impact/8)); onCrash(phys.impactAt.lx,phys.impactAt.lz,phys.impact); audio.impact(phys.impact); shake=Math.min(1.5,shake+phys.impact*0.06); phys.impact=0; }
+      if(phys.impact>4){ dentCar(model,phys.impactAt.lx,phys.impactAt.lz,Math.min(3,phys.impact/8)); onCrash(phys.impactAt.lx,phys.impactAt.lz,phys.impact); audio.impact(phys.impact); shake=Math.min(1.5,shake+phys.impact*0.06); phys.impact=0; } else phys.impact=0;
       acc-=STEP;
     }
     if(mode==='race') lapLogic();
