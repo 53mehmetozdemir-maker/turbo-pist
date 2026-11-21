@@ -96,23 +96,25 @@ export class Traffic {
       else if (c.turn && c.s >= c.turn.len) { c.s -= c.turn.len; const T = c.turn; c.i = T.bi; c.j = T.bj; c.d = T.nd; c.turn = null; this.chooseNext(c); }
       this.place(c);
     }
+    if (this.hw) this.hw.step(dt, players);
   }
+  all() { return this.hw ? this.cars.concat(this.hw.cars) : this.cars; }
   // compact state for the network
-  pack() { return this.cars.map(c => [Math.round(c.x * 10) / 10, Math.round(c.y * 10) / 10, Math.round(c.a * 100) / 100, c.brake ? 1 : 0, Math.round(c.v * 10) / 10, c.sig || 0, c.honk > 0 ? 1 : 0]); }
+  pack() { return this.all().map(c => [Math.round(c.x * 10) / 10, Math.round(c.y * 10) / 10, Math.round(c.a * 100) / 100, c.brake ? 1 : 0, Math.round(c.v * 10) / 10, c.sig || 0, c.honk > 0 ? 1 : 0]); }
   unpack(arr) { this.remote = arr; this.remoteT = performance.now(); }
   render(dt) {
     const f = this.fleet;
     if (this.remote) {   // follower: interpolate toward host state with prediction
       const age = Math.min(0.3, (performance.now() - this.remoteT) / 1000), k = 1 - Math.exp(-dt * 10);
-      this.cars.forEach((c, n) => { const r = this.remote[n]; if (!r) return; const px = r[0] + Math.cos(r[2]) * r[4] * age, py = r[1] + Math.sin(r[2]) * r[4] * age;
+      this.all().forEach((c, n) => { const r = this.remote[n]; if (!r) return; const px = r[0] + Math.cos(r[2]) * r[4] * age, py = r[1] + Math.sin(r[2]) * r[4] * age;
         if (Math.hypot(px - c.x, py - c.y) > 15) { c.x = px; c.y = py; c.a = r[2]; }
         const ox = c.x, oy = c.y; c.x += (px - c.x) * k; c.y += (py - c.y) * k; let da = r[2] - c.a; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; c.a += da * k; c.brake = !!r[3]; c.sig = r[5] || 0; c.honk = r[6] ? 0.2 : 0; c.vx = (c.x - ox); c.vy = (c.y - oy); c.v = r[4]; });
     }
     const ah = this.remote ? 0 : (this.ahead || 0);
-    for (const c of this.cars) { const s = (c.v || 0) * ah; f.set(c.id, c.x + Math.cos(c.a) * s, c.y + Math.sin(c.a) * s, c.a, c.brake, true, c.sig || 0); }
+    for (const c of this.all()) { const s = (c.v || 0) * ah; f.set(c.id, c.x + Math.cos(c.a) * s, c.y + Math.sin(c.a) * s, c.a, c.brake, true, c.sig || 0); }
   }
   // obstacles for the player's physics
-  obstacles(dt) { return this.cars.map(c => ({ x: c.x, y: c.y, a: c.a, vx: Math.cos(c.a) * c.v, vy: Math.sin(c.a) * c.v })); }
+  obstacles(dt) { return this.all().map(c => ({ x: c.x, y: c.y, a: c.a, vx: Math.cos(c.a) * c.v, vy: Math.sin(c.a) * c.v })); }
 }
 function bez(A, C, B, t) { const u = 1 - t; return [u * u * A[0] + 2 * u * t * C[0] + t * t * B[0], u * u * A[1] + 2 * u * t * C[1] + t * t * B[1]]; }
 

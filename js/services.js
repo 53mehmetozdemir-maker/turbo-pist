@@ -271,4 +271,6 @@ export function buildServices(scene) {
   function setNight(f) { for (const m of pools) m.opacity = m.userData.k * f; for (const m of glow) { const n = m.userData.night ?? m.userData.base * 4; m.emissiveIntensity = m.userData.base + (n - m.userData.base) * f; } }
   return { group, list, setNight };
 }
-export const SERVICE_STYLE = { fuel: { color: '#22c55e', icon: '⛽', label: 'Benzinlik' }, charge: { color: '#3b82f6', icon: '⚡', label: 'Şarj' }, repair: { color: '#ef4444', icon: '🔧', label: 'Tamirci' } };
+export const SERVICE_STYLE = { fuel: { color: '#22c55e', icon: '⛽', label: 'Benzinlik' }, charge: { color: '#3b82f6', icon: '⚡', label: 'Şarj' }, repair: { color: '#ef4444', icon: '🔧', label: 'Tamirci' },
+  drift: { color: '#f59e0b', icon: '🏁', label: 'Drift alanı · otopark' }, summit: { color: '#8b5cf6', icon: '⛰️', label: 'Dağ yolu zirvesi' }, mountain: { color: '#65a30d', icon: '🌲', label: 'Dağ yolu' },
+  beach: { color: '#0ea5e9', icon: '🏖️', label: 'Sahil yolu' }, highway: { color: '#eab308', icon: '🛣️', label: 'Otoyol' } };

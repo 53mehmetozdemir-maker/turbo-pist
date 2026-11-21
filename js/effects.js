@@ -49,13 +49,13 @@ export class SkidMarks {
     this.last=[null,null,null,null]; this.dirty=false;
   }
   // wheel index w, world point (x,z), heading a, strength 0..1
-  add(w,x,z,a,s){
+  add(w,x,z,a,s,h=0){
     const prev=this.last[w];
     if(s<=0){ this.last[w]=null; return; }
     if(prev && Math.hypot(x-prev.x,z-prev.z)<0.12) return;
     const hw=0.13, nx=-Math.sin(a)*hw, nz=Math.cos(a)*hw;
     if(prev && Math.hypot(x-prev.x,z-prev.z)<3){
-      const q=this.i; this.i=(this.i+1)%this.max; const v=q*12, y=0.045;
+      const q=this.i; this.i=(this.i+1)%this.max; const v=q*12, y=0.045+h;
       this.pos.set([prev.x+prev.nx,y,prev.z+prev.nz, prev.x-prev.nx,y,prev.z-prev.nz, x+nx,y,z+nz, x-nx,y,z-nz],v);
       const al=Math.min(0.55,0.15+s*0.5); this.alpha.set([prev.al,prev.al,al,al],q*4); this.dirty=true;
       this.last[w]={x,z,nx,nz,al};

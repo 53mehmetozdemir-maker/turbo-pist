@@ -183,6 +183,11 @@ export class Car {
     const ax=Fx/P.mass, ay=Fy/P.mass;
     this.axPrev += (ax-this.axPrev)*Math.min(1,dt*8); this.ayPrev += (ay-this.ayPrev)*Math.min(1,dt*8);
     this.vx += (ax*ca - ay*sa)*dt; this.vy += (ax*sa + ay*ca)*dt;
+    // gravity along the slope (mountain road): grade from the ground height under both axles
+    if(this.world.ground){ const gF=this.world.ground(fx,fy), gR=this.world.ground(rx,ry), grade=(gF-gR)/(P.a+P.b);
+      if(Math.abs(grade)>0.004){ let sl=-G*grade/Math.sqrt(1+grade*grade);
+        if(speed<0.4 && (this.brake>0.2||this.hand>0.5||(this.throttle<0.05&&!this.reversing&&this.gear===1&&speed<0.05&&Math.abs(sl)<1.2))) sl=0;   // brakes / handbrake hold the car on the hill
+        this.vx += ca*sl*dt; this.vy += sa*sl*dt; } }
     this.yawRate += torque/P.inertia*dt;
     // stability control (assists): pull yaw toward the driver's intent, not while handbraking
     if(this.hand) this.escFade=0; else this.escFade=Math.min(1,(this.escFade||0)+dt*0.8);

@@ -10,7 +10,7 @@ export const CURB = 0.15;        // curb height
 export const LANES = [1.75, 5.25];
 const BL = P - ROAD;             // block size (84)
 export const SIZE = NB * P;
-export const BOUND = { min: -60, max: SIZE + 60 };
+export const BOUND = { min: -1e6, max: 1e6 };   // the regions module bounds the world now
 export const H_NAMES = ['Sahil Yolu','Cumhuriyet Cd.','İstiklal Cd.','Atatürk Bulvarı','Bağdat Cd.','Barbaros Bulvarı','Halaskargazi Cd.','Fevzi Çakmak Cd.','İnönü Cd.','Menderes Cd.','Gazi Bulvarı'];
 export const V_NAMES = ['Lale Sk.','Papatya Sk.','Çınar Cd.','Gül Sk.','Valikonağı Cd.','Akasya Cd.','Rıhtım Cd.','Söğüt Sk.','Nergis Sk.','Leylak Sk.','Ihlamur Sk.'];
 
@@ -214,7 +214,7 @@ export function buildCity(scene, quality, fleet) {
   const grassTex = IMG.grass ? (() => { const t = new THREE.Texture(IMG.grass); t.needsUpdate = true; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })() : tex(512, 512, (g, w, h) => { noise(g, w, h, '#4f7d35', 0.18, 40000, 2); for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? '30,60,20' : '110,150,60'},${Math.random() * .22})`; g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 14, 0, 7); g.fill(); } });
   grassTex.repeat.set(300, 300);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
-  ground.rotation.x = -Math.PI / 2; ground.position.set(SIZE / 2, -0.02, SIZE / 2); ground.receiveShadow = true; group.add(ground);
+  ground.rotation.x = -Math.PI / 2; ground.position.set(SIZE / 2, -0.02, SIZE / 2); ground.receiveShadow = true; ground.name = 'cityGround'; group.add(ground);
   const asphaltTex = tex(512, 512, (g, w, h) => { noise(g, w, h, '#3c3e42', 0.2, 30000, 2); for (let i = 0; i < 30; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .12})`; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 60, 10 + Math.random() * 30, Math.random() * 3, 0, 7); g.fill(); } g.strokeStyle = 'rgba(15,15,15,.35)'; g.lineWidth = 1.5; for (let i = 0; i < 12; i++) { g.beginPath(); let x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - .5) * 40; y += (Math.random() - .5) * 40; g.lineTo(x, y); } g.stroke(); } });
   asphaltTex.repeat.set((SIZE + ROAD) / 9, (SIZE + ROAD) / 9);
   const roadMat = new THREE.MeshStandardMaterial({ map: asphaltTex, bumpMap: asphaltTex, bumpScale: 1.2, roughness: 0.88 });
@@ -428,11 +428,10 @@ export function buildCity(scene, quality, fleet) {
 
   // ---- city edge: hedges + distant hills ----
   const hedge = new THREE.MeshStandardMaterial({ color: 0x2f5a24, roughness: 1 });
-  for (const [x, z, w, d] of [[SIZE / 2, BOUND.min - 1, SIZE + 130, 2], [SIZE / 2, BOUND.max + 1, SIZE + 130, 2], [BOUND.min - 1, SIZE / 2, 2, SIZE + 130], [BOUND.max + 1, SIZE / 2, 2, SIZE + 130]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 2.2, d), hedge); m.position.set(x, 1.1, z); group.add(m); }
   const hillGeo = new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
   const hillBase = [0x56724a, 0x4d6a44, 0x617d50, 0x6b7f5a].map(c => new THREE.Color(c)); const hillMats = hillBase.map(c => new THREE.MeshBasicMaterial({ color: c.clone(), fog: false }));
-  for (let ring = 0; ring < 2; ring++) for (let k = 0; k < 22; k++) { const a = (k + ring * 0.5) / 22 * Math.PI * 2 + rnd() * 0.1, r = 1200 + ring * 380 + rnd() * 200;
-    const h = new THREE.Mesh(hillGeo, hillMats[Math.floor(rnd() * 4)]); const w = 220 + rnd() * 260; h.scale.set(w, (60 + rnd() * 110) * (1 + ring * 0.8), w * (0.6 + rnd() * 0.5)); h.rotation.y = rnd() * 3;
+  for (let ring = 0; ring < 2; ring++) for (let k = 0; k < 22; k++) { const a = (k + ring * 0.5) / 22 * Math.PI * 2 + rnd() * 0.1, r = 3300 + ring * 500 + rnd() * 300;
+    const h = new THREE.Mesh(hillGeo, hillMats[Math.floor(rnd() * 4)]); const w = 520 + rnd() * 520; h.scale.set(w, (140 + rnd() * 220) * (1 + ring * 0.6), w * (0.6 + rnd() * 0.5)); h.rotation.y = rnd() * 3;
     h.position.set(SIZE / 2 + Math.cos(a) * r, -2, SIZE / 2 + Math.sin(a) * r); group.add(h); }
 
   // ---- night ----
