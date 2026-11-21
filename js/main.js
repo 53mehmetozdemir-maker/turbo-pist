@@ -918,7 +918,7 @@ function serviceAction(){ const s=currentService(); if(!s||mode!=='free') return
     if((phys.fuel??1)>0.995){ toast(ev?'Batarya dolu':'Depo dolu',1200); return; } svcBusy={kind:s.kind,t:0}; } }
 function callTow(){ if(mode!=='free'||W.kind!=='city') return; const ev=!!SPEC.ev; if((phys.fuel??1)>0.02&&phys.damage<90){ toast('Çekici sadece yakıt bitince ya da araç ağır hasarlıyken gelir',2000); return; }
   const want=(phys.fuel??1)<=0.02?(ev?'charge':'fuel'):'repair'; const s=W.services.filter(v=>v.kind===want).sort((a,b)=>Math.hypot(a.x-phys.x,a.y-phys.y)-Math.hypot(b.x-phys.x,b.y-phys.y))[0]; if(!s) return;
-  const cost=Math.min(PRICE.tow,SAVE.money); SAVE.money-=cost; phys.reset(s.x,s.y,0); loadVehStateKeep(); if((phys.fuel??1)<0.1) phys.fuel=0.1;
+  const cost=Math.min(PRICE.tow,SAVE.money); SAVE.money-=cost; phys.reset(s.x,s.y,s.a??-Math.PI/2); loadVehStateKeep(); if((phys.fuel??1)<0.1) phys.fuel=0.1;
   toast('🚚 Çekici seni '+s.name+' noktasına getirdi'+(cost?' ('+money(cost)+')':''),3000); saveGame(); }
 let keepState=null; function loadVehStateKeep(){ if(keepState){ phys.fuel=keepState.fuel; phys.damage=keepState.damage; } }
 function freeRoamTick(dt){
