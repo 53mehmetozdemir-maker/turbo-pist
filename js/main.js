@@ -29,6 +29,7 @@ const store={ get(k){ try{return localStorage.getItem(k);}catch(e){return null;}
 // save game: money, per-vehicle fuel & damage, distance, best laps (settings live in their own keys)
 const SAVE=(()=>{ try{ return JSON.parse(store.get('tp8_save'))||{}; }catch(e){ return {}; } })();
 SAVE.money??=2500; SAVE.veh??={}; SAVE.km??=0; SAVE.best??={};
+if(!SAVE.econ2){ SAVE.econ2=1; SAVE.money=Math.max(0,SAVE.money)+3000; }   // economy rebalance: one-off top-up
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
 const settings={
@@ -583,7 +584,7 @@ function lapLogic(){
     const now=performance.now(); const lt=now-lapStart; lapStart=now; lastLap=lt; if(!bestLap||lt<bestLap) bestLap=lt;
     const rec=SAVE.best[settings.vehicle]; let pb=false; if(!rec||lt<rec){ SAVE.best[settings.vehicle]=Math.round(lt); pb=!!rec; store.set('tp8_save',JSON.stringify(SAVE)); }
     me.lap++; me.cp=0;
-    if(me.lap>=LAPS){ me.fin=true; me.ft=elapsed; const pos=1+[...remotes.values()].filter(r=>r.fin&&r.ft<elapsed).length; const prize=[1500,900,600,400][Math.min(3,pos-1)]; SAVE.money+=prize; store.set('tp8_save',JSON.stringify(SAVE)); toast('🏁 Bitiş! '+fmt(elapsed)+' · Ödül '+money(prize),3500); setTimeout(showResults,1500); }
+    if(me.lap>=LAPS){ me.fin=true; me.ft=elapsed; const pos=1+[...remotes.values()].filter(r=>r.fin&&r.ft<elapsed).length; const prize=[3000,2000,1200,800][Math.min(3,pos-1)]; SAVE.money+=prize; store.set('tp8_save',JSON.stringify(SAVE)); toast('🏁 Bitiş! '+fmt(elapsed)+' · Ödül '+money(prize),3500); setTimeout(showResults,1500); }
     else toast((pb?'🏆 Rekor! ':lt===bestLap?'🟣 En iyi tur ':'Tur ')+fmt(lt)+(me.lap===LAPS-1?' · Son tur! 🔥':''),3000);
   }
 }
@@ -894,7 +895,7 @@ function updateHud(){
 function saveGame(){ if(mode==='free') SAVE.veh[settings.vehicle]={fuel:+(phys.fuel??1).toFixed(4),damage:+phys.damage.toFixed(1)}; store.set('tp8_save',JSON.stringify(SAVE)); }
 setInterval(()=>{ if(mode==='free') saveGame(); },5000); addEventListener('beforeunload',saveGame);
 function loadVehState(){ const v=SAVE.veh[settings.vehicle]||{}; phys.fuel=v.fuel??1; phys.damage=v.damage??0; if(phys.damage>35) crackWindscreen(model,1+Math.floor((phys.damage-35)/20)); }
-const PRICE={fuel:1350,charge:420,repair:22,tow:250};   // full tank ₺, full battery ₺, ₺ per % damage, tow ₺
+const PRICE={fuel:500,charge:180,repair:6,lamps:60,tow:100};   // full tank ₺, full battery ₺, ₺ per % damage, tow ₺
 const money=v=>'₺'+Math.round(v).toLocaleString('tr-TR');
 function onCrash(lx,lz,v){
   const st=Math.min(3,v/8); dentModel(model,lx,lz,st,SPEC.hl||2.2,SPEC.hw||0.92);
@@ -903,12 +904,12 @@ function onCrash(lx,lz,v){
 function drawServiceIcons(map,list){ const g=map.canvas.getContext('2d'); g.save(); g.setTransform(1,0,0,1,map.offset,map.offset);
   for(const s of list){ const st=SERVICE_STYLE[s.kind]; g.fillStyle=st.color; g.globalAlpha=0.35; g.fillRect(s.rect[0],s.rect[1],s.rect[2]-s.rect[0],s.rect[3]-s.rect[1]); g.globalAlpha=1; } g.restore(); }
 function inRect(s){ const r=s.rect; if(!r) return false; return phys.x>r[0]&&phys.x<r[2]&&phys.y>r[1]&&phys.y<r[3]; }
-let svcBusy=null, odoAcc=0, fuelWarn=0;
+let svcBusy=null, odoAcc=0, fuelWarn=0, driftT=0, driftPay=0, driftGap=0;
 function currentService(){ if(W.kind!=='city'||!W.services) return null; return W.services.find(inRect)||null; }
 function serviceAction(){ const s=currentService(); if(!s||mode!=='free') return;
   if(phys.speed>1.5){ toast('Önce dur',1200); return; }
-  if(s.kind==='repair'){ const cost=Math.ceil(phys.damage*PRICE.repair)+((model.lampsBroken||0)>0?150:0); if(phys.damage<0.5&&!(model.lampsBroken>0)){ toast('Araçta hasar yok 👍',1500); return; }
-    if(SAVE.money<cost){ toast('Para yetersiz: '+money(cost)+' gerekiyor',2200); return; } svcBusy={kind:'repair',t:0,dur:2.5,cost}; }
+  if(s.kind==='repair'){ const cost=Math.ceil(phys.damage*PRICE.repair)+((model.lampsBroken||0)>0?PRICE.lamps:0); if(phys.damage<0.5&&!(model.lampsBroken>0)){ toast('Araçta hasar yok 👍',1500); return; }
+    let pay=cost, ins=false; if(SAVE.money<cost){ pay=Math.max(0,Math.floor(SAVE.money)); ins=true; } svcBusy={kind:'repair',t:0,dur:1.5,cost:pay,ins}; }
   else { const ev=!!SPEC.ev; if((s.kind==='charge')!==ev){ toast(ev?'Bu araç elektrikli: ⚡ şarj noktasına git':'Bu araç benzinli: ⛽ pompaya git',2200); return; }
     if((phys.fuel??1)>0.995){ toast(ev?'Batarya dolu':'Depo dolu',1200); return; } svcBusy={kind:s.kind,t:0}; } }
 function callTow(){ if(mode!=='free'||W.kind!=='city') return; const ev=!!SPEC.ev; if((phys.fuel??1)>0.02&&phys.damage<90){ toast('Çekici sadece yakıt bitince ya da araç ağır hasarlıyken gelir',2000); return; }
@@ -918,15 +919,19 @@ function callTow(){ if(mode!=='free'||W.kind!=='city') return; const ev=!!SPEC.e
 let keepState=null; function loadVehStateKeep(){ if(keepState){ phys.fuel=keepState.fuel; phys.damage=keepState.damage; } }
 function freeRoamTick(dt){
   // odometer: driving earns money
-  const d=phys.speed*dt; SAVE.km+=d/1000; if(phys.speed>4){ odoAcc+=d; if(odoAcc>=100){ odoAcc-=100; SAVE.money+=8; } }
+  const d=phys.speed*dt; SAVE.km+=d/1000; if(phys.speed>4){ odoAcc+=d*(phys.speed>25?2:1); while(odoAcc>=100){ odoAcc-=100; SAVE.money+=25; } }
+  // drift money: sliding sideways at speed on tarmac pays per second, banked when the slide ends
+  const sliding=phys.speed>8&&Math.abs(phys.vLat||0)>2.5&&phys.surfR===0&&phys.surfF===0;
+  if(sliding){ driftT+=dt; driftPay+=dt*(20+Math.abs(phys.vLat)*4); driftGap=0; }
+  else if(driftPay>0){ driftGap+=dt; if(driftGap>0.7){ const p=Math.round(driftPay*(driftT>4?1.5:1)); if(p>=10){ SAVE.money+=p; toast('🔥 Drift '+driftT.toFixed(1)+' sn · +'+money(p),1800); } driftPay=0; driftT=0; } }
   keepState={fuel:phys.fuel,damage:phys.damage};
   const s=currentService(), P=$('svcPrompt');
-  if(svcBusy){ if(!s||phys.speed>1.5){ svcBusy=null; } else if(svcBusy.kind==='repair'){ svcBusy.t+=dt; if(svcBusy.t>=svcBusy.dur){ SAVE.money-=svcBusy.cost; repairModel(model); phys.damage=0; toast('🔧 Araç tamir edildi ('+money(svcBusy.cost)+')',2500); svcBusy=null; saveGame(); } }
+  if(svcBusy){ if(!s||phys.speed>1.5){ svcBusy=null; } else if(svcBusy.kind==='repair'){ svcBusy.t+=dt; if(svcBusy.t>=svcBusy.dur){ SAVE.money-=svcBusy.cost; repairModel(model); phys.damage=0; toast(svcBusy.ins?'🔧 Araç tamir edildi · paranın yetmeyen kısmını sigorta karşıladı ('+money(svcBusy.cost)+')':'🔧 Araç tamir edildi ('+money(svcBusy.cost)+')',3000); svcBusy=null; saveGame(); } }
     else { const ev=svcBusy.kind==='charge', rate=ev?0.08:0.2, price=ev?PRICE.charge:PRICE.fuel; const add=Math.min(rate*dt,1-phys.fuel), cost=add*price;
       if(SAVE.money<cost){ toast('Para bitti',1500); svcBusy=null; } else { phys.fuel+=add; SAVE.money-=cost; svcBusy.spent=(svcBusy.spent||0)+cost; if(phys.fuel>=0.999){ phys.fuel=1; toast((ev?'⚡ Şarj tamam':'⛽ Depo doldu')+' ('+money(svcBusy.spent)+')',2500); svcBusy=null; saveGame(); } } } }
   if(s){ P.classList.remove('hidden'); const st=SERVICE_STYLE[s.kind]; let html=`<div>${st.icon} <b>${s.name}</b></div>`;
     if(svcBusy){ const pr=svcBusy.kind==='repair'?svcBusy.t/svcBusy.dur:phys.fuel; html+=`<div>${svcBusy.kind==='repair'?'Tamir ediliyor…':svcBusy.kind==='charge'?'Şarj oluyor… '+Math.round(phys.fuel*100)+'%':'Yakıt dolduruluyor… '+Math.round(phys.fuel*100)+'%'}</div><div class="bar"><i style="width:${Math.round(pr*100)}%"></i></div>`; }
-    else if(s.kind==='repair'){ const cost=Math.ceil(phys.damage*PRICE.repair)+((model.lampsBroken||0)>0?150:0); html+=phys.damage<0.5&&!(model.lampsBroken>0)?'<div>Araçta hasar yok</div>':`<div>Hasar %${Math.round(phys.damage)} · Tamir: <b>${money(cost)}</b></div><button class="sec" id="svcGo">🔧 Tamir et (F)</button>`; }
+    else if(s.kind==='repair'){ const cost=Math.ceil(phys.damage*PRICE.repair)+((model.lampsBroken||0)>0?PRICE.lamps:0); html+=phys.damage<0.5&&!(model.lampsBroken>0)?'<div>Araçta hasar yok</div>':`<div>Hasar %${Math.round(phys.damage)} · Tamir: <b>${money(cost)}</b>${SAVE.money<cost?' · <span style="color:#9ee6a8">eksiğini sigorta öder</span>':''}</div><button class="sec" id="svcGo">🔧 Tamir et (F)</button>`; }
     else { const ev=!!SPEC.ev, ok=(s.kind==='charge')===ev; const need=(1-(phys.fuel??1))*(ev?PRICE.charge:PRICE.fuel);
       html+=ok&&(phys.fuel??1)>0.995?`<div>${ev?'Batarya dolu ✓':'Depo dolu ✓'}</div>`:ok?`<div>${ev?'Batarya':'Depo'} %${Math.round((phys.fuel??1)*100)} · Doldurmak: <b>${money(need)}</b></div><button class="sec" id="svcGo">${ev?'⚡ Şarj et':'⛽ Yakıt al'} (F)</button>`:`<div>${ev?'Bu araç elektrikli — ⚡ şarj noktasına git':'Bu araç benzinli — ⛽ pompaya git'}</div>`; }
     if(phys.speed>1.5&&!svcBusy) html+='<div style="opacity:.7;font-size:12px;margin-top:4px">Durunca işlem yapabilirsin</div>';
