@@ -267,6 +267,7 @@ export function makeFleet(scene,max,quality){
   const kinds=['sedan','suv','hatch','van'];
   const bodyMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.3,roughness:0.34,envMapIntensity:1.0});
   const lampMat=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
+  const blinkMat=new THREE.MeshBasicMaterial({color:new THREE.Color(3.2,1.35,0.08),toneMapped:false});
   const fleetGlass=new THREE.MeshStandardMaterial({color:0x0a0f15,metalness:0.2,roughness:0.04,envMapIntensity:1.6});
   const tireMat=new THREE.MeshStandardMaterial({color:0x151515,roughness:0.92});
   const rimMat=new THREE.MeshStandardMaterial({color:0xb9bec4,metalness:0.95,roughness:0.3});
@@ -284,6 +285,12 @@ export function makeFleet(scene,max,quality){
     sets[k]={ S, near:{ body:mk(C.body,bodyMat), glass:mk(C.glass,fleetGlass), tire:mk(mergeGeometries(tp),tireMat), rim:mk(mergeGeometries(rp),rimMat), plate:mk(C.plate,plateMat), head:mk(C.head,lampMat), tail:mk(C.tail,lampMat) },
       far:{ body:mk(farBody,bodyMat), head:mk(F.head,lampMat), tail:mk(F.tail,lampMat) }, shadow:mk(shG,shadowMat), n:0 };
     sets[k].shadow.renderOrder=1;
+    // turn signals: amber lamps at the outer corners (front + rear), one mesh per side; drawn only while blinking
+    { C.head.computeBoundingBox(); C.tail.computeBoundingBox(); const hb=C.head.boundingBox, tb=C.tail.boundingBox;
+      const yH=(hb.min.y+hb.max.y)/2, yT=(tb.min.y+tb.max.y)/2, zH=hb.max.z-0.02, zT=tb.max.z-0.02;
+      const side=sg=>{ const a=new THREE.BoxGeometry(0.07,0.085,0.2).translate(hb.max.x+0.01,yH-0.01,sg*(zH-0.06)), b=new THREE.BoxGeometry(0.07,0.1,0.22).translate(tb.min.x-0.01,yT,sg*(zT-0.08)),
+        m=new THREE.BoxGeometry(0.12,0.04,0.02).translate(S.a*0.55,S.R*1.55,sg*(S.w(S.a*0.55)+0.01)); return mergeGeometries([a,b,m]); };
+      sets[k].blinkR=mk(side(1),blinkMat); sets[k].blinkL=mk(side(-1),blinkMat); }
   }
   const items=[]; const m4=new THREE.Matrix4(), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0), pv=new THREE.Vector3(), one=new THREE.Vector3(1,1,1);
   const HEAD_ON=new THREE.Color(2.2,2.05,1.7), HEAD_OFF=new THREE.Color(0.55,0.57,0.6), TAIL_ON=new THREE.Color(3.0,0.1,0.06), TAIL_OFF=new THREE.Color(0.32,0.02,0.02), TAIL_NIGHT=new THREE.Color(1.2,0.04,0.03);
@@ -292,20 +299,22 @@ export function makeFleet(scene,max,quality){
   // instances are packed every frame: only cars in front of the camera are drawn, near ones with full detail
   const fleet={ kinds, items, night:false, cam:new THREE.Vector3(), camDir:new THREE.Vector3(0,0,-1),
     add(kind,color){ const it={kind,h:0,x:0,y:0,a:0,b:false,v:false,col:new THREE.Color(color)}; items.push(it); byKind[kind].push(it); return items.length-1; },
-    set(id,x,y,a,brake,visible=true){ const it=items[id]; it.x=x; it.y=y; it.a=a; it.b=brake; it.v=visible; },
+    set(id,x,y,a,brake,visible=true,sig=0){ const it=items[id]; it.x=x; it.y=y; it.a=a; it.b=brake; it.v=visible; it.sig=sig; },
     relod(){},
     commit(){ const cx=fleet.cam.x, cz=fleet.cam.z, dx=fleet.camDir.x, dz=fleet.camDir.z, dl=Math.hypot(dx,dz);
-      for(const k of kinds){ const s=sets[k], L=byKind[k]; let nN=0, nF=0, nS=0;
+      const blinkOn=(performance.now()%760)<400;
+      for(const k of kinds){ const s=sets[k], L=byKind[k]; let nN=0, nF=0, nS=0, nBL=0, nBR=0;
         for(const it of L){ if(!it.v) continue; const ox=it.x-cx, oz=it.y-cz, d2=ox*ox+oz*oz; if(d2>FAR2) continue;
           if(d2>100 && dl>0.01 && (ox*dx+oz*dz)/dl < -8) continue;                               // behind the camera
           q.setFromAxisAngle(up,-it.a); pv.set(it.x,it.h||0,it.y); m4.compose(pv,q,one);
           const lit=fleet.night&&!it.parked; const tc=it.b?TAIL_ON:(lit?TAIL_NIGHT:TAIL_OFF), hc=lit?HEAD_ON:HEAD_OFF;
           const P=d2<NEAR2?s.near:s.far, i=d2<NEAR2?nN++:nF++;
           for(const m of P.list) m.setMatrixAt(i,m4); P.body.setColorAt(i,it.col); P.tail.setColorAt(i,tc); P.head.setColorAt(i,hc);
-          if(d2<160*160) s.shadow.setMatrixAt(nS++,m4); }
+          if(d2<160*160) s.shadow.setMatrixAt(nS++,m4);
+          if(blinkOn&&it.sig&&d2<300*300){ if(it.sig>0) s.blinkR.setMatrixAt(nBR++,m4); else s.blinkL.setMatrixAt(nBL++,m4); } }
         for(const m of s.near.list){ m.count=nN; m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; }
         for(const m of s.far.list){ m.count=nF; m.instanceMatrix.needsUpdate=true; if(m.instanceColor) m.instanceColor.needsUpdate=true; }
-        s.shadow.count=nS; s.shadow.instanceMatrix.needsUpdate=true; } },
+        s.shadow.count=nS; s.shadow.instanceMatrix.needsUpdate=true; s.blinkR.count=nBR; s.blinkL.count=nBL; s.blinkR.instanceMatrix.needsUpdate=true; s.blinkL.instanceMatrix.needsUpdate=true; } },
     shape(kind){ return sets[kind].S; }
   };
   for(const k of kinds){ const s=sets[k]; s.near.list=Object.values(s.near); s.far.list=Object.values(s.far); }

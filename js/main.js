@@ -88,7 +88,7 @@ function ensureWorld(map){
   if(worlds[map]) return worlds[map];
   if(map==='track'){ const t=buildTrack(scene,settings.quality); worlds.track={kind:'track',group:t.group,startLights:t.startLights,phys:trackWorld}; }
   else { const c=buildCity(scene,settings.quality,fleet); const traffic=new Traffic(fleet,TRAFFIC_N);
-    const peds=new Pedestrians(scene,110);   // same crowd for every player (positions follow the shared clock)
+    const peds=new Pedestrians(scene,110); traffic.peds=peds;   // same crowd for every player (positions follow the shared clock)
     const lampLights=[]; if(settings.quality!=='low') for(let k=0;k<6;k++){ const L=new THREE.PointLight(0xffe2bf,0,32,1.6); scene.add(L); lampLights.push(L); }
     const svc=buildServices(c.group); const map=cityMapCanvas(); drawServiceIcons(map,svc.list);
     worlds.city={kind:'city',group:c.group,city:c,svc,traffic,peds,phys:cityWorld,lampLights,map,services:svc.list}; }
@@ -970,6 +970,11 @@ bmC.addEventListener('click',e=>{ if(!bmView) return; const r=bmC.getBoundingCli
   buildBmList(); drawBigMap(); });
 $('bmClose').onclick=()=>toggleBigMap(false); $('bmClear').onclick=()=>{ setWaypoint(null); buildBmList(); drawBigMap(); };
 
+// traffic horns: positional volume, a different pitch per car, short double toots for impatience
+const hornsOn=new Set();
+function trafficHorns(){ const seen=new Set(); if(W&&W.traffic&&!paused&&!audio.muted) for(const c of W.traffic.cars){ if(!(c.honk>0)) continue; const d=Math.hypot(c.x-camera.position.x,c.y-camera.position.z); if(d>140) continue;
+    const on=!(c.honk>0.4&&c.honk<0.55); const id='t'+c.id; if(on){ seen.add(id); audio.horn(id,true,Math.min(1,(1-d/140)*1.1),0.82+((c.id*37)%9)/24); } }
+  for(const id of hornsOn) if(!seen.has(id)) audio.horn(id,false); hornsOn.clear(); for(const id of seen) hornsOn.add(id); }
 // ---------------- main loop ----------------
 const STEP=1/120; let interp=null; const pPrev={x:0,y:0,a:0}; let acc=0, last=performance.now(), trafAcc=0, trafSend=0, lampT=0;
 addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); if(composer){ composer.setSize(innerWidth,innerHeight); } });
@@ -1002,7 +1007,7 @@ function frame(t){
     const sim=!online||net.isHost;
     if(sim){ trafAcc+=fdt; let n=0; while(trafAcc>=1/30 && n<4){ W.traffic.step(1/30,players); trafAcc-=1/30; n++; } if(n>=4) trafAcc=0; W.traffic.remote=null; W.traffic.ahead=trafAcc; } else W.traffic.ahead=0;
     if(online && net.isHost){ trafSend+=fdt; if(trafSend>0.1){ trafSend=0; net.sendAll({t:'x',k:'tr',d:W.traffic.pack(),ht:Date.now()}); } }
-    fleet.cam.copy(camera.position); if(camMode===1&&mode!=='menu'&&mode!=='lobby') fleet.camDir.set(0,0,0); else camera.getWorldDirection(fleet.camDir); W.traffic.render(fdt); fleet.commit();
+    fleet.cam.copy(camera.position); if(camMode===1&&mode!=='menu'&&mode!=='lobby') fleet.camDir.set(0,0,0); else camera.getWorldDirection(fleet.camDir); W.traffic.render(fdt); fleet.commit(); trafficHorns();
     W.peds.update(fdt,players);
     if(frameNo%15===0) W.city.updateLights();
     // nearest street lamps become real lights at night

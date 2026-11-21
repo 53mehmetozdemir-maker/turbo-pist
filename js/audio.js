@@ -137,12 +137,12 @@ export class CarAudio {
     s.connect(f); f.connect(g); g.connect(this.out); s.start(t,Math.random()*1.5); s.stop(t+0.2); }
   beep(high){ if(!this.ctx) return; const c=this.ctx,t=c.currentTime,o=c.createOscillator(),g=c.createGain(); o.type='square'; o.frequency.value=high?880:440;
     g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+(high?0.6:0.25)); o.connect(g); g.connect(this.out); o.start(t); o.stop(t+0.7); }
-  horn(id,on,vol=1){
+  horn(id,on,vol=1,pitch=1){
     if(!this.ctx) return; this.horns=this.horns||{}; let h=this.horns[id];
     if(on && !h){ const c=this.ctx, g=c.createGain(); g.gain.value=0; g.connect(this.out);
-      const os=[415,523].map(f=>{ const o=c.createOscillator(); o.type='sawtooth'; o.frequency.value=f; const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1800; o.connect(lp); lp.connect(g); o.start(); return o; });
+      const os=[415*pitch,523*pitch].map(f=>{ const o=c.createOscillator(); o.type='sawtooth'; o.frequency.value=f; const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1800; o.connect(lp); lp.connect(g); o.start(); return o; });
       h=this.horns[id]={g,os}; }
-    if(h){ h.g.gain.setTargetAtTime(on?0.16*vol:0,this.ctx.currentTime,0.02); if(!on){ const hh=h; delete this.horns[id]; setTimeout(()=>{ hh.os.forEach(o=>o.stop()); hh.g.disconnect(); },200); } }
+    if(h){ if(on&&h.vol===vol) return; h.vol=vol; h.g.gain.setTargetAtTime(on?0.16*vol:0,this.ctx.currentTime,0.02); if(!on){ const hh=h; delete this.horns[id]; setTimeout(()=>{ hh.os.forEach(o=>o.stop()); hh.g.disconnect(); },200); } }
   }
   shiftBlip(){ if(!this.ctx) return; this.eng.gain.setTargetAtTime(0.04,this.ctx.currentTime,0.01); }
 }
