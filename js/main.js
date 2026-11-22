@@ -11,11 +11,11 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { TP, N, WORLD, buildTrack, drawMinimapTrack, nearest, trackWorld } from './track.js';
-import { buildCar, dentCar, repairCar, drawGauges, CAR, makeFleet, loadCarModel } from './car.js';
+import { buildCar, dentCar, repairCar, drawGauges, CAR, makeFleet, loadCarModel, ferrariSablon } from './car.js';
 import { buildServices, SERVICE_STYLE } from './services.js';
 import { dentModel, crackWindscreen, repairModel, breakLamps } from './damage.js';
 import { Car, OPTS as PHYS, setSpec, P as SPEC } from './physics.js';
-import { VEHICLES, VEHICLE_IDS, loadVehicle, buildVehicle, vehicleReady } from './vehicles.js';
+import { VEHICLES, VEHICLE_IDS, loadVehicle, buildVehicle, vehicleReady, sablonlar } from './vehicles.js';
 import { CarAudio } from './audio.js';
 import { Particles, SkidMarks } from './effects.js';
 import { Net, PROTO } from './net.js';
@@ -48,6 +48,8 @@ const settings={
 if(!COLORS.includes(settings.color)) settings.color=COLORS[0];
 
 // ---------------- renderer / scene ----------------
+// Ultra = Yüksek'in bütün ayrıntıları + ortam gölgelendirmesi (GTAO, H3). Ayrıntı kodu 'high' görür; otomatik seçim Ultra'yı seçmez.
+const ULTRA=settings.quality==='ultra'; if(ULTRA) settings.quality='high';
 const renderer=new THREE.WebGLRenderer({antialias:settings.quality!=='low', powerPreference:'high-performance'});
 const DPR=window.devicePixelRatio||1;
 let GPU='';
@@ -81,9 +83,11 @@ const stars=(()=>{ const g=new THREE.BufferGeometry(), n=1500, p=new Float32Arra
 
 // post-processing (bloom) on high quality
 let composer=null, bloom=null;
+// efekt zincirini kapat ve GPU kaynaklarını (render target'lar, geçişler) bırak (H2)
+function composerBirak(){ const c=composer; composer=null; bloom=null; if(!c) return; for(const p of c.passes) if(p.dispose) p.dispose(); c.dispose(); }
 if(settings.quality==='high'){
   composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,camera));
-  if(false) try{ const ao=new GTAOPass(scene,camera,innerWidth,innerHeight); ao.updateGtaoMaterial({radius:0.6,distanceExponent:1.4,thickness:1,scale:1.1,samples:12}); ao.blendIntensity=0.85; composer.addPass(ao); }catch(e){ console.warn('AO yok',e); }
+  if(ULTRA) try{ const ao=new GTAOPass(scene,camera,innerWidth,innerHeight); ao.updateGtaoMaterial({radius:0.6,distanceExponent:1.4,thickness:1,scale:1.1,samples:12}); ao.blendIntensity=0.85; composer.addPass(ao); }catch(e){ console.warn('AO yok',e); }
   bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth/2,innerHeight/2),0.35,0.5,0.88); composer.addPass(bloom); composer.addPass(new OutputPass());
 }
 
@@ -315,13 +319,32 @@ function updateReflections(){
     if(cubeFace===5) tex.needsPMREMUpdate=true; cubeFace=(cubeFace+1)%6; }
   model.root.visible=true; rain.m.visible=wet; renderer.shadowMap.autoUpdate=au;
 }
+// Sahneden çıkan bir aracın GPU kaynaklarını bırak (araç değişimi, oyuncu ayrılması). Sadece başka hiçbir yerde
+// kullanılmayanlar: yeni araç, diğer oyuncular ve önbellekteki şablonlar (paylaşılan geometri/malzeme) dokunulmaz;
+// ayna/yansıma hedefleri (render target) ve ortam haritası hiç bırakılmaz. three.js'te bırakılmış bir kaynak yeniden
+// kullanılırsa kendiliğinden tekrar yüklenir: yanlışlıkla bırakılan bir şey bozulmaz, sadece yeniden yüklenir.
+function kaynaklar(x,set,seen=new Set(),d=0){
+  if(!x||typeof x!=='object'||seen.has(x)||d>6) return; seen.add(x);
+  if(x.isObject3D){ x.traverse(o=>{ if(o.geometry) set.add(o.geometry); for(const m of [].concat(o.material||[])) kaynaklar(m,set,seen,d+1); }); return; }
+  if(x.isBufferGeometry){ set.add(x); return; }
+  if(x.isTexture){ set.add(x); return; }
+  if(x.isMaterial){ set.add(x); for(const k in x){ const v=x[k]; if(v&&v.isTexture) set.add(v); } return; }
+  for(const v of Array.isArray(x)?x:Object.values(x)) kaynaklar(v,set,seen,d+1);
+}
+function aracBirak(eski){
+  if(!eski||!eski.root) return; const keep=new Set();
+  kaynaklar(model&&model.root,keep); for(const r of remotes.values()) if(r.model!==eski) kaynaklar(r.model.root,keep);
+  kaynaklar(sablonlar(),keep); kaynaklar(ferrariSablon(),keep);
+  const birak=new Set(); kaynaklar(eski.root,birak);
+  for(const k of birak){ if(keep.has(k)||k.isRenderTargetTexture||k===scene.environment||k===scene.background) continue; k.dispose(); }
+}
 function setMyColor(c){ settings.color=c; model.paint.color.set(c); }
 // swap the player's car: real model, real figures
 async function setVehicle(id){
   if(!VEHICLES[id]) return; if(phys.fuelUse){ SAVE.veh[settings.vehicle]={fuel:+(phys.fuel??1).toFixed(4),damage:+phys.damage.toFixed(1)}; store.set('tp8_save',JSON.stringify(SAVE)); } settings.vehicle=id; store.set('tp7_veh',id); renderVehicleCards();
   if(!vehicleReady(id)){ toast(VEHICLES[id].name+' yükleniyor…',1500); const ok=await loadVehicle(id); if(!ok){ toast('Araç yüklenemedi',2500); return; } if(settings.vehicle!==id) return; }
   const old=model; const nm=makeVehicleModel(id,settings.color);
-  scene.remove(old.root); model=nm; scene.add(model.root); model.body.add(headSpot); model.body.add(headTarget); attachMirrors();
+  scene.remove(old.root); model=nm; scene.add(model.root); model.body.add(headSpot); model.body.add(headTarget); attachMirrors(); aracBirak(old);
   updateReflections.on=false; setSpec(VEHICLES[id].spec); phys.gear=1; audio.profile=VEHICLES[id].sound; if(online) net.set(myPres());
   $('vehCredit').textContent=VEHICLES[id].credit; }
 function renderVehicleCards(){ const box=$('vSel'); if(!box) return; box.innerHTML='';
@@ -428,7 +451,7 @@ const sws=$('swatches');
 COLORS.forEach(c=>{ const d=document.createElement('div'); d.className='sw'+(c===settings.color?' on':''); d.style.background=c; d.onclick=()=>{ setMyColor(c); store.set('tp3_color',c); [...sws.children].forEach(x=>x.classList.remove('on')); d.classList.add('on'); }; sws.appendChild(d); });
 renderVehicleCards(); $("vehCredit").textContent=VEHICLES[settings.vehicle].credit;
 function seg(id,val,on){ const el=$(id); [...el.children].forEach(b=>{ b.classList.toggle('on',b.dataset.v===val); b.onclick=()=>{ [...el.children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); on(b.dataset.v); }; }); }
-seg('qSeg',settings.quality,v=>{ store.set('tp3_quality',v); if(v!==settings.quality){ toast('Grafik ayarı uygulanıyor…'); setTimeout(()=>location.reload(),400); } });
+seg('qSeg',ULTRA?'ultra':settings.quality,v=>{ store.set('tp3_quality',v); if(v!==(ULTRA?'ultra':settings.quality)){ toast('Grafik ayarı uygulanıyor…'); setTimeout(()=>location.reload(),400); } });
 seg('gSeg',settings.manual?'manual':'auto',v=>{ settings.manual=v==='manual'; phys.manual=settings.manual; store.set('tp3_manual',settings.manual?'1':'0'); });
 seg('aSeg',settings.assists?'on':'off',v=>{ settings.assists=v==='on'; phys.assists=settings.assists; store.set('tp3_assists',settings.assists?'1':'0'); });
 seg('mSeg',settings.map,v=>{ settings.map=v; store.set('tp4_map',v); toast(v==='city'?'Harita yükleniyor…':'Pist yükleniyor…',1200); setTimeout(()=>{ useWorld(v); parkShowcase(); updateMenuLabels(); },30); });
@@ -550,7 +573,7 @@ function onPeersChanged(){
     for(const p of peers){ if(p.me) continue; const s=p.p||{}; const inMine= mode==='free' ? s.st==='free' : s.raceId===raceId; if(!inMine || typeof s.x!=='number') continue;
       alive.add(p.id); let r=remotes.get(p.id);
       const rv=VEHICLE_IDS.includes(s.veh)?s.veh:'f458';
-      if(r && r.veh!==rv && vehicleReady(rv)){ scene.remove(r.model.root); r=null; remotes.delete(p.id); }
+      if(r && r.veh!==rv && vehicleReady(rv)){ scene.remove(r.model.root); remotes.delete(p.id); aracBirak(r.model); r=null; }
       if(!r){ if(!vehicleReady(rv)) loadVehicle(rv).then(()=>onPeersChanged());
         const m=makeVehicleModel(rv,safeColor(s.color)); scene.add(m.root); const label=nameSprite(safeName(s.name)); label.position.y=2.1; m.root.add(label);
         r={veh:vehicleReady(rv)?rv:'f458',model:m,x:s.x,y:s.y,a:s.a||0,v:0,vx:0,vy:0,steer:0,t:performance.now(),wheel:0}; remotes.set(p.id,r); }
@@ -558,11 +581,11 @@ function onPeersChanged(){
       r.tx=s.x; r.ty=s.y; r.ta=s.a||0; r.v=+s.v||0; r.sr=+s.sr||0; r.bk=!!s.bk; r.nt=!!s.nt; r.hn=!!s.hn; r.hl=!!s.hl;
       r.name=safeName(s.name); r.color=safeColor(s.color); r.lap=s.lap|0; r.cp=s.cp|0; r.idx=s.idx|0; r.fin=!!s.fin; r.ft=+s.ft||0; r.best=+s.best||0;
     }
-    for(const [k,r] of [...remotes]) if(!alive.has(k)){ scene.remove(r.model.root); audio.horn(k,false); remotes.delete(k); }
+    for(const [k,r] of [...remotes]) if(!alive.has(k)){ scene.remove(r.model.root); audio.horn(k,false); remotes.delete(k); aracBirak(r.model); }
   }
   renderLobby(); checkHost(); surumKontrol();
 }
-function clearRemotes(){ for(const [k,r] of remotes){ scene.remove(r.model.root); audio.horn(k,false); } remotes.clear(); }
+function clearRemotes(){ const eski=[...remotes.values()]; for(const [k,r] of remotes){ scene.remove(r.model.root); audio.horn(k,false); } remotes.clear(); for(const r of eski) aracBirak(r.model); }
 function checkHost(){
   if(!online||mode!=='lobby'||!net.isHost||settings.map!=='track') return;
   const lp=named().filter(p=>p.p.st==='lobby'); if(lp.length<2 || !lp.every(p=>p.p.ready)) return;
@@ -915,8 +938,9 @@ function drawCluster(){
   if(!SPEC.ev && phys.rpm>red-700){ g.fillStyle=phys.rpm>red-150&&frameNo%8<4?'#ff2a2a':'#ff8c1a'; g.beginPath(); g.arc(cx,cy-R+30,4,0,Math.PI*2); g.fill(); }
   // nitro + damage (left)
   const bx=12, by=150; g.textAlign='left'; g.textBaseline='alphabetic';
-  g.fillStyle='rgba(8,10,14,.72)'; g.beginPath(); g.roundRect(bx-6,by-36,104,82,10); g.fill();
-  { const f=phys.fuel??1, low=f<0.15; g.fillStyle='rgba(255,255,255,.6)'; g.font='700 9px Inter,sans-serif'; g.fillText(SPEC.ev?'ŞARJ':'YAKIT',bx,by-23);
+  // yarışta yakıt kullanılmaz (fuelUse=false): yakıt satırı gösterilmez, kutu kısalır (H7)
+  const yk=phys.fuelUse; g.fillStyle='rgba(8,10,14,.72)'; g.beginPath(); g.roundRect(bx-6,yk?by-36:by-16,104,yk?82:62,10); g.fill();
+  if(yk){ const f=phys.fuel??1, low=f<0.15; g.fillStyle='rgba(255,255,255,.6)'; g.font='700 9px Inter,sans-serif'; g.fillText(SPEC.ev?'ŞARJ':'YAKIT',bx,by-23);
     g.fillStyle=low?(frameNo%30<15?'#ff5a4a':'#ff9a8a'):'#e8ebef'; g.font='800 11px Inter,sans-serif'; g.textAlign='right'; g.fillText(Math.round(f*100)+'%',bx+90,by-22); g.textAlign='left';
     g.fillStyle='rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(bx,by-18,90,6,3); g.fill(); g.fillStyle=low?'#ff5a4a':SPEC.ev?'#4fb3ff':'#f5b83d'; g.beginPath(); g.roundRect(bx,by-18,Math.max(0.01,90*f),6,3); g.fill(); }
   g.fillStyle='rgba(255,255,255,.6)'; g.font='700 9px Inter,sans-serif'; g.fillText('NİTRO',bx,by-3);
@@ -1073,7 +1097,7 @@ function frame(t){
     // keep it smooth: lower the render resolution when the GPU struggles, raise it again when there is headroom
     if(document.visibilityState==='visible' && document.hasFocus() && fps>14 && t-lastModeT>3000){ fpsHist.push(fps); if(fpsHist.length>4) fpsHist.shift();
       const avg=fpsHist.reduce((s,v)=>s+v,0)/fpsHist.length; let pr=curPR;
-      if(fpsHist.length>=2 && avg<48 && t-prT>2500){ if(curPR>BASE_PR*0.55+1e-3) pr=Math.max(BASE_PR*0.55,curPR-0.15); else if(composer){ composer=null; bloom=null; prT=t; fpsHist.length=0; toast('Akıcılık için efektler kapatıldı',1800); } } else if(fpsHist.length>=4 && avg>58 && curPR<BASE_PR && t-prT>8000) pr=Math.min(BASE_PR,curPR+0.1);
+      if(fpsHist.length>=2 && avg<48 && t-prT>2500){ if(curPR>BASE_PR*0.55+1e-3) pr=Math.max(BASE_PR*0.55,curPR-0.15); else if(composer){ composerBirak(); prT=t; fpsHist.length=0; toast('Akıcılık için efektler kapatıldı',1800); } } else if(fpsHist.length>=4 && avg>58 && curPR<BASE_PR && t-prT>8000) pr=Math.min(BASE_PR,curPR+0.1);
       if(pr!==curPR){ curPR=pr; prT=t; fpsHist.length=0; renderer.setPixelRatio(curPR); if(composer) composer.setPixelRatio(curPR); } } else fpsHist.length=0; }
   handleEdges(); if(respawnCool>0) respawnCool-=fdt;
   const inp=readInput();
@@ -1172,4 +1196,29 @@ function frame(t){
 requestAnimationFrame(frame);
 // test hook
 const BOT=new URLSearchParams(location.search).has('bot');
-window.__game={THREE,showResults,camera,GPU,get pr(){return curPR;},quality:settings.quality,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene,SAVE,toggleBigMap,setWaypoint,serviceAction,onCrash,get model(){return model;},REGDBG,freeRoamTick,callTow,respawn,currentService,get waypoint(){return waypoint;},routePts,openWorld,toggleBigMap2:()=>bigMapOpen,CLOCK,saveGame,loadVehState};
+// ---- çalışma anı sağlamlığı (Aşama 5) ----
+// WebGL bağlamı kaybı (sürücü sıfırlandı, GPU belleği doldu, sekme uzun süre arka planda kaldı): önce kaydet.
+// three.js özel hedefleri (yansıma, ayna, ortam haritası) kendiliğinden geri kuramaz → bağlam dönünce sayfayı
+// yeniden yükle; dönmezse oyuncuya "Yeniden yükle" düğmesi göster.
+let baglamKayip=false;
+renderer.domElement.addEventListener('webglcontextlost',e=>{ e.preventDefault(); if(baglamKayip) return; baglamKayip=true;
+  try{ if(mode==='free') saveGame(); }catch(_){} try{ audio.ctx&&audio.ctx.suspend(); }catch(_){}
+  $('glLost').classList.remove('hidden'); },false);
+renderer.domElement.addEventListener('webglcontextrestored',()=>{ $('glLostMsg').textContent='Grafik geri geldi, oyun yeniden yükleniyor…'; setTimeout(()=>location.reload(),300); },false);
+$('glLostBtn').onclick=()=>location.reload();
+// Sekme gizlenince: ses askıya alınır (arka planda motor sesi çalmasın); tek oyunculuda sürüş/yarış duraklatılır.
+// Çok oyunculuda duraklatma herkesi durdurduğu için otomatik duraklatılmaz.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){ try{ audio.ctx&&audio.ctx.state==='running'&&audio.ctx.suspend(); }catch(_){}
+    if(!online && (mode==='free'||mode==='race') && !paused) setPause(true); }
+  else if(!baglamKayip){ try{ audio.ctx&&audio.ctx.state==='suspended'&&audio.ctx.resume(); }catch(_){} } });
+// Açılıştan sonra yakalanmayan hata: oyun çoğu zaman devam edebilir; oyuncuya sessizce kaybolmak yerine küçük bir
+// bildirim ve "Kaydet ve yenile" seçeneği göster (10 sn'de en fazla bir kez; tarayıcı eklentilerinin hataları sayılmaz).
+let hataT=0;
+function hataGoster(msg,kaynak){ if(kaynak && !String(kaynak).startsWith(location.origin)) return; const t=performance.now(); if(t-hataT<10000) return; hataT=t;
+  $('errMsg').textContent=String(msg||'bilinmeyen hata').slice(0,140); $('errBar').classList.remove('hidden'); }
+addEventListener('error',e=>{ if(window.__game) hataGoster(e.message,e.filename); });
+addEventListener('unhandledrejection',e=>{ if(window.__game){ const r=e.reason; hataGoster(r&&r.message||r); } });
+$('errReload').onclick=()=>{ try{ if(mode==='free') saveGame(); }catch(_){} location.reload(); };
+$('errClose').onclick=()=>$('errBar').classList.add('hidden');
+window.__game={THREE,showResults,camera,GPU,get pr(){return curPR;},quality:ULTRA?'ultra':settings.quality,get composer(){return composer;},composerBirak,phys,me,get mode(){return mode;},get world(){return W;},startFree,remotes,renderer,scene,SAVE,toggleBigMap,setWaypoint,serviceAction,onCrash,get model(){return model;},REGDBG,freeRoamTick,callTow,respawn,currentService,get waypoint(){return waypoint;},routePts,openWorld,toggleBigMap2:()=>bigMapOpen,CLOCK,saveGame,loadVehState};

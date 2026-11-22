@@ -50,7 +50,12 @@ for (const [ad, viewport, touch] of BOYUT.filter(b => !SUZ || SUZ.test(b[0]))) f
     if (MODE === 'record') fs.writeFileSync(ref, shot);
     else { fs.writeFileSync(path.join(OUTD, isim + '_yeni.png'), shot);
       if (!fs.existsSync(ref)) { console.log('   (referans yok)'); fark++; }
-      else { const A = PNG.sync.read(fs.readFileSync(ref)), B = PNG.sync.read(shot); const n = pixelmatch(A.data, B.data, null, A.width, A.height, { threshold: 0.12 }); const p = 100 * n / (A.width * A.height); if (p > 0.5) fark++; console.log(`   görüntü: %${p.toFixed(2)} fark`); } }
+      else {
+        // sadece menü paneli karşılaştırılır: arkadaki 3D sahne (trafik, ağaçlar) sayfa yüklenirken geçen kare sayısına göre
+        // oynar; bu testin konusu menünün yerleşimi
+        const kr = await page.evaluate(() => { const r = document.getElementById('menu').getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); });
+        const kirp = png => { const [x, y, w, h] = kr, o = new PNG({ width: w, height: h }); PNG.bitblt(png, o, Math.max(0, x), Math.max(0, y), Math.min(w, png.width - x), Math.min(h, png.height - y), 0, 0); return o; };
+        const A = kirp(PNG.sync.read(fs.readFileSync(ref))), B = kirp(PNG.sync.read(shot)); const n = pixelmatch(A.data, B.data, null, A.width, A.height, { threshold: 0.12 }); const p = 100 * n / (A.width * A.height); if (p > 0.5) fark++; console.log(`   görüntü (menü paneli): %${p.toFixed(2)} fark`); } }
   }
   await ctx.close();
 }

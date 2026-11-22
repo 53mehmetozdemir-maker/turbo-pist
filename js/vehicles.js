@@ -132,6 +132,8 @@ const cache = {};
 let loader = null;
 function getLoader() { if (loader) return loader; const d = new DRACOLoader(); d.setDecoderPath(window.DRACO_PATH || DRACO_GLTF_CONFIG); loader = new GLTFLoader(); loader.setDRACOLoader(d); return loader; }
 export function _tpl(id){ return cache[id] && cache[id].tpl; }
+// önbellekteki şablonlar (paylaşılan geometri/malzeme): araç değişiminde serbest bırakılmasın diye main.js'e verilir
+export function sablonlar() { return Object.values(cache).map(c => c.tpl).filter(Boolean); }
 export function vehicleReady(id) { const V = VEHICLES[id]; return !!V && (V.builtin || (V.proc && !V.file) || !!(cache[id] && cache[id].tpl)); }
 export function loadVehicle(id) {
   const V = VEHICLES[id]; if (!V || V.builtin || (V.proc && !V.file)) return Promise.resolve(true);

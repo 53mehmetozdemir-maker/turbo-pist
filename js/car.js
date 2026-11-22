@@ -109,6 +109,8 @@ function wheelGroup(R,detail=1){
 
 // ---------- real car model (Ferrari 458 Italia glTF) ----------
 let FERRARI=null, AO_TEX=null;
+// paylaşılan Ferrari şablonu: araç değişiminde serbest bırakılmasın diye main.js'e verilir
+export function ferrariSablon(){ return [FERRARI, AO_TEX]; }
 // Vite bu adresleri hash'li dosya adına çevirir (önbellek/güncelleme güvenliği).
 const FERRARI_URL=new URL('../assets/ferrari.glb',import.meta.url).href, FERRARI_AO_URL=new URL('../assets/ferrari_ao.png',import.meta.url).href;
 export async function loadCarModel(base){

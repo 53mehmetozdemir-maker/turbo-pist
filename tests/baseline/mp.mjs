@@ -51,7 +51,7 @@ const sonuc = []; let bad = 0; const ok = (ad, k, d = '') => { sonuc.push((k ? '
 // Oyuncuyu bir trafik aracının 7 m arkasına koyup 18 m/s ile çarptır; aracın sırası döner
 async function carp(o) {
   return o.page.evaluate(() => { const g = window.__game, P = g.phys, cars = g.world.traffic.all();
-    let n = -1, best = 1e9; cars.forEach((c, i) => { const d = Math.hypot(c.x - P.x, c.y - P.y); if (d < best && !c.crash && c.v > 2) { best = d; n = i; } });
+    let n = -1, best = 1e9; cars.forEach((c, i) => { const d = Math.hypot(c.x - P.x, c.y - P.y); if (d < best && !c.crash && c.v > 2 && c.v < 12) { best = d; n = i; }   // 18 m/s ile yetişilebilir hızda olsun (otoyol araçları daha hızlı) });
     if (n < 0) n = 0; const c = cars[n]; P.reset(c.x - Math.cos(c.a) * 7, c.y - Math.sin(c.a) * 7, c.a); P.vx = Math.cos(c.a) * 18; P.vy = Math.sin(c.a) * 18; return n; });
 }
 const kazaHost = (o, n) => o.page.waitForFunction(n => (window.__game.world.traffic.all()[n].crash || 0) > 0, n, { timeout: 15000, polling: 100 }).then(() => true, () => false);
@@ -73,7 +73,10 @@ try {
   ok('H1: misafir o aracı dörtlülerle ve kaza efektiyle görüyor', await kazaMisafir(m, n1));
   // 3) host çarpıyor → misafir görüyor
   const n2 = await carp(h);
-  ok('host\'un çarptığı araç misafirde dörtlülü + efektli', await kazaHost(h, n2) && await kazaMisafir(m, n2), 'araç #' + n2);
+  const hk = await kazaHost(h, n2), mk = hk && await kazaMisafir(m, n2);
+  const d2 = await h.page.evaluate(n => { const c = window.__game.world.traffic.all()[n], P = window.__game.phys; return { crash: c.crash || 0, mesafe: +Math.hypot(c.x - P.x, c.y - P.y).toFixed(1), hiz: +P.speed.toFixed(1) }; }, n2);
+  ok('host\'un çarptığı araç host\'ta kaza yapıyor', hk, 'araç #' + n2 + ' ' + JSON.stringify(d2));
+  if (hk) ok('host\'un çarptığı araç misafirde dörtlülü + efektli', mk, 'araç #' + n2);
   // 4) host ayrılıyor
   await h.page.keyboard.press('Escape'); await sleep(500); await h.page.click('#pauseMenuBtn');
   const ayrildi = await m.page.waitForFunction(() => window.__game.mode === 'menu', null, { timeout: 30000, polling: 300 }).then(() => true, () => false);

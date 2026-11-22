@@ -1,0 +1,20 @@
+// Bellek (Aşama 5): araç değiştirdikçe GPU belleği büyümemeli. 1. tur şablonları önbelleğe yükler (meşru artış);
+// 2. ve 3. turda geometri/doku sayısı artmamalı. WebGL hatası ve konsol hatası olmamalı.
+// usage: node baseline/bellek.mjs
+import { serve, launch, gamePage, sleep } from './lib.mjs';
+const { srv, url } = await serve(); const b = await launch();
+const { ctx, page, log } = await gamePage(b, url, { freeze: false, viewport: { width: 640, height: 360 } }); await sleep(2500);
+const IDS = ['f458', 'f40', 'model3', 'e2008', 'gsxr', 'gt3', 'civic'];
+const mem = () => page.evaluate(() => { const m = window.__game.renderer.info.memory; return [m.geometries, m.textures]; });
+const sec = async id => { await page.evaluate(i => document.querySelectorAll('#vSel .vcard')[i].click(), IDS.indexOf(id));
+  await page.waitForFunction(id => { const c = document.querySelector('#vSel .vcard.on'); return c && c.querySelector('b').textContent && window.__game.model && !document.getElementById('toast').textContent.includes('yükleniyor'); }, id, { timeout: 90000, polling: 200 }).catch(() => {}); await sleep(600); };
+const turlar = [];
+for (let t = 1; t <= 3; t++) { for (const id of [...IDS.slice(1), IDS[0]]) await sec(id); turlar.push(await mem()); console.log('tur', t, 'geometri', turlar.at(-1)[0], 'doku', turlar.at(-1)[1]); }
+const gl = await page.evaluate(() => { const g = window.__game.renderer.getContext(); return g.getError(); });
+await page.screenshot({ path: '/tmp/bellek_son.png' });
+const hatalar = log.filter(l => !/ERR_|Failed to load resource/.test(l));
+await b.close(); srv.close();
+const art = [turlar[2][0] - turlar[0][0], turlar[2][1] - turlar[0][1]];
+const ok = art[0] <= 2 && art[1] <= 1 && gl === 0 && !hatalar.length;
+console.log((ok ? '✅' : '❌') + ` 1. turdan 3. tura artış: geometri ${art[0]}, doku ${art[1]} · WebGL hata kodu ${gl} · konsol hatası ${hatalar.length}` + (hatalar.length ? ' — ' + hatalar[0] : ''));
+process.exit(ok ? 0 : 1);
