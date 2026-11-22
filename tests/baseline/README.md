@@ -19,6 +19,8 @@ node baseline/visual.mjs check      # her görüntü ≤ %0,5 piksel farkı; far
 node baseline/saves.mjs check
 node baseline/keys.mjs check        # 28 klavye kısayolu kontrolü, hepsi ✅ olmalı (~2 dk)
 node baseline/klasik.mjs check      # klasik.html: hatasız açılış, PeerJS, menü görüntüsü
+node baseline/menu.mjs [check|record|kontrol]   # menü yerleşimi: 6 boyut × güncelleme düğmesi var/yok, kesişme + sığma kontrolü
+node baseline/karsilastir.mjs <main> <derleme>    # bir hata canlıda da var mı: aynı senaryo, görüntü + fizik karşılaştırması
 node baseline/mp.mjs                # çok oyunculu: yerel PeerJS sunucusu, yeni↔yeni, eski↔yeni, H1, ayrı odalar (~8 dk)
 node baseline/worker.mjs            # TURN aracısı (Worker) birim testi
 node baseline/sw.mjs                # service worker: kapsam ayrımı, çevrimdışı, güncelleme, acil çıkış (kendi derler, ~15 dk)

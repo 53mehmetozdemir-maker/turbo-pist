@@ -11,7 +11,7 @@ Her madde ayrı commit ile düzeltilir; düzeltme sürüşü değiştiriyorsa ö
 | H5 | Multiplayer | TURN için herkese açık openrelay kullanıcı/şifresi koda gömülü, güvenilmez | ✅ Aşama 4 (kod): openrelay kaldırıldı; TURN Metered (ücretsiz) + Cloudflare Worker aracı, anahtar Worker'da gizli. Worker kuruldu (`https://turbo-pist-turn.53mehmetozdemir.workers.dev/ice`), GitHub'dan doğrulandı: `X-TP-Kaynak: metered`, 4 TURN sunucusu, başka köken 403 |
 | H6 | Arayüz | Büyük harita kısa/küçük pencerede (örn. 640×360) yan panel aşağı kayıp listeyi gösteremiyor | Aşama 5 |
 | H7 | Arayüz | Yarış modunda yakıt/hasar kullanılmadığı hâlde HUD'da YAKIT ve HASAR barları görünüyor | Aşama 5 |
-| H8 | Arayüz | Kısa ekranda (≤ 400 px yükseklik) menüde boya renkleri sabit başlat düğmelerinin altında kalıyor (kaydırınca görünüyor). Aynı sorun 1366×768 dizüstünde de var: menünün altındaki bağlantı notunun üst satırları "Odaya Gir / Tek Başına Gez" düğmelerinin arkasında kalıyor (`screens/laptop_1366_menu.png`) | Aşama 5 |
+| H8 | Arayüz | Kısa ekranda (≤ 400 px yükseklik) menüde boya renkleri sabit başlat düğmelerinin altında kalıyor (kaydırınca görünüyor). Aynı sorun 1366×768 dizüstünde de var: menünün altındaki bağlantı notunun üst satırları "Odaya Gir / Tek Başına Gez" düğmelerinin arkasında kalıyor (`screens/laptop_1366_menu.png`) | ✅ Menü kısmı düzeltildi (yeni referans onayını bekliyor): menü = kaydırılan içerik + altta sabit düğme bölümü (düğmeler artık içeriğin üstünde süzülmüyor); GRAFİK tam satır, VİTES/YARDIMLAR yan yana, dar ekranda alt alta; `menu.mjs` 6 boyut × güncelleme var/yok × üst/alt: kesişme yok, yazılar sığıyor. Büyük harita (H6) ayrı |
 | H9a | Kayıt | Kayıt formatında sürüm alanı yok; ileride format değişirse eski kayıtlar bozulabilir | ✅ Aşama 3: `js/save.js` — `v` alanı, adım adım geçiş, daha yeni sürümün kaydı korunur, bozuk kayıt `tp8_save_bozuk`'a yedeklenir, yanlış türdeki alanlar onarılır |
 | H9b | Kayıt | Aracın konumu kaydedilmiyor (her açılışta başlangıç noktası) | **Altyapı bittikten sonra ayrı iş** (şimdilik sadece listede) |
 | H10 | Multiplayer | Diğer oyuncunun aracındaki göçük/hasar karşı tarafa yansımıyor | **Altyapı bittikten sonra ayrı iş** (şimdilik sadece listede) |
@@ -24,3 +24,40 @@ Her madde ayrı commit ile düzeltilir; düzeltme sürüşü değiştiriyorsa ö
 | H17 | Multiplayer | Önizleme ve canlı oyuncular aynı oda koduyla aynı odaya düşebiliyordu | ✅ Aşama 4: önizleme oda ön eki `turbopist-v3-onizleme-` (canlı değişmedi: önbellekte eski sürümü olan oyuncular da aynı odaya düşsün) |
 | H18 | Multiplayer | Sürüm farkı fark edilmiyordu | ✅ Aşama 4: protokol sürümü `pv`; farklıysa "sayfayı yenile" uyarısı (eski sürüm alan göndermediği için yeni taraf uyarır). Uyumsuz değişiklikte `PROTO_ANA` artırılır → oda ön eki değişir |
 | H19 | Multiplayer | Metered ücretsiz TURN planı artık **ayda sadece 500 MB'lık deneme** (20 GB değil). Kota dolarsa: Worker yine liste verir, TURN sunucusu reddeder, oyun STUN'a düşer (normal ağlarda oynanır); TURN'ün şart olduğu ağlarda 15 sn sonra "Odaya bağlanılamadı · Wi-Fi'da tekrar dene" | **Bilinen sınır.** Kullanım Metered panelinden izlenmeli; gerekirse Cloudflare TURN'e geçiş (`worker/README.md`, sadece Worker değişir) |
+
+## Oyun düzeltmeleri — altyapı sonrası
+Önizlemede gerçek cihazda bulundu (22.11.2026). Hepsi **canlıda (main e771e2a) da var**, altyapı bozmadı. Kanıt:
+(1) ilgili kod (`physics.js`, `bike.js`, `bikeglb.js`, `interior.js`, `effects.js`, `damage.js`) main'den beri hiç değişmedi;
+(2) `tests/baseline/karsilastir.mjs`: main ile altyapı aynı donmuş saatle — 7 araç × takip/kokpit görüntüsü %0,00 fark,
+çizim/üçgen aynı; yüksek hızda fren, hasarlı düz sürüş, gaz+fren 7 araçta fizik birebir aynı. **Altyapı bitene kadar dokunulmuyor.**
+
+| # | Araç | Sorun | Koddan/ölçümden ilk bulgu |
+|---|---|---|---|
+| M1 | GSX-R 750 | Sağa çevirince ön teker görsel olarak sola dönüyor | Ön çatal dönüş yönü (`bikeglb.js`/`bike.js`), fizik direksiyonu doğru (+) |
+| M2 | GSX-R 750 | Yüksek hızda frende denge kaybı | Düz frende fizik kararlı (50 m/s → yön 0); sorun yatış/direksiyonla birlikte ya da görselde aranmalı |
+| M3 | GSX-R 750 | Hasarda sürekli sağa çekme, motorda fazla | Ölçüldü: hasar 60, 4 sn düz gazda motor 0,46 rad sapıyor (F40: 0,10). Motora ayrı/az katsayı gerekli |
+| M4 | GSX-R 750 | Aynalar bembeyaz | Motorun ayna tanımı yok (`mirrors`), model malzemesi düz beyaz |
+| M5 | GSX-R 750 | Gösterge çalışmıyor (10 km/s'de 0) | Motorun gösterge tanımı yok (`dash`); ekrandaki rakam modelin sabit dokusu |
+| M6 | GSX-R 750 | **Yeni özellik:** Ctrl ile wheelie; telefon ve oyun kolu karşılığı | — (fizik + animasyon + giriş; sürüş hissini değiştirir) |
+| M7 | GSX-R 750 | (genel kontrolde bulundu) Egzozdan bir şey çıkmıyor | Egzoz tanımı yok (`exhaust`) |
+| P1 | 911 GT3 | Tekerlekler dönmüyor | `wheelMats: null` ve parça adları teker kalıbına uymuyor → teker pivotları bulunamıyor (muhtemel) |
+| P2 | 911 GT3 | Egzozdan alev/duman yok | Egzoz tanımı yok (`exhaust`) |
+| P3 | 911 GT3 | Kokpitte aynalar yanlış yerde | `mirrors` koordinatları modele uymuyor; iç dikiz aynası tavanda havada |
+| P4 | 911 GT3 | Kokpit göstergeleri çalışmıyor | Gösterge tanımı yok (`dash`) |
+| P5 | 911 GT3 | Ön cam kenarı ve torpidoda beyaz üçgenler | Kokpit görüntüsünde doğrulandı; malzeme eşlemesinde kalan parçalar (model/kaplama) |
+| P6 | 911 GT3 | Kokpitte FPS 46 (diğerleri 60) | Kokpitte çizim çağrısı/üçgen diğerleriyle aynı ölçüldü → geometri değil; malzeme (`keepStd`) / ayna maliyeti incelenecek. Gerçek cihazda ölçülmeli |
+| C1 | Civic Type R | Egzozdan bir şey çıkmıyor | Egzoz tanımı yok (`exhaust`) |
+| C2 | Civic Type R | Gaz+fren patinajı yok (önden çekişte ön teker dönmeli) | Ölçüldü: gaz+fren 4 sn → Civic hiç kıpırdamıyor (hız 0), F40/GT3 patinajla ilerliyor. Burnout mantığı arkadan itiş varsayıyor (muhtemel) |
+| C3 | Civic Type R | Kokpitte aynalar yanlış yerde | İç dikiz aynası yansımasız soluk dikdörtgen görünüyor |
+| C4 | Civic Type R | Kokpit göstergeleri çalışmıyor | Gösterge tanımı yok (`dash`) |
+
+**Genel kontrol (7 araç, kokpit):**
+| Araç | Gösterge | Aynalar | Egzoz |
+|---|---|---|---|
+| Ferrari 458 | ✅ (kendi kadranı) | ✅ | ✅ alev |
+| Ferrari F40 | ✅ | ✅ | ✅ |
+| Tesla Model 3 | ✅ ekran (23 km/s) | ✅ | elektrikli (yok, doğru) |
+| Peugeot e-2008 | ✅ ekran (15 km/s) | ✅ | elektrikli (yok, doğru) |
+| GSX-R 750 | ❌ M5 | ❌ M4 | ❌ M7 |
+| 911 GT3 | ❌ P4 | ❌ P3 | ❌ P2 |
+| Civic Type R | ❌ C4 | ❌ C3 | ❌ C1 |

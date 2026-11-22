@@ -59,6 +59,9 @@ input[type=text]:focus{border-color:#ffd32a}
 .seg button{flex:1;background:transparent;color:#fff;padding:8px 6px;font-size:13px;border-radius:8px}
 .seg button.on{background:#ffd32a;color:#111}
 .cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+#menu .cols{grid-template-columns:1fr 1fr;gap:0 8px}
+#menu .cols>div:first-child{grid-column:1/-1}
+#menu .seg button{white-space:nowrap;min-width:0}
 .cols2{display:grid;grid-template-columns:1fr 1.3fr;gap:8px}
 #street{position:absolute;left:16px;bottom:34px;text-shadow:0 2px 6px rgba(0,0,0,.8)}
 #stName{font-family:Bungee,sans-serif;font-size:24px;line-height:1.1}
@@ -153,14 +156,21 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
 .panel,#bigMap .side{zoom:var(--up)}
 .panel{max-height:calc(94vh / var(--up))}
 @media (max-height:700px){ .vcard span{display:none} .vcard{padding:7px 9px} }
-#menu .btns{position:sticky;bottom:-24px;margin:18px -24px -24px;padding:14px 24px 18px;background:linear-gradient(rgba(12,14,20,0),rgba(12,14,20,.96) 26%);z-index:2}
+/* Menü: kaydırılan içerik + altta sabit düğme bölümü. Düğmeler içeriğin ÜSTÜNDE süzülmez; kaydırma alanı
+   düğmelerin başladığı yerde biter (güncelleme düğmesi çıkınca alan kendiliğinden kısalır) → hiçbir ayar
+   hiçbir ekran boyutunda düğmelerin arkasında kalmaz (H8). */
+#menu{display:flex;flex-direction:column;padding:0;overflow:hidden}
+#menu .mscroll{flex:1 1 auto;min-height:0;overflow:auto;padding:24px 24px 14px;overscroll-behavior:contain}
+#menu .btns{flex:0 0 auto;margin:0;padding:12px 24px 14px;border-top:1px solid rgba(255,255,255,.08);background:rgba(12,14,20,.5)}
 @media (min-width:640px) and (max-height:920px){
   #menu{width:min(860px,94vw)}
   #menu .mcols{display:grid;grid-template-columns:1.05fr 1fr;gap:0 22px;align-items:start}
   #menu .mL>label:first-child,#menu .mR>div:first-child label{margin-top:0}
 }
 @media (min-width:640px) and (max-height:920px) and (max-width:1250px){ #menu{right:auto;left:50%;transform:translate(-50%,-50%)} }
-@media (max-height:560px){ .panel{padding:14px 18px;border-radius:14px;max-height:calc(98vh / var(--up))} #menu h1{font-size:24px} #menu .sub{display:none} #menu label{margin:8px 0 4px} .seg button{padding:6px 4px} #menu input{padding:8px 10px} #menu .btns{margin:10px -18px -14px;padding:10px 18px 12px;bottom:-14px} .vcard span{display:none} .sw{width:26px;height:26px} }
+@media (max-width:480px){ #menu .cols2{grid-template-columns:1fr} }
+@media (max-width:360px){ #menu .cols{grid-template-columns:1fr} }
+@media (max-height:560px){ .panel{padding:14px 18px;border-radius:14px;max-height:calc(98vh / var(--up))} #menu h1{font-size:24px} #menu .sub{display:none} #menu label{margin:8px 0 4px} .seg button{padding:6px 4px} #menu input{padding:8px 10px} #menu .mscroll{padding:14px 18px 10px} #menu .btns{padding:8px 18px 10px;flex-direction:row;flex-wrap:wrap;gap:8px} #menu .btns>button{flex:1 1 0;padding:10px 12px} #menu #updMenu{flex-basis:100%} .vcard span{display:none} .sw{width:26px;height:26px} }
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,#1b2230,#07090d 70%);z-index:10}
 .ld{text-align:center;width:min(360px,80vw)}
 .ldt{font-family:Bungee,Inter,sans-serif;font-size:40px;background:linear-gradient(90deg,#ffd32a,#ff4757);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -216,6 +226,7 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
 <canvas id="drops"></canvas>
 
 <div id="menu" class="panel">
+  <div class="mscroll">
   <h1>TURBO PİST<small>3D</small></h1>
   <div class="sub">Şehirde serbest sürüş · pistte yarış · arkadaşınla online</div>
   <div class="mcols"><div class="mL">
@@ -240,11 +251,6 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
     <div><label>Yardımlar</label><div class="seg" id="aSeg"><button data-v="on">Açık</button><button data-v="off">Kapalı</button></div></div>
   </div>
   </div></div>
-  <div class="btns">
-    <button class="upd updBtn hidden" id="updMenu">🔄 Yeni sürüm hazır · Yenile</button>
-    <button class="go" id="joinBtn" disabled>Odaya Gir</button>
-    <button class="sec" id="soloBtn">Tek Başına Antrenman</button>
-  </div>
   <div class="note" id="netNote">Bağlantı kontrol ediliyor…</div>
   <details><summary>Kontroller</summary>
     <div class="keys">
@@ -268,6 +274,12 @@ body.touch #street{bottom:auto;top:104px;transform:scale(.75);transform-origin:t
     </div>
   </details>
   <div class="note" style="font-size:10.5px;opacity:.5;margin-top:10px"><span id="vehCredit"></span><br>3D modeller: Ferrari 458 Italia – vicent091036 (three.js örnekleri) · Ferrari F40 – Black Snow · Tesla Model 3 ve Peugeot e-2008 – David_Holiday (Sketchfab, CC-BY-4.0) · Honda Civic Type R FK8 – CGTrader (ücretsiz) · Porsche 911 GT3 ve Suzuki GSX-R 750 – oyuncunun gönderdiği modeller · Gökyüzü: Poly Haven (CC0)</div>
+  </div>
+  <div class="btns">
+    <button class="upd updBtn hidden" id="updMenu">🔄 Yeni sürüm hazır · Yenile</button>
+    <button class="go" id="joinBtn" disabled>Odaya Gir</button>
+    <button class="sec" id="soloBtn">Tek Başına Antrenman</button>
+  </div>
 </div>
 
 <div id="lobby" class="panel hidden">
