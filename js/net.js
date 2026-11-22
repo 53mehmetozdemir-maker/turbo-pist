@@ -1,11 +1,38 @@
 import { Peer } from 'peerjs';
 // Peer-to-peer rooms over WebRTC (PeerJS). The first player to open a room code
 // becomes host and relays everyone's "presence" (a small state object) to all.
-const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},
-  {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}]};
-const PREFIX='turbopist-v3-';
+//
+// Protokol sürümü (PROTO): mesajlara yalnızca alan EKLENİR, hiçbir alan silinmez/anlamı değişmez; böylece
+// eski ve yeni sürüm aynı odada oynayabilir, farkı oyuncuya "sayfayı yenile" diye söyleriz (main.js).
+// Uyumsuz (eski sürümün anlayamayacağı) bir değişiklik gerekirse PROTO_ANA artırılır: oda ön eki değişir,
+// eski ve yeni sürüm birbirinin odasına hiç düşmez.
+export const PROTO=2;          // 1: Aşama 4 öncesi (pv alanı yok) · 2: pv, misafir→host trafik darbesi, paket efektleri
+const PROTO_ANA=1;
+// Oda kimliği ön eki. Canlı: 'turbopist-v3-' (değişmedi: önbellekte eski sürümü olan oyuncular da aynı odaya
+// düşsün). Önizleme derlemesi VITE_ODA_ONEK=onizleme- verir: canlı ve önizleme oyuncuları asla aynı odaya düşmez.
+const PREFIX='turbopist-v3-'+(PROTO_ANA>1?'p'+PROTO_ANA+'-':'')+(import.meta.env.VITE_ODA_ONEK||'');
+export const ODA_ONEK=PREFIX;
+
+// ICE (bağlantı kurma) sunucuları. TURN bilgisi Cloudflare Worker'dan gelir (worker/turn.js);
+// API anahtarı orada gizli durur, oyunun koduna girmez. Worker yoksa/cevap vermezse sadece STUN:
+// aynı ağdaki ya da çoğu ev ağındaki oyuncular yine bağlanır, sadece zor ağlarda (bazı mobil
+// operatörler) bağlantı kurulamayabilir.
+const STUN=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.relay.metered.ca:80'}];
+const TURN_URL=import.meta.env.VITE_TURN_URL||'';
+let iceOnbellek=null, iceZaman=0;
+export async function iceSunucular(){
+  if(iceOnbellek && performance.now()-iceZaman<20*60*1000) return iceOnbellek;
+  if(!TURN_URL) return STUN;
+  try{
+    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),4000);
+    const r=await fetch(TURN_URL,{signal:ctl.signal,credentials:'omit'}); clearTimeout(t);
+    const l=r.ok?await r.json():null;
+    if(Array.isArray(l) && l.length && l.every(s=>s&&s.urls)){ iceOnbellek=l; iceZaman=performance.now(); return l; }
+  }catch(e){}
+  return STUN;
+}
+// Test kancası: testler yerel bir PeerJS sunucusu verebilir (tests/baseline/mp.mjs). Oyuncuda tanımsız.
+const sunucu=()=>window.__tpPeerSunucu||{};
 
 function merge(obj,patch){ for(const k in patch){ if(patch[k]===null) delete obj[k]; else obj[k]=patch[k]; } return obj; }
 
@@ -22,6 +49,8 @@ export class Net {
   get hostId(){ return this.isHost?this.myId:(this.hostConn?this.hostConn.peer:null); }
   // host -> everyone: extra messages (e.g. traffic state)
   sendAll(obj){ if(!this.isHost) return; for(const c of this.conns.values()) if(c.open){ try{ c.send(obj); }catch(e){} } }
+  // misafir -> host: ek mesajlar (ör. trafik aracına çarpma). Eski host bilmediği türü yok sayar.
+  sendHost(obj){ if(this.isHost||!this.hostConn||!this.hostConn.open) return; try{ this.hostConn.send(Object.assign({t:'x'},obj)); }catch(e){} }
   rebuild(){ this.peers=Object.keys(this.map).sort().map(id=>({id, me:id===this.myId, p:this.map[id]})); this.onPeers(this.peers); }
   set(patch){
     if(!this.peer) return; merge(this.mine,patch);
@@ -46,20 +75,21 @@ export class Net {
     c.on('data',d=>{
       if(!d||typeof d!=='object') return;
       if(d.t==='ping'){ try{ c.send({t:'pong',c:d.c}); }catch(e){} return; }
+      if(d.t==='x'){ this.onExtra&&this.onExtra(d,c.peer); return; }
       if(d.t==='p' && d.d && typeof d.d==='object'){ if(typeof d.s==='number'){ if(d.s<=last) return; last=d.s; } this.map[c.peer]=merge(this.map[c.peer]||{},d.d); this.dirty=true; }
     });
     const gone=()=>{ this.conns.delete(c.peer); delete this.map[c.peer]; this.dirty=true; };
     c.on('close',gone); c.on('error',gone); c.on('open',()=>{ this.dirty=true; });
   }
-  becomeHost(id){
-    return new Promise((res,rej)=>{ const p=new Peer(id,{debug:0,config:ICE}); let done=false;
+  becomeHost(id,ICE){
+    return new Promise((res,rej)=>{ const p=new Peer(id,{debug:0,config:ICE,...sunucu()}); let done=false;
       p.on('open',myId=>{ done=true; this.peer=p; this.isHost=true; this.myId=myId; p.on('connection',c=>this.hostSetup(c)); res('host'); });
       p.on('error',err=>{ if(!done){ done=true; p.destroy(); rej(err); } else if(err.type!=='peer-unavailable') this.toast('Bağlantı sorunu: '+err.type); });
       p.on('disconnected',()=>{ try{ p.reconnect(); }catch(e){} });
     });
   }
-  becomeClient(hostId){
-    return new Promise((res,rej)=>{ const p=new Peer({debug:0,config:ICE}); let done=false;
+  becomeClient(hostId,ICE){
+    return new Promise((res,rej)=>{ const p=new Peer({debug:0,config:ICE,...sunucu()}); let done=false;
       const fail=e=>{ if(!done){ done=true; try{p.destroy();}catch(_){} rej(e); } };
       const to=setTimeout(()=>fail({type:'zaman aşımı'}),15000);
       p.on('error',e=>{ if(!done) fail(e); else this.toast('Bağlantı sorunu: '+e.type); });
@@ -80,9 +110,9 @@ export class Net {
   }
   async join(code){
     this.map={}; this.mine={}; this.pending={}; this.conns.clear(); this.ping=null;
-    const id=PREFIX+code.toLowerCase();
-    try{ return await this.becomeHost(id); }
-    catch(e){ if(e && e.type==='unavailable-id') return await this.becomeClient(id); throw e; }
+    const id=PREFIX+code.toLowerCase(), ICE={iceServers:await iceSunucular()};
+    try{ return await this.becomeHost(id,ICE); }
+    catch(e){ if(e && e.type==='unavailable-id') return await this.becomeClient(id,ICE); throw e; }
   }
   leave(){ const p=this.peer; this.peer=null; this.hostConn=null; this.conns.clear(); this.map={}; this.peers=[]; this.isHost=false; if(p){ try{p.destroy();}catch(e){} } }
 }

@@ -37,6 +37,8 @@ jobs:
       - run: npm run build
         env:
           VITE_SURUM: ${{ github.sha }}
+          # TURN aracısı (worker/README.md). Gizli değil. Boşken oyun sadece STUN kullanır.
+          VITE_TURN_URL: ''
           ACIL_SW_KAPAT: ${{ inputs.acil_sw_kapat && '1' || '' }}
       - run: echo "$GITHUB_SHA" > dist/surum.txt
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

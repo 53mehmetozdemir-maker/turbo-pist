@@ -18,7 +18,7 @@ import { Car, OPTS as PHYS, setSpec, P as SPEC } from './physics.js';
 import { VEHICLES, VEHICLE_IDS, loadVehicle, buildVehicle, vehicleReady } from './vehicles.js';
 import { CarAudio } from './audio.js';
 import { Particles, SkidMarks } from './effects.js';
-import { Net } from './net.js';
+import { Net, PROTO } from './net.js';
 import { loadCityImages, buildCity, cityWorld, streetName, district, nearestLane, cityMapCanvas, SIZE, P as CP, LANES, CLOCK } from './city.js';
 import { Traffic, Pedestrians } from './traffic.js';
 import { findRoute, routeLength } from './route.js';
@@ -444,11 +444,21 @@ function saveName(){ settings.name=cleanName(); store.set('tp_name',settings.nam
 // ---------------- network ----------------
 let peers=[];
 const net=new Net(ps=>{ peers=ps; onPeersChanged(); }, ()=>{ goMenu(); }, toast);
-net.onExtra=d=>{ if(d.k==='tr' && !net.isHost){ if(typeof d.ht==='number'){ const off=d.ht-Date.now(); CLOCK.off=Math.abs(off-CLOCK.off)>2000?off:CLOCK.off+(off-CLOCK.off)*0.1; } if(W && W.traffic) W.traffic.unpack(d.d); } };
+net.onExtra=(d,from)=>{ if(d.k==='hit' && net.isHost && from){ if(W && W.traffic) W.traffic.applyHits(d.h); return; }
+  if(d.k==='tr' && !net.isHost){ if(typeof d.ht==='number'){ const off=d.ht-Date.now(); CLOCK.off=Math.abs(off-CLOCK.off)>2000?off:CLOCK.off+(off-CLOCK.off)*0.1; } if(W && W.traffic) W.traffic.unpack(d.d); } };
 const netNote=$('netNote');
 if(net.available){ $('joinBtn').disabled=false; netNote.innerHTML='Aynı oda kodunu giren herkes aynı haritaya katılır: <b>Şehir</b> seçip odayı açarsan arkadaşınla şehirde gezersin, <b>Pist</b> seçersen yarışırsınız (haritayı odayı açan seçer). <b>🔗 Davet</b> ile arkadaşına link gönder.'; }
 else netNote.innerHTML='<span class="warn">Bağlantı kütüphanesi yüklenemedi.</span> İnterneti kontrol edip sayfayı yenile.';
-const myPres=()=>({name:settings.name,color:settings.color,veh:settings.vehicle});
+const myPres=()=>({name:settings.name,color:settings.color,veh:settings.vehicle,pv:PROTO});
+// Sürüm uyuşmazlığı: her oyuncu için bir kez uyar. pv yoksa Aşama 4 öncesi sürüm (1).
+const pvUyarildi=new Set();
+function surumKontrol(){
+  for(const p of peers){ if(p.me||!p.p||pvUyarildi.has(p.id)) continue;
+    if(!('name' in p.p)) continue;                              // varlık bilgisi henüz gelmedi
+    const pv=typeof p.p.pv==='number'?p.p.pv:1; if(pv===PROTO) continue;
+    pvUyarildi.add(p.id); const ad=safeName(p.p.name)||'Bir oyuncu', host=p.id===net.hostId;
+    if(pv<PROTO) toast(host?'Oda kurucusunun oyunu eski sürümde: ona sayfayı yenilemesini söyle':ad+' eski sürümde: sayfayı yenilemesi lazım',7000);
+    else toast('Oyunun yeni sürümü var ('+ad+' yeni sürümde): sayfayı yenile',7000); } }
 
 $('joinBtn').onclick=async()=>{
   if(!net.available) return; saveName(); audio.start();
@@ -549,7 +559,7 @@ function onPeersChanged(){
     }
     for(const [k,r] of [...remotes]) if(!alive.has(k)){ scene.remove(r.model.root); audio.horn(k,false); remotes.delete(k); }
   }
-  renderLobby(); checkHost();
+  renderLobby(); checkHost(); surumKontrol();
 }
 function clearRemotes(){ for(const [k,r] of remotes){ scene.remove(r.model.root); audio.horn(k,false); } remotes.clear(); }
 function checkHost(){
@@ -1043,7 +1053,9 @@ const hornsOn=new Set();
 function trafficFx(dt){ if(!W||!W.traffic) return; for(const c of W.traffic.all()){
     if(c.fx){ const f=c.fx; c.fx=null; const n=Math.min(26,6+f.v*1.6);
       for(let k=0;k<n;k++) smoke.emit(f.x,0.6+Math.random()*0.5,f.y,(Math.random()-.5)*5,Math.random()*2.5,(Math.random()-.5)*5,k%3?{color:[0.85,0.88,0.9],size:0.06,grow:0.1,life:0.7,alpha:0.95}:{color:[0.2,0.2,0.22],size:0.08,grow:0.15,life:0.9,alpha:0.9});
-      if(f.v>3) audio.crash&&audio.crash(Math.min(1,f.v/14)); }
+      // ses mesafeyle azalır (çok oyunculuda şehrin öbür ucundaki kaza kulağının dibinde duyulmasın; 30 m içinde tam)
+      const dd=Math.hypot(f.x-camera.position.x,f.y-camera.position.z), dk=Math.min(1,Math.max(0,1-(dd-30)/120));
+      if(f.v>3 && dk>0) audio.crash&&audio.crash(Math.min(1,f.v/14)*dk); }
     if(c.smoke>0 && Math.random()<dt*14*Math.min(1,c.smoke)){ const ca=Math.cos(c.a), sa=Math.sin(c.a); smoke.emit(c.x+ca*1.6,1.0,c.y+sa*1.6,(Math.random()-.5)*0.4,1.1+Math.random()*0.6,(Math.random()-.5)*0.4,{color:[0.55,0.55,0.57],size:0.5,grow:1.6,life:2.4,alpha:0.45}); } } }
 function trafficHorns(){ const seen=new Set(); if(W&&W.traffic&&!paused&&!audio.muted) for(const c of W.traffic.cars){ if(!(c.honk>0)) continue; const d=Math.hypot(c.x-camera.position.x,c.y-camera.position.z); if(d>140) continue;
     const on=!(c.honk>0.4&&c.honk<0.55); const id='t'+c.id; if(on){ seen.add(id); audio.horn(id,true,Math.min(1,(1-d/140)*1.1),0.82+((c.id*37)%9)/24); } }
@@ -1102,6 +1114,8 @@ function frame(t){
       if(phys.impact>4){ dentCar(model,phys.impactAt.lx,phys.impactAt.lz,Math.min(3,phys.impact/8)); onCrash(phys.impactAt.lx,phys.impactAt.lz,phys.impact); audio.impact(phys.impact); shake=Math.min(1.5,shake+phys.impact*0.06); phys.impact=0; } else phys.impact=0;
       acc-=STEP;
     }
+    // misafir: trafiği host simüle eder → çarptığın araçların darbesini host'a gönder (H1)
+    if(online && !net.isHost && W.kind==='city'){ const h=W.traffic.takeHits(); if(h.length) net.sendHost({k:'hit',h}); }
     if(mode==='race') lapLogic();
     { const al=Math.min(1,acc/STEP), da=phys.a-pPrev.a; if(Math.abs(da)<1 && Math.abs(phys.x-pPrev.x)+Math.abs(phys.y-pPrev.y)<3){ const ix=pPrev.x+(phys.x-pPrev.x)*al, iy=pPrev.y+(phys.y-pPrev.y)*al, ia=pPrev.a+da*al;
         interp={x:phys.x,y:phys.y,a:phys.a,ix,iy,ia}; phys.x=ix; phys.y=iy; phys.a=ia; } }

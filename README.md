@@ -43,6 +43,16 @@ npm run preview   # derlenmiş hali yerelde açar
    O yayın bütün oyuncularda service worker'ı kaldırır, oyun doğrudan ağdan açılır. Sorun düzelince normal yayın yap
    (kutusuz); service worker yeniden kurulur.
 
+## Çok oyunculu
+
+- PeerJS (WebRTC, eşler arası). Odayı ilk açan kurucu (host) olur, trafiği o simüle eder.
+- Bağlantı kurulamayan ağlar (mobil veri, sıkı NAT) için TURN: Metered ücretsiz plan, Cloudflare Worker üzerinden
+  (`worker/README.md`). API anahtarı Worker'da gizli; oyunun koduna/repoya girmez. Worker adresi derlemede
+  `VITE_TURN_URL` ile verilir; boşsa sadece STUN.
+- Protokol sürümü (`js/net.js` → `PROTO`): mesajlara yalnız alan eklenir; farklı sürümdeki oyunculara
+  "sayfayı yenile" uyarısı çıkar. Uyumsuz değişiklikte `PROTO_ANA` artırılır (oda ön eki değişir).
+- Önizleme derlemesi `VITE_ODA_ONEK=onizleme-` ile ayrı odalarda oynar.
+
 ## Testler
 
 `tests/baseline/README.md` — fizik, görsel, kayıt, klavye kısayolu, service worker ve performans testleri.

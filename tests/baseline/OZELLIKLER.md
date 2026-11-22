@@ -35,7 +35,7 @@ Her araçta: 3.a gerçek motor/vites/tork değerleri · 3.b motor sesi profili �
 10.1 başlangıç ışıkları/geri sayım · 10.2 tur/sıra/zaman HUD · 10.3 kontrol noktaları · 10.4 en iyi tur · 10.5 araç başına rekor (kayıtta) · 10.6 sonuç ekranı · 10.7 yarışta yakıt/hasar kapalı
 
 ## 11. Multiplayer
-11.1 oda kur/katıl (PeerJS) · 11.2 lobi, hazır olma · 11.3 davet linkini kopyala · 11.4 şehirde birlikte serbest sürüş · 11.5 "arkadaşına git" (T) · 11.6 ESC/duraklatma herkeste · 11.7 hava/saat değişimi herkeste · 11.8 trafik host'tan senkron · 11.9 oyuncu adı/renk · 11.10 diğer oyuncunun aracı (model, farlar, korna)
+11.1 oda kur/katıl (PeerJS) · 11.2 lobi, hazır olma · 11.3 davet linkini kopyala · 11.4 şehirde birlikte serbest sürüş · 11.5 "arkadaşına git" (T) · 11.6 ESC/duraklatma herkeste · 11.7 hava/saat değişimi herkeste · 11.8 trafik host'tan senkron · 11.9 oyuncu adı/renk · 11.10 diğer oyuncunun aracı (model, farlar, korna) · 11.x misafirin çarptığı bot araç savrulur, dörtlü yakar, efektler herkeste (H1) · 11.x sürüm uyuşmazlığı uyarısı · 11.x önizleme/canlı ayrı odalar · 11.x TURN (Worker üzerinden) / yedek STUN · 11.x host ayrılınca misafir menüye döner ve uyarılır
 
 ## 12. Kayıt
 12.1 `tp8_save`: para, araç başına yakıt+hasar, km, rekorlar, econ2 bayrağı · 12.2 5 sn'de bir + sayfa kapanırken + menüye dönerken kayıt · 12.3 yeniden açınca hasar göçükleriyle geri gelir · 12.4 ayar anahtarları (tp7_veh, tp3_cam, tp4_time, tp4_map, tp6_wx, tp8_tilt …) · 12.x kayıt sürümü (`v`) ve geçiş; daha yeni sürümün kaydı korunur; bozuk kayıt yedeklenir (`saves_gecis/`)

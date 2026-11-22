@@ -73,8 +73,11 @@ try {
   await pA.evaluate(() => { document.getElementById('updPause').click(); document.getElementById('updMenu').click(); });
   await sleep(2000); ok('geri sayımda "Yenile"ye zorla basılsa da yenilenmedi', await pA.evaluate(() => window.__isaret === 1));
   await pA.waitForFunction(() => window.__game.mode === 'race', null, { timeout: 60000, polling: 300 });
-  await pA.keyboard.press('Escape'); await sleep(500);
-  ok('yarış duraklatmasında uyarı yok', await pA.evaluate(() => window.__game.mode === 'race' && !document.getElementById('pause').classList.contains('hidden')) && !(await gorunur(pA, 'updPause')));
+  await pA.keyboard.press('Escape');
+  await pA.waitForFunction(() => !document.getElementById('pause').classList.contains('hidden'), null, { timeout: 10000, polling: 100 }).catch(() => {});
+  await sleep(300);
+  const d5 = await pA.evaluate(() => ({ mod: window.__game.mode, duraklat: !document.getElementById('pause').classList.contains('hidden'), dugme: document.getElementById('updPause').className }));
+  ok('yarış duraklatmasında uyarı yok', d5.mod === 'race' && d5.duraklat && !(await gorunur(pA, 'updPause')), JSON.stringify(d5));
   await pA.keyboard.press('Escape'); await sleep(6000);
   ok('yarış sürerken sayfa yenilenmedi', await pA.evaluate(() => window.__isaret === 1 && window.__game.mode === 'race'));
   await pA.keyboard.press('Escape'); await pA.click('#pauseMenuBtn'); await sleep(500);

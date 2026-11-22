@@ -101,15 +101,39 @@ export class Traffic {
   }
   all() { return this.hw ? this.cars.concat(this.hw.cars) : this.cars; }
   // compact state for the network
-  pack() { return this.all().map(c => [Math.round(c.x * 10) / 10, Math.round(c.y * 10) / 10, Math.round(c.a * 100) / 100, c.brake ? 1 : 0, Math.round(c.v * 10) / 10, c.sig || 0, c.honk > 0 ? 1 : 0]); }
+  // [x, y, a, fren, hız, sinyal, korna] — Aşama 4 (PROTO 2) sona ekler: [duman, kaza sayacı, kaza x, y, şiddet].
+  // Eski sürüm fazla elemanları okumaz; yeni sürüm eksikleri yok sayar. Kaza efekti tek seferlik bir olay ama
+  // paketler kayıplı (reliable:false): sayaç sayesinde kaybolan paket efekti yutmaz, iki kez de oynatmaz.
+  pack() { return this.all().map(c => { const r = [Math.round(c.x * 10) / 10, Math.round(c.y * 10) / 10, Math.round(c.a * 100) / 100, c.brake ? 1 : 0, Math.round(c.v * 10) / 10, c.sig || 0, c.honk > 0 ? 1 : 0, Math.round((c.smoke || 0) * 10) / 10];
+    if (c.fxN) r.push(c.fxN, Math.round(c.fxL.x * 10) / 10, Math.round(c.fxL.y * 10) / 10, Math.round(c.fxL.v * 10) / 10); return r; }); }
   unpack(arr) { this.remote = arr; this.remoteT = performance.now(); }
+  // host: misafirin çarptığı araçlara darbeyi uygula (H1). h: [[sıra, kvx, kvy, kw, hitV, hitX, hitY], …]
+  // Değerler doğrulanır ve sınırlanır (bozuk/kötü niyetli mesaj trafiği uçuramasın).
+  applyHits(h) {
+    if (!Array.isArray(h)) return 0; const all = this.all(); let n = 0;
+    const lim = (x, m) => typeof x === 'number' && Number.isFinite(x) ? Math.max(-m, Math.min(m, x)) : 0;
+    for (const e of h.slice(0, 16)) { if (!Array.isArray(e)) continue; const c = all[e[0]]; if (!Number.isInteger(e[0]) || !c) continue;
+      const hx = lim(e[5], 1e5), hy = lim(e[6], 1e5); const yakin = Math.hypot(hx - c.x, hy - c.y) < 12;
+      c.kvx = (c.kvx || 0) + lim(e[1], 30); c.kvy = (c.kvy || 0) + lim(e[2], 30); c.kw = (c.kw || 0) + lim(e[3], 12);
+      c.hitV = Math.max(c.hitV || 0, Math.max(0, lim(e[4], 40))); if (yakin) { c.hitX = hx; c.hitY = hy; } n++; }
+    return n;
+  }
+  // misafir: fiziğin bu karede araçlara yazdığı darbeleri topla ve sıfırla (host'a gönderilecek)
+  takeHits() {
+    const out = []; this.all().forEach((c, n) => { if (c.kvx || c.kvy || c.kw || c.hitV) {
+      out.push([n, Math.round((c.kvx || 0) * 100) / 100, Math.round((c.kvy || 0) * 100) / 100, Math.round((c.kw || 0) * 100) / 100, Math.round((c.hitV || 0) * 100) / 100, Math.round((c.hitX ?? c.x) * 10) / 10, Math.round((c.hitY ?? c.y) * 10) / 10]);
+      c.kvx = c.kvy = c.kw = c.hitV = 0; } }); return out;
+  }
   render(dt) {
     const f = this.fleet;
     if (this.remote) {   // follower: interpolate toward host state with prediction
       const age = Math.min(0.3, (performance.now() - this.remoteT) / 1000), k = 1 - Math.exp(-dt * 10);
       this.all().forEach((c, n) => { const r = this.remote[n]; if (!r) return; const px = r[0] + Math.cos(r[2]) * r[4] * age, py = r[1] + Math.sin(r[2]) * r[4] * age;
         if (Math.hypot(px - c.x, py - c.y) > 15) { c.x = px; c.y = py; c.a = r[2]; }
-        const ox = c.x, oy = c.y; c.x += (px - c.x) * k; c.y += (py - c.y) * k; let da = r[2] - c.a; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; c.a += da * k; c.brake = !!r[3]; c.sig = r[5] || 0; c.honk = r[6] ? 0.2 : 0; c.vx = (c.x - ox); c.vy = (c.y - oy); c.v = r[4]; });
+        const ox = c.x, oy = c.y; c.x += (px - c.x) * k; c.y += (py - c.y) * k; let da = r[2] - c.a; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; c.a += da * k; c.brake = !!r[3]; c.sig = r[5] || 0; c.honk = r[6] ? 0.2 : 0; c.vx = (c.x - ox); c.vy = (c.y - oy); c.v = r[4];
+        c.smoke = r[7] || 0;
+        // kaza efekti: ilk pakette mevcut sayacı "görüldü" say (katılınca eski kazalar tekrar oynamasın)
+        const fxN = r[8] || 0; if (c.fxSeen === undefined) c.fxSeen = fxN; else if (fxN !== c.fxSeen) { c.fxSeen = fxN; if (fxN) c.fx = { x: r[9], y: r[10], v: r[11] || 0 }; } });
     }
     const ah = this.remote ? 0 : (this.ahead || 0);
     for (const c of this.all()) { const s = (c.v || 0) * ah; f.set(c.id, c.x + (c.crash ? 0 : Math.cos(c.a) * s), c.y + (c.crash ? 0 : Math.sin(c.a) * s), c.a, c.brake || !!c.crash, true, c.sig || 0); }
@@ -205,8 +229,8 @@ export function wreckCheck(c) {
   if (!c.crash && hit > 1.2) {   // fresh hit: the car keeps its own momentum, then slides
     c.kvx = (c.kvx || 0) + Math.cos(c.a) * c.v; c.kvy = (c.kvy || 0) + Math.sin(c.a) * c.v; c.v = 0;
     c.crash = 9 + Math.min(6, (c.hitV || 0) * 0.4); c.ox = c.ox || 0; c.oy = c.oy || 0; c.oa = c.oa || 0;
-    c.smoke = (c.hitV || 0) > 8 ? 7 : 0; c.honk = 1.6; c.cool = 3; c.fx = { x: c.hitX ?? c.x, y: c.hitY ?? c.y, v: c.hitV || 0 }; c.hitV = 0;
-  } else if (c.crash && hit > 1.2 && (c.hitV || 0) > 2) { c.crash = Math.max(c.crash, 8); c.fx = { x: c.hitX ?? c.x, y: c.hitY ?? c.y, v: c.hitV }; if (c.hitV > 8) c.smoke = 7; c.hitV = 0; }
+    c.smoke = (c.hitV || 0) > 8 ? 7 : 0; c.honk = 1.6; c.cool = 3; c.fx = { x: c.hitX ?? c.x, y: c.hitY ?? c.y, v: c.hitV || 0 }; c.fxL = c.fx; c.fxN = (c.fxN || 0) + 1; c.hitV = 0;
+  } else if (c.crash && hit > 1.2 && (c.hitV || 0) > 2) { c.crash = Math.max(c.crash, 8); c.fx = { x: c.hitX ?? c.x, y: c.hitY ?? c.y, v: c.hitV }; c.fxL = c.fx; c.fxN = (c.fxN || 0) + 1; if (c.hitV > 8) c.smoke = 7; c.hitV = 0; }
   else if (!c.crash) { c.kvx = c.kvy = c.kw = 0; c.hitV = 0; }
   return !!c.crash;
 }

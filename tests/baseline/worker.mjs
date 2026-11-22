@@ -1,0 +1,24 @@
+// worker/turn.js birim testi: sahte Metered + sahte Cloudflare önbelleği. usage: node baseline/worker.mjs
+import path from 'node:path'; import { pathToFileURL } from 'node:url'; import { HERE_DIR } from './lib.mjs';
+const { default: W } = await import(pathToFileURL(path.resolve(HERE_DIR, '../../worker/turn.js')).href);
+const depo = new Map(); globalThis.caches = { default: { match: async r => depo.get(r.url)?.clone(), put: async (r, v) => depo.set(r.url, v) } };
+let metered = 0, meteredOk = true, sonUrl = '';
+globalThis.fetch = async u => { metered++; sonUrl = String(u); return meteredOk ? new Response(JSON.stringify([{ urls: 'stun:stun.relay.metered.ca:80' }, { urls: 'turn:standard.relay.metered.ca:80', username: 'k', credential: 'p' }]), { status: 200 }) : new Response('x', { status: 500 }); };
+const ctx = { waitUntil: p => p };
+const env = { METERED_APP: 'turbopist', METERED_API_KEY: 'GIZLI-ANAHTAR' };
+const iste = (yol, origin, e = env, method = 'GET') => W.fetch(new Request('https://w.example' + yol, { method, headers: origin ? { Origin: origin } : {} }), e, ctx);
+const O = 'https://53mehmetozdemir-maker.github.io'; let bad = 0; const ok = (a, k) => { console.log((k ? '✅ ' : '❌ ') + a); if (!k) bad++; };
+let r = await iste('/ice', O); let j = await r.json();
+ok('izinli köken: Metered listesi dönüyor', r.status === 200 && j.some(s => String(s.urls).startsWith('turn:')) && r.headers.get('Access-Control-Allow-Origin') === O);
+ok('API anahtarı cevapta yok', !JSON.stringify(j).includes('GIZLI') && !JSON.stringify([...r.headers]).includes('GIZLI'));
+ok('Metered\'e doğru adresle sorulmuş', sonUrl.startsWith('https://turbopist.metered.live/api/v1/turn/credentials?apiKey='));
+const once = metered; await iste('/ice', O); ok('ikinci istekte Metered\'e sorulmuyor (önbellek)', metered === once);
+r = await iste('/ice', 'https://kotu.example'); ok('başka köken: 403', r.status === 403 && !r.headers.get('Access-Control-Allow-Origin'));
+r = await iste('/ice', null); ok('kökensiz istek: 403', r.status === 403);
+r = await iste('/baska', O); ok('bilinmeyen yol: 404', r.status === 404);
+r = await iste('/ice', O, env, 'OPTIONS'); ok('CORS ön isteği: 204', r.status === 204 && r.headers.get('Access-Control-Allow-Origin') === O);
+depo.clear(); meteredOk = false; r = await iste('/ice', O); j = await r.json();
+ok('Metered hata verirse yalnız STUN (oyun çalışmaya devam eder)', r.status === 200 && j.every(s => String(s.urls).startsWith('stun:')) && r.headers.get('X-TP-Kaynak') === 'yedek-hata');
+r = await iste('/ice', O, {}); j = await r.json(); ok('anahtar tanımlı değilse yalnız STUN', j.every(s => String(s.urls).startsWith('stun:')));
+r = await iste('/ice', 'http://localhost:5173', { ...env, IZINLI_KAYNAKLAR: O + ', http://localhost:5173' }); ok('IZINLI_KAYNAKLAR ile ek köken', r.status === 200);
+console.log(bad ? `${bad} hata` : 'hepsi geçti'); process.exit(bad ? 1 : 0);
