@@ -46,8 +46,9 @@ npm run preview   # derlenmiş hali yerelde açar
 ## Çok oyunculu
 
 - PeerJS (WebRTC, eşler arası). Odayı ilk açan kurucu (host) olur, trafiği o simüle eder.
-- Bağlantı kurulamayan ağlar (mobil veri, sıkı NAT) için TURN: Metered ücretsiz plan, Cloudflare Worker üzerinden
-  (`worker/README.md`). API anahtarı Worker'da gizli; oyunun koduna/repoya girmez. Worker adresi derlemede
+- Bağlantı kurulamayan ağlar (mobil veri, sıkı NAT) için TURN: Metered ücretsiz deneme planı (**ayda sadece 500 MB**),
+  Cloudflare Worker üzerinden (`worker/README.md`): https://turbo-pist-turn.53mehmetozdemir.workers.dev/ice.
+  Kota dolarsa oyun STUN'a düşer (çoğu ağda oynanır); TURN'ün şart olduğu ağlarda bağlantı kurulamaz. API anahtarı Worker'da gizli; oyunun koduna/repoya girmez. Worker adresi derlemede
   `VITE_TURN_URL` ile verilir; boşsa sadece STUN.
 - Protokol sürümü (`js/net.js` → `PROTO`): mesajlara yalnız alan eklenir; farklı sürümdeki oyunculara
   "sayfayı yenile" uyarısı çıkar. Uyumsuz değişiklikte `PROTO_ANA` artırılır (oda ön eki değişir).

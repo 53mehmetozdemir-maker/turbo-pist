@@ -1,7 +1,7 @@
 # TURN aracısı (Cloudflare Worker) — kurulum
 
 İki oyuncu doğrudan bağlanamadığında (mobil veri, sıkı NAT) bağlantı bir TURN sunucusu üzerinden geçer.
-TURN: **Metered ücretsiz plan** (kart istemez). Metered API anahtarı **asla** repoya ya da oyunun koduna girmez;
+TURN: **Metered ücretsiz deneme planı** (kart istemez). ⚠️ Bu plan **ayda sadece 500 MB** TURN trafiği veriyor (giriş + çıkış; eskiden 20 GB'tı). Metered API anahtarı **asla** repoya ya da oyunun koduna girmez;
 Cloudflare Worker'da gizli değişken olarak durur. Oyun Worker'a sorar, Worker Metered'den ICE listesini getirir.
 
 > ⚠️ API anahtarını kimseyle paylaşma, sohbete yapıştırma. Sadece Cloudflare'deki gizli değişken kutusuna yazılır.
@@ -42,3 +42,27 @@ Cloudflare Worker'da gizli değişken olarak durur. Oyun Worker'a sorar, Worker 
 - TURN kullanıcı adı/parolası WebRTC'nin çalışması için tarayıcıya gitmek zorunda (her TURN kurulumunda böyledir);
   korunan şey Metered **API anahtarı** ve hesabın.
 - Birim testi: `cd tests && node baseline/worker.mjs`.
+
+## Kota (500 MB/ay) dolarsa ne olur
+- TURN yalnızca iki oyuncu **doğrudan bağlanamadığında** kullanılır; çoğu bağlantı (aynı ağ, çoğu ev ağı) TURN'süz kurulur
+  ve kotadan yemez. Kota, sadece zor ağlardaki (bazı mobil operatörler, sıkı NAT) oyuncuların trafiğiyle dolar.
+- Kota dolunca Metered TURN sunucusu bağlantıyı reddeder; Worker yine liste döndürür (`X-TP-Kaynak: metered`).
+  Tarayıcı TURN'ü deneyip olmayınca doğrudan yolu (STUN) kullanır: **oyun STUN'a düşer**, normal ağlarda oynanmaya devam eder.
+  Bu durum `tests/baseline/mp.mjs`'de sınanıyor: ICE listesindeki TURN sunucusuna ulaşılamazken iki oyuncu yine bağlanıyor.
+- TURN'ün **gerçekten gerektiği** ağda (iki taraf da doğrudan bağlanamıyorsa) bağlantı kurulamaz: oyun takılmaz,
+  15 sn sonra "Odaya bağlanılamadı (zaman aşımı) · Wi-Fi'da tekrar dene" der ve menüde kalır.
+- Kullanımı izlemek için: Metered paneli → TURN Server → kullanım (Usage).
+
+## İleride Cloudflare Realtime TURN'e geçiş (kart istediği için şimdilik kullanılmıyor)
+Sadece Worker değişir; oyunun kodu değişmez (oyun Worker'dan hazır `iceServers` listesi alıyor).
+1. Cloudflare panelinde Realtime → TURN → TURN anahtarı oluştur: **Key ID** ve **API Token** verir.
+2. Worker değişkenleri: `CF_TURN_KEY_ID` (Text), `CF_TURN_API_TOKEN` (Secret). Metered değişkenleri silinebilir.
+3. `worker/turn.js`'te Metered isteğinin yerine:
+   ```js
+   const m = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${env.CF_TURN_KEY_ID}/credentials/generate-ice-servers`, {
+     method: 'POST', headers: { Authorization: `Bearer ${env.CF_TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
+     body: JSON.stringify({ ttl: 86400 }) });
+   const liste = (await m.json()).iceServers;   // cevap { iceServers: [...] } biçiminde
+   ```
+4. Cloudflare kimlik bilgileri süreli (ttl): Worker önbelleği (`ONBELLEK_SN`, 10 dk) ttl'den kısa kalmalı — öyle.
+5. `node baseline/worker.mjs` testindeki sahte Metered cevabını yeni biçime göre güncelle.

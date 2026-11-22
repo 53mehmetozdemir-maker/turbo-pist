@@ -465,7 +465,8 @@ $('joinBtn').onclick=async()=>{
   const code=(codeIn.value||randCode()).toUpperCase(); codeIn.value=code; store.set('tp_code',code);
   $('joinBtn').disabled=true; $('joinBtn').textContent='Bağlanıyor…';
   try{ await net.join(code); }
-  catch(e){ $('joinBtn').disabled=false; $('joinBtn').textContent='Odaya Gir'; toast('Odaya bağlanılamadı ('+((e&&e.type)||'hata')+')',4000); return; }
+  catch(e){ $('joinBtn').disabled=false; $('joinBtn').textContent='Odaya Gir'; const zt=e&&e.type==='zaman aşımı';   // TURN gerekiyor ama çalışmıyor (ör. kota doldu) ya da ağ engelliyor
+    toast('Odaya bağlanılamadı ('+((e&&e.type)||'hata')+')'+(zt?' · Ağın doğrudan bağlantıya izin vermiyor olabilir: Wi-Fi\'da tekrar dene':''),zt?7000:4000); return; }
   $('joinBtn').disabled=false; $('joinBtn').textContent='Odaya Gir';
   online=true; seenRaces=new Set(); $('lobbyCode').textContent=code; shared.wx=shared.tm=shared.pz=0;
   if(net.isHost){ net.set({...myPres(), map:settings.map, wx:settings.weather, wxV:1, tm:settings.time, tmV:1, pz:false, pzV:1, ready:false, st:'lobby', raceId:null, race:null}); shared.wx=shared.tm=shared.pz=1; net.rebuild();
