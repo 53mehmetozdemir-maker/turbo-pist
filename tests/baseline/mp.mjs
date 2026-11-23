@@ -24,6 +24,10 @@ if (!fs.existsSync(ESKI)) execFileSync('git', ['worktree', 'add', '-f', ESKI, 'e
 D[E] = ESKI;
 const psrv = await new Promise(r => PeerServer({ port: 0, path: '/peerjs', host: '127.0.0.1' }, r));
 const PS = { host: '127.0.0.1', port: psrv.address().port, path: '/peerjs', secure: false, key: 'peerjs' };
+// teşhis: hata olursa tarayıcı konsolu ve başarısız istekler yazdırılır (CI'da sebebi görmek için)
+const teshis = [];
+const izle = c => { c.on('page', p => { p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') teshis.push(m.type() + ': ' + m.text().slice(0, 300)); });
+  p.on('pageerror', e => teshis.push('pageerror: ' + e.message.slice(0, 300))); p.on('requestfailed', q => teshis.push('istek başarısız: ' + q.url().slice(0, 200) + ' ' + (q.failure() || {}).errorText)); }); };
 const browser = await launch();
 // Her sayfaya: yerel PeerJS sunucusu (yeni kod: __tpPeerSunucu; eski kod: window.Peer'i saran kanca), bildirim kaydı
 const KANCA = `(() => { window.__tpPeerSunucu = ${JSON.stringify(PS)}; window.__toasts = []; window.__rtc = [];
@@ -32,7 +36,7 @@ const KANCA = `(() => { window.__tpPeerSunucu = ${JSON.stringify(PS)}; window.__
   let P; Object.defineProperty(window, 'Peer', { configurable: true, get: () => P, set: v => { P = class extends v { constructor(a, b) { if (typeof a === 'object') super(Object.assign({}, a, window.__tpPeerSunucu)); else super(a, Object.assign({}, b, window.__tpPeerSunucu)); } }; } });
   new MutationObserver(() => { const t = document.getElementById('toast'); if (t && t.textContent) window.__toasts.push(t.textContent); }).observe(document, { subtree: true, childList: true, characterData: true }); })();`;
 async function oyuncu(yol, ad, kod) {
-  const ctx = await browser.newContext({ viewport: { width: 640, height: 360 }, serviceWorkers: 'block' });
+  const ctx = await browser.newContext({ viewport: { width: 640, height: 360 }, serviceWorkers: 'block' }); izle(ctx);
   await ctx.addInitScript(KANCA);
   await ctx.addInitScript(`try{ localStorage.setItem('tp_name', ${JSON.stringify(ad)}); localStorage.setItem('tp_code', ${JSON.stringify(kod)}); localStorage.setItem('tp4_map','city'); localStorage.setItem('tp3_quality','low'); }catch(e){}`);
   await ctx.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
@@ -113,6 +117,6 @@ try {
   const d7 = await oz2.page.evaluate(() => ({ rtc: window.__rtc, mod: window.__game.mode, net: document.getElementById('hNet').textContent, t: window.__toasts.slice(-3) }));
   ok('Worker\'a ulaşılamayınca yalnız STUN ile yine bağlanıyor (önizleme ↔ önizleme)', g1 && g2 && d7.rtc.some(c => c.includes('stun.relay.metered.ca') && !c.includes('turn:')) && !d7.rtc.some(c => c.includes('127.0.0.1')), JSON.stringify({ g1, g2, ...d7 }));
   await lc.ctx.close(); await oz.ctx.close(); await oz2.ctx.close();
-} catch (e) { ok('test tamamlandı', false, e.message.split('\n')[0]); }
+} catch (e) { ok('test tamamlandı', false, e.message.split('\n')[0]); console.log('--- teşhis (son 40) ---\n' + teshis.slice(-40).join('\n')); }
 await browser.close(); srv.close(); psrv.close(); setTimeout(() => process.exit(bad ? 1 : 0), 500);
 console.log(`\n${sonuc.length - bad}/${sonuc.length} geçti`); process.exit(bad ? 1 : 0);

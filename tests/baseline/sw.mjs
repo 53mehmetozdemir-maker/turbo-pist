@@ -23,7 +23,11 @@ const srv = http.createServer((q, r) => {
   r.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'max-age=600' }); fs.createReadStream(f).pipe(r);
 });
 await new Promise(r => srv.listen(0, '127.0.0.1', r)); const URL0 = `http://127.0.0.1:${srv.address().port}`;
-const browser = await launch(); const ctx = await browser.newContext({ viewport: { width: 640, height: 360 } });
+// teşhis: hata olursa tarayıcı konsolu ve başarısız istekler yazdırılır (CI'da sebebi görmek için)
+const teshis = [];
+const izle = c => { c.on('page', p => { p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') teshis.push(m.type() + ': ' + m.text().slice(0, 300)); });
+  p.on('pageerror', e => teshis.push('pageerror: ' + e.message.slice(0, 300))); p.on('requestfailed', q => teshis.push('istek başarısız: ' + q.url().slice(0, 200) + ' ' + (q.failure() || {}).errorText)); }); };
+const browser = await launch(); const ctx = await browser.newContext({ viewport: { width: 640, height: 360 } }); izle(ctx);
 await ctx.route(/fonts\.googleapis|unpkg|peerjs\.com/, r => r.abort());
 const sonuc = []; let bad = 0;
 const ok = (ad, kosul, ayrinti = '') => { sonuc.push((kosul ? '✅ ' : '❌ ') + ad + (ayrinti ? ' — ' + ayrinti : '')); if (!kosul) bad++; console.log(sonuc.at(-1)); };
@@ -113,6 +117,6 @@ try {
   // 8) önizleme her şeyden sonra sağlam
   await pB.reload(); await oyun(pB); await swHazir(pB);
   ok('önizleme sağlam: kendi SW\'si ve aynı önbellek', (await pB.evaluate(() => window.__tpSurum)) === 'b1' && (await onbellekler(pB)).includes(bOnbellek));
-} catch (e) { ok('test tamamlandı', false, e.message.split('\n')[0]); }
+} catch (e) { ok('test tamamlandı', false, e.message.split('\n')[0]); console.log('--- teşhis (son 40) ---\n' + teshis.slice(-40).join('\n')); }
 await browser.close(); srv.close();
 console.log(`\n${sonuc.length - bad}/${sonuc.length} geçti`); process.exit(bad ? 1 : 0);

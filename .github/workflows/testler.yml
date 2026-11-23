@@ -12,6 +12,11 @@ on:
     branches: [altyapi]
   pull_request:
   workflow_dispatch:
+    inputs:
+      sadece:
+        description: "Sadece bu testler (virgülle, ör. sw,mp). Boş = hepsi"
+        type: string
+        default: ''
   workflow_call:
     inputs:
       ref:
@@ -31,7 +36,22 @@ jobs:
   hazirlik:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      liste: ${{ steps.liste.outputs.liste }}
     steps:
+      - name: Test listesi
+        id: liste
+        env:
+          SADECE: ${{ inputs.sadece }}
+        run: |
+          set -euo pipefail
+          hepsi="physics keys saves klasik visual sw worker mp menu harita saglamlik bellek ultra perf"
+          secili=""
+          for t in $hepsi; do
+            if [ -z "${SADECE:-}" ] || [[ ",${SADECE// /}," == *",$t,"* ]]; then secili="$secili \"$t\","; fi
+          done
+          [ -n "$secili" ] || { echo "::error::Seçilen test yok: $SADECE"; exit 1; }
+          echo "liste=[${secili%,}]" >> "$GITHUB_OUTPUT"; echo "testler: [${secili%,}]"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: 53mehmetozdemir-maker/turbo-pist
@@ -58,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test: [physics, keys, saves, klasik, visual, sw, worker, mp, menu, harita, saglamlik, bellek, ultra, perf]
+        test: ${{ fromJSON(needs.hazirlik.outputs.liste) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
