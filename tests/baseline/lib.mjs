@@ -13,9 +13,10 @@ export function serve(root = ROOT, port = 0) {
     srv.listen(port, '127.0.0.1', () => res({ srv, url: `http://127.0.0.1:${srv.address().port}` })); }); }
 export async function launch() {
   // Dış ağ kapalı: yalnız 127.0.0.1 çözümlenir. Oyun her makinede (internetsiz geliştirme ortamı, internetli CI) aynı
-  // davranır (ör. gerçek PeerJS sunucusuna bağlanıp menüde farklı durum göstermez). Playwright yönlendirmeleri
+  // davranır (ör. gerçek PeerJS sunucusuna bağlanıp menüde farklı durum göstermez). *.local: WebRTC yerel adresleri
+  // mDNS adıyla gizler; bunlar çözümlenmezse iki oyuncu birbirini bulamaz (mp). Playwright yönlendirmeleri
   // (ctx.route ile verilen yerel dosyalar) DNS'e gitmediği için etkilenmez.
-  return chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] });
+  return chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost, EXCLUDE *.local'] });
 }
 // deterministic page: virtual clock advanced one 60 Hz tick per animation frame, seeded Math.random, frame hold/step control
 export const FREEZE = `(()=>{ let seed=12345; Math.random=()=>{ seed=(seed*16807)%2147483647; return (seed-1)/2147483646; };

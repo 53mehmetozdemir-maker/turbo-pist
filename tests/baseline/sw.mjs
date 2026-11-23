@@ -25,7 +25,7 @@ const srv = http.createServer((q, r) => {
 await new Promise(r => srv.listen(0, '127.0.0.1', r)); const URL0 = `http://127.0.0.1:${srv.address().port}`;
 // teşhis: hata olursa tarayıcı konsolu ve başarısız istekler yazdırılır (CI'da sebebi görmek için)
 const teshis = [];
-const izle = c => { c.on('page', p => { p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') teshis.push(m.type() + ': ' + m.text().slice(0, 300)); });
+const izle = c => { c.on('page', p => { p.on('console', m => { if (!/preload/.test(m.text())) teshis.push(m.type() + ': ' + m.text().slice(0, 300)); });
   p.on('pageerror', e => teshis.push('pageerror: ' + e.message.slice(0, 300))); p.on('requestfailed', q => teshis.push('istek başarısız: ' + q.url().slice(0, 200) + ' ' + (q.failure() || {}).errorText)); }); };
 const browser = await launch(); const ctx = await browser.newContext({ viewport: { width: 640, height: 360 } }); izle(ctx);
 await ctx.route(/fonts\.googleapis|unpkg|peerjs\.com/, r => r.abort());
@@ -117,6 +117,11 @@ try {
   // 8) önizleme her şeyden sonra sağlam
   await pB.reload(); await oyun(pB); await swHazir(pB);
   ok('önizleme sağlam: kendi SW\'si ve aynı önbellek', (await pB.evaluate(() => window.__tpSurum)) === 'b1' && (await onbellekler(pB)).includes(bOnbellek));
-} catch (e) { ok('test tamamlandı', false, e.message.split('\n')[0]); console.log('--- teşhis (son 40) ---\n' + teshis.slice(-40).join('\n')); }
+} catch (e) { ok('test tamamlandı', false, e.message.split('\n')[0]); console.log('--- teşhis (son 40) ---\n' + teshis.slice(-40).join('\n'));
+  console.log('--- sunucuya gelen son istekler ---\n' + istek.slice(-25).join('\n'));
+  for (const p of ctx.pages()) try { console.log('--- sayfa', p.url(), JSON.stringify(await p.evaluate(async () => {
+    const ks = await caches.keys(); const ic = {}; for (const k of ks) ic[k] = (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname.split('/').pop()).sort();
+    return { yukleme: (document.getElementById('loading') || {}).textContent, oyun: !!window.__game, surum: window.__tpSurum, yonetici: navigator.serviceWorker.controller && navigator.serviceWorker.controller.scriptURL, onbellek: ic };
+  }))); } catch (e2) { console.log('sayfa okunamadı', e2.message); } }
 await browser.close(); srv.close();
 console.log(`\n${sonuc.length - bad}/${sonuc.length} geçti`); process.exit(bad ? 1 : 0);
