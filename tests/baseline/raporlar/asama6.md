@@ -24,6 +24,8 @@
 | — | sw testinde iki sayfa aynı anda 60 kare çizince yazılımsal GPU'da açılışlar dakikalar sürüyordu | Hayır: tek sayfada service worker'lı ve service worker'sız yeniden yükleme aynı süre (16,9 / 17,2 sn) | Testte kare hızı 4/sn, kullanılmayan sayfa "uyutuluyor": çevrimdışı açılış 148 → 12 sn |
 | — | mp: ağ kuralı WebRTC'nin `.local` adlarını da engelliyordu | Hayır (test) | `.local` ve `localhost` açık |
 | — | saglamlik: efekt zinciri ölçümü ilk kareden önceye denk gelebiliyordu | Hayır (test) | 10 kare çizilmesi bekleniyor |
+| — | bellek: CI'da 1→2. tur +49 geometri, 2→3. tur +1 (gecikmeli kurulum, sızıntı değil) | Hayır (test) | Sayılmayan ısınma turu |
+| — | mp kararsızdı: aynı commit altyapıda geçti, önizlemede kırmızı (sabit 1,5 sn bekleyip tek bakış; 3 sayfa yükte açılış >180 sn) | Hayır (test) | Yoklamalı kontrol, süreler `TP_ZAMAN_KAT`'a bağlı |
 | — | `mp.mjs` Aşama 5 commit'inde sözdizimi hatalıydı | Hayır (test) | Düzeltildi; CI'ın ilk adımı sözdizimi denetimi |
 
 ## H23 düzeltmesi
@@ -50,3 +52,10 @@ Referanslar altyapı derlemesinden çekildi; main'in (e771e2a) kodu aynı düzen
 | Bilerek değişen 6: pist gündüz/gece/yağmur (%0,15–0,16, yarışta yakıt satırı gizli — H7), büyük harita (%47, H6), menü (%15) ve 1366 menü (%7, Ultra düğmesi + H8) | onaylı değişiklikler |
 | Fizik, 7 araç | main ✅ birebir, altyapı ✅ birebir |
 | klasik.html (main) | ✅ %0,00 |
+
+## Son durum
+- Altyapı `dff9796`: 15/15 iş yeşil. Görsel test CI'da 35/35 görüntüde %0,00 (yerel ile GitHub makinesi piksel piksel aynı).
+- Önizleme: `KAYNAK` → `dff9796`; testler yeşil → derlendi ve yayınlandı.
+- Yayın durdurma gerçekte sınandı: bir önceki önizleme koşusunda mp kırmızıydı → derleme ve yayın atlandı (`skipped`),
+  önizleme önceki sürümde kaldı.
+- Canlı (`yayin.yml`) aynı test iş akışını çağırıyor; main'e birleşince devreye girer (birleştirme kullanıcı onayıyla).
