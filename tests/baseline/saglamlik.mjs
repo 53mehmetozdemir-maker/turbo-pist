@@ -47,6 +47,10 @@ try {
   // 4) düşük FPS'te efekt zinciri kapanınca kaynakları bırakılıyor (H2)
   { const { ctx, page } = await gamePage(b, url, { freeze: false, storage: { tp3_quality: 'high' } }); await hazir(page);
     await page.evaluate(() => window.__game.startFree());
+    // efekt zincirinin render hedefleri ilk çizimde GPU'ya yüklenir: ölçmeden önce birkaç kare gerçekten çizilmiş olmalı
+    // (hızlı makinede ölçüm ilk kareden önceye denk gelip "bırakılacak bir şey yok" görünüyordu)
+    const k0 = await page.evaluate(() => window.__game.renderer.info.render.frame);
+    await page.waitForFunction(k0 => window.__game.renderer.info.render.frame >= k0 + 10, k0, { timeout: 120000, polling: 100 });
     const once = await page.evaluate(() => ({ c: !!window.__game.composer, t: window.__game.renderer.info.memory.textures }));
     // düşük FPS tetiği bu ortamda çalışmaz (odak/FPS koşulu); bırakma işleminin kendisi doğrudan çağrılır
     const kapandi = await page.evaluate(() => { window.__game.composerBirak(); return !window.__game.composer; }); await page.waitForTimeout(1500);

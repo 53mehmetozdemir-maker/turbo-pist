@@ -25,9 +25,19 @@ const srv = http.createServer((q, r) => {
 await new Promise(r => srv.listen(0, '127.0.0.1', r)); const URL0 = `http://127.0.0.1:${srv.address().port}`;
 // teşhis: hata olursa tarayıcı konsolu ve başarısız istekler yazdırılır (CI'da sebebi görmek için)
 const teshis = [];
-const izle = c => { c.on('page', p => { p.on('console', m => { if (!/preload/.test(m.text())) teshis.push(m.type() + ': ' + m.text().slice(0, 300)); });
-  p.on('pageerror', e => teshis.push('pageerror: ' + e.message.slice(0, 300))); p.on('requestfailed', q => teshis.push('istek başarısız: ' + q.url().slice(0, 200) + ' ' + (q.failure() || {}).errorText)); }); };
+let tz0 = Date.now(); const zt = () => ((Date.now() - tz0) / 1000).toFixed(1) + 's ';
+const izle = c => { c.on('page', p => { p.on('console', m => { if (!/preload/.test(m.text())) teshis.push(zt() + m.type() + ': ' + m.text().slice(0, 300)); });
+  p.on('pageerror', e => teshis.push('pageerror: ' + e.message.slice(0, 300))); p.on('requestfailed', q => teshis.push(zt() + 'istek başarısız: ' + q.url().slice(0, 200) + ' ' + (q.failure() || {}).errorText)); }); };
 const browser = await launch(); const ctx = await browser.newContext({ viewport: { width: 640, height: 360 } }); izle(ctx);
+// Bu test çizimi değil service worker davranışını sınar: iki sayfa aynı anda saniyede 60 kare şehir çizince yazılımsal GPU'da
+// (SwiftShader) açılışlar dakikalar sürüyordu (iki çekirdekte sayfalar birbirinin işlemcisini yiyor; service worker'ın etkisi yok:
+// tek sayfada SW'li ve SW'siz yeniden yükleme aynı süre). Kare hızı saniyede 4'e indirilir; oyun mantığı aynen çalışır.
+// Kullanılmayan sayfa "uyutulur" (__tpUyku): hiç kare çizmez, yalnız bekler. Yeniden yüklenince kendiliğinden uyanır.
+await ctx.addInitScript(() => { const raf = window.requestAnimationFrame.bind(window);
+  const sira = cb => setTimeout(() => window.__tpUyku ? sira(cb) : raf(cb), 250); window.requestAnimationFrame = sira; });
+ctx.setDefaultNavigationTimeout(120000 * KAT); ctx.setDefaultTimeout(60000 * KAT);
+// 3b için: sekmede __yavasBekci işareti varsa açılış bekçisinin süresi 1 sn
+await ctx.addInitScript(() => { try { if (sessionStorage.getItem('__yavasBekci')) window.__tpBekciMs = 1000; } catch (e) {} });
 await ctx.route(/fonts\.googleapis|unpkg|peerjs\.com/, r => r.abort());
 const sonuc = []; let bad = 0;
 const ok = (ad, kosul, ayrinti = '') => { sonuc.push((kosul ? '✅ ' : '❌ ') + ad + (ayrinti ? ' — ' + ayrinti : '')); if (!kosul) bad++; console.log(sonuc.at(-1)); };
@@ -35,7 +45,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms * KAT));   // TP_ZAMAN_KAT
 // oyunun açılmasını bekle ve süresini yaz (bu test donmuş saat kullanmaz; yavaş makinede açılış uzun sürebilir)
 const oyun = async (p, t = 120000) => { const t0 = Date.now(); await p.waitForFunction(() => !!window.__game && !document.getElementById('loading'), null, { timeout: t * KAT, polling: 300 });
   console.log(`   (açılış ${((Date.now() - t0) / 1000).toFixed(1)} sn)`); };
-const swHazir = (p, t = 90000) => p.waitForFunction(async () => { const r = await navigator.serviceWorker.getRegistration('./'); return !!(r && r.active && !r.installing && navigator.serviceWorker.controller); }, null, { timeout: t * KAT, polling: 500 });
+// waitForFunction'a async fonksiyon verilirse dönen Promise 'doğru' sayılıp HİÇ beklemeden geçiyordu (açılışlar yavaşken fark
+// edilmedi). Koşul Node tarafında yoklanır.
+const swHazir = async (p, t = 90000) => { const son = Date.now() + t * KAT;
+  for (;;) { if (await p.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration('./'); return !!(r && r.active && !r.installing && navigator.serviceWorker.controller); }).catch(() => false)) return;
+    if (Date.now() > son) throw new Error('service worker hazır olmadı (' + p.url() + ')'); await new Promise(r => setTimeout(r, 500)); } };
 const onbellekler = p => p.evaluate(async () => (await caches.keys()).sort());
 const kayitlar = p => p.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).map(r => new URL(r.scope).pathname).sort());
 const gorunur = (p, id) => p.evaluate(id => { const e = document.getElementById(id); return !!e && !e.classList.contains('hidden') && e.offsetParent !== null; }, id);
@@ -56,9 +70,22 @@ try {
   await pB.evaluate(() => { window.__game.SAVE.money = 777; window.__game.saveGame(); });
   const dep = await pB.evaluate(() => ({ canli: JSON.parse(localStorage.getItem('tp8_save')).money, onz: JSON.parse(localStorage.getItem('onizleme_tp8_save')).money }));
   ok('önizleme kendi anahtarına yazıyor, canlı kayıt değişmedi', dep.canli === 11111 && dep.onz === 777, JSON.stringify(dep));
+  await pB.evaluate(() => { window.__tpUyku = true; });   // önizleme sayfası 8. adıma kadar beklemede (yeniden yüklenince uyanır)
   // 3) çevrimdışı açılış
   kapali = true; await pA.reload(); await oyun(pA); kapali = false;
   ok('sunucu kapalıyken oyun önbellekten açılıyor', await pA.evaluate(() => !!window.__game && window.__tpSurum === 'a1'));
+  // 3b) yavaş açılış (H23): bekçi süresi 1 sn'ye indirilir; açılış ondan uzun sürer ama oyun kodu çalışmaya başladığı için
+  //     bozukluk sayılmamalı (önbellek silinmemeli, SW kalmalı). Eskiden yavaş cihazda önbellek silinip her şey baştan iniyordu,
+  //     çevrimdışıyken de oyun hiç açılamıyordu.
+  //     Kanıt: adım boyunca sunucuya oyun dosyası (app/) isteği gelmez (önbellek sağlamsa hepsi önbellekten) ve bekçi uyarısı çıkmaz.
+  //     (Önbellek silinip yeniden kurulsa da aynı adla geri gelir; o yüzden önbellek adına bakmak yetmez.)
+  const i0 = istek.length, t0 = teshis.length;
+  await pA.evaluate(() => sessionStorage.setItem('__yavasBekci', '1')); await pA.reload(); await oyun(pA);
+  await sleep(1500);
+  const yavas = await pA.evaluate(async () => ({ denetci: !!navigator.serviceWorker.controller, onbellek: (await caches.keys()).filter(a => a.startsWith('tp|/turbo-pist/|')).length }));
+  await pA.evaluate(() => sessionStorage.removeItem('__yavasBekci'));
+  yavas.appIstek = istek.slice(i0).filter(u => u.startsWith(A + 'app/')).length; yavas.bekciUyarisi = teshis.slice(t0).filter(m => /Açılış başarısız/.test(m)).length;
+  ok('yavaş açılış: bekçi önbelleği silmedi (oyun dosyaları önbellekten geldi), SW duruyor', yavas.appIstek === 0 && yavas.bekciUyarisi === 0 && yavas.denetci && yavas.onbellek === 1, JSON.stringify(yavas));
   // 4) yeni sürüm: serbest sürüşte ve yarışta zorla yenileme yok; uyarı sadece menü/serbest duraklatmada
   mount[A] = D.A2; await pA.evaluate(() => { window.__isaret = 1; window.__game.startFree(); });
   await swHazir(pA); await pA.evaluate(() => window.__tpSW.update());
@@ -88,7 +115,7 @@ try {
   ok('yarış sürerken sayfa yenilenmedi', await pA.evaluate(() => window.__isaret === 1 && window.__game.mode === 'race'));
   await pA.keyboard.press('Escape'); await pA.click('#pauseMenuBtn'); await sleep(500);
   await pA.click('#mSeg button[data-v="city"]').catch(() => {});
-  const nav = pA.waitForNavigation({ timeout: 60000 }); await pA.click('#updMenu'); await nav; await oyun(pA);
+  const nav = pA.waitForNavigation({ timeout: 60000 * KAT }); await pA.click('#updMenu'); await nav; await oyun(pA);
   ok('menüde "Yenile" → yeni sürüm açıldı', await pA.evaluate(() => window.__tpSurum === 'a2' && window.__isaret === undefined));
   await swHazir(pA); const k2 = await onbellekler(pA);
   ok('canlının eski sürüm önbelleği silindi, önizlemeninki yerinde', k2.filter(a => a.startsWith('tp|' + A)).length === 1 && !k1.includes(k2.find(a => a.startsWith('tp|' + A))) && k2.includes(bOnbellek), JSON.stringify(k2));
@@ -101,10 +128,10 @@ try {
   ok('bozuk önbellek kurtarması önizlemeye dokunmadı', (await onbellekler(pA)).includes(bOnbellek) && (await kayitlar(pA)).includes(B));
   // 6) acil çıkış 2: ?sifirla
   await swHazir(pA); const para = await pA.evaluate(() => localStorage.getItem('tp8_save'));
-  await pA.goto(URL0 + A + '?sifirla'); await pA.waitForURL(/sifirla\.html/, { timeout: 30000 });
+  await pA.goto(URL0 + A + '?sifirla'); await pA.waitForURL(/sifirla\.html/, { timeout: 30000 * KAT });
   await pA.waitForFunction(() => /Tamam/.test(document.getElementById('durum').textContent), null, { timeout: 30000 * KAT, polling: 50 });
   const s6 = { kayit: await kayitlar(pA), onb: await onbellekler(pA) };   // oyun açılıp SW'yi yeniden kurmadan önce
-  await pA.waitForURL(URL0 + A, { timeout: 30000 }); await oyun(pA);
+  await pA.waitForURL(URL0 + A, { timeout: 30000 * KAT }); await oyun(pA);
   ok('?sifirla: canlının SW\'si ve önbelleği kalktı, oyun açıldı', !s6.kayit.includes(A) && !s6.onb.some(a => a.startsWith('tp|' + A)), JSON.stringify(s6));
   ok('?sifirla: önizlemenin SW\'si ve önbelleği yerinde', s6.kayit.includes(B) && s6.onb.includes(bOnbellek));
   ok('?sifirla: kayıt silinmedi', (await pA.evaluate(() => localStorage.getItem('tp8_save'))) === para);

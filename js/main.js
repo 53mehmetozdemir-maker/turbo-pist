@@ -23,6 +23,7 @@ import { loadCityImages, buildCity, cityWorld, streetName, district, nearestLane
 import { Traffic, Pedestrians } from './traffic.js';
 import { findRoute, routeLength } from './route.js';
 import { buildRegions, terrainH, regionSurface, regionName, collideRegions, HighwayTraffic, worldMapCanvas, REGION_POIS, nearestRoadSpot, _dbg as REGDBG } from './regions.js';
+window.__tpKodBasladi=true;   // açılış bekçisi (index.html): kod çalışmaya başladı → yavaşlık bozukluk sayılmaz
 
 const $=id=>document.getElementById(id);
 const COLORS=['#e8202a','#1f6fe0','#ff9f1a','#20b956','#8e44ef','#f1f2f6','#202226','#ffd400'];

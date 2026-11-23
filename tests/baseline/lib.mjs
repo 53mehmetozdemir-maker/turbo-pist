@@ -39,6 +39,7 @@ export async function googleFonts(ctx) {
 }
 export async function gamePage(browser, base, { viewport = { width: 960, height: 540 }, storage = {}, touch = false, freeze = true, query = '', onPage = null } = {}) {
   const ctx = await browser.newContext({ viewport, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1, serviceWorkers: 'block' });   // SW'nin kendi testi: sw.mjs
+  ctx.setDefaultTimeout(30000 * KAT); ctx.setDefaultNavigationTimeout(120000 * KAT);   // ekran görüntüsü vb. yavaş makinede uzun sürebilir
   if (freeze) await ctx.addInitScript(FREEZE);
   // başlangıç kaydı sekme başına BİR kez (yeniden yüklemede kayıt silinmesin: bağlam kaybı / "Kaydet ve yenile" testleri)
   await ctx.addInitScript(`try{ if(!sessionStorage.getItem('__tpTohum')){ localStorage.clear(); const s=${JSON.stringify(storage)}; for(const k in s) localStorage.setItem(k,s[k]); sessionStorage.setItem('__tpTohum','1'); } }catch(e){}`);
@@ -48,10 +49,20 @@ export async function gamePage(browser, base, { viewport = { width: 960, height:
   const page = await ctx.newPage(); const log = []; page.on('console', m => { if (m.type() === 'error') log.push(m.text()); }); page.on('pageerror', e => log.push('pageerror: ' + e.message));
   if (onPage) onPage(page);
   await page.goto(base + '/' + query, { waitUntil: 'load', timeout: 120000 }); await page.waitForFunction(() => !!window.__game, null, { timeout: 120000, polling: 200 });
+  await surucuDenetle(page);
   return { ctx, page, log };
 }
 // TP_ZAMAN_KAT: yavaş makinede (CI) gerçek-zaman beklemelerini uzatır (varsayılan 1). Sonuçlar donmuş test saatine bağlı
 // olduğundan bekleme uzaması sonucu değiştirmez, yalnız "henüz olmadı" kırmızılarını önler.
 export const KAT = Math.max(1, +process.env.TP_ZAMAN_KAT || 1);
+// Referans görüntüler SwiftShader ile çekildi (H24). Başka bir sürücü (ör. bir ortamın Chrome sarmalayıcısının yönlendirdiği
+// Mesa/lavapipe ya da gerçek ekran kartı) farklı piksel üretir → görüntüler sessizce tutmaz. Süreç başına bir kez denetlenir.
+let surucuTamam = false;
+export async function surucuDenetle(page) {
+  if (surucuTamam || process.env.TP_SURUCU_SERBEST === '1') return;
+  const gpu = await page.evaluate(() => { const gl = document.createElement('canvas').getContext('webgl2'); const x = gl && gl.getExtension('WEBGL_debug_renderer_info'); return gl ? String(x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) : 'WebGL yok'; });
+  if (!/SwiftShader/i.test(gpu)) throw new Error(`WebGL sürücüsü SwiftShader değil: ${gpu}. Referanslar sade Chrome for Testing + SwiftShader ile çekildi; CHROME=<sade chrome yolu> ver (sarmalayıcı betik değil). Bilerek başka sürücüyle denemek için TP_SURUCU_SERBEST=1.`);
+  surucuTamam = true;
+}
 export const sleep = ms => new Promise(r => setTimeout(r, ms * KAT));
 export const HERE_DIR = HERE;

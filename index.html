@@ -13,8 +13,10 @@
 <script>
 // Açılış bekçisi + acil çıkış (oyun kodundan bağımsız; HTML her zaman ağdan geldiği için hep güncel).
 // - ?sifirla → sifirla.html (service worker'ı kaldırır, bu kapsamın önbelleğini siler; kayıtlar kalır).
-// - Sayfa service worker'dan geliyorsa ve oyun açılamazsa (hata ya da 45 sn): bu oturumda BİR kez
-//   önbelleği temizleyip yeniden yükler. Yine olmazsa yükleme ekranında "Temiz yükle" düğmesi çıkar.
+// - Sayfa service worker'dan geliyorsa ve oyun açılamazsa (hata, ya da oyun kodu 45 sn'de hiç ÇALIŞMAYA BAŞLAMADIYSA):
+//   bu oturumda BİR kez önbelleği temizleyip yeniden yükler. Yine olmazsa yükleme ekranında "Temiz yükle" düğmesi çıkar.
+//   Kod çalışmaya başladıysa yavaş açılış bozukluk sayılmaz (yavaş cihazda önbellek silinip her şey baştan inmesin, H23).
+//   Çevrimdışıyken önbellek hiç silinmez (silinirse oyun açılamaz).
 (function(){
   var kapsam=new URL('./',location.href), onek='tp|'+kapsam.pathname+'|';
   if(/[?&]sifirla(=|&|$)/.test(location.search)){ location.replace(kapsam.href+'sifirla.html'); return; }
@@ -26,13 +28,15 @@
   var denetli=!!(navigator.serviceWorker&&navigator.serviceWorker.controller);
   window.__tpAcilisHatasi=function(neden){
     if(window.__game||!denetli) return false;
+    if(navigator.onLine===false){ console.warn('Açılış başarısız ('+neden+'), çevrimdışı: önbellek korunuyor'); return false; }
     var once=null; try{ once=sessionStorage.getItem('tp_kurtarma'); }catch(e){}
     if(once) return false;
     try{ sessionStorage.setItem('tp_kurtarma',String(neden||'1')); }catch(e){}
     console.warn('Açılış başarısız ('+neden+'): önbellek temizlenip yeniden yükleniyor');
     temizle().then(function(){ location.reload(); }); return true; };
   if(denetli){
-    setTimeout(function(){ window.__tpAcilisHatasi('zaman aşımı'); },45000);
+    // __tpKodBasladi: js/main.js'in ilk satırı (bütün modülleri yüklenip çalışmaya başladı). __tpBekciMs: yalnız testler için
+    setTimeout(function(){ if(!window.__tpKodBasladi) window.__tpAcilisHatasi('zaman aşımı'); },window.__tpBekciMs||45000);
     window.addEventListener('error',function(e){ window.__tpAcilisHatasi('hata: '+(e&&e.message)); });
   }
 })();

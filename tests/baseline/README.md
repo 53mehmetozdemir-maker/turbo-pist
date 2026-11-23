@@ -26,10 +26,32 @@ node baseline/bellek.mjs           # araç değiştirdikçe GPU belleği büyüm
 node baseline/harita.mjs           # büyük harita yerleşimi (4 boyut)
 node baseline/mp.mjs                # çok oyunculu: yerel PeerJS sunucusu, yeni↔yeni, eski↔yeni, H1, ayrı odalar (~8 dk)
 node baseline/worker.mjs            # TURN aracısı (Worker) birim testi
-node baseline/sw.mjs                # service worker: kapsam ayrımı, çevrimdışı, güncelleme, acil çıkış (kendi derler, ~15 dk)
+node baseline/sw.mjs                # service worker: kapsam ayrımı, çevrimdışı, yavaş açılış, güncelleme, acil çıkış (kendi derler, ~10 dk)
+node baseline/ultra.mjs             # Ultra ↔ Yüksek: ışık/efekt katkısı aynı, tek fark ortam gölgelendirmesi (gündüz+gece)
 node baseline/perf.mjs check        # hiçbir sahne daha yavaş olmamalı
 ```
-Testler zamanı (60 Hz sanal saat) ve rastgeleliği oyunun koduna dokunmadan sabitler; three.js/PeerJS'i yerel npm kopyasından verir. Yazılım tabanlı WebGL (SwiftShader) kullanıldığı için gerçek FPS burada ölçülmez; gerçek cihazda ayrıca kontrol edilir.
+Testler zamanı (60 Hz sanal saat) ve rastgeleliği oyunun koduna dokunmadan sabitler; three.js/PeerJS'i yerel npm kopyasından verir.
+Tarayıcının dış ağı kapalıdır (yalnız 127.0.0.1); çok oyunculu test kendi yerel PeerJS sunucusunu kurar.
+
+## Tarayıcı: sade Chrome for Testing 153.0.8010.12 + SwiftShader (Aşama 6, H24)
+Referans görüntüler bu sürümle ve Chrome'un kendi yazılımsal GPU'su SwiftShader ile çekildi. Başka bir sürücü (gerçek ekran
+kartı, Mesa/lavapipe…) farklı piksel üretir; bu yüzden test, oyun sayfası açılınca sürücüyü denetler ve SwiftShader değilse
+açık bir mesajla durur. Tarayıcı yolu `CHROME` ile verilir (varsayılan `/usr/bin/google-chrome`). Bir ortamın Chrome'u
+sarmalayıcı betik arkasındaysa ve WebGL'i başka sürücüye yönlendiriyorsa, betiği değil sade ikiliyi ver
+(ör. bu geliştirme ortamında `CHROME=/opt/pw-browsers/chromium-1243/real/chrome-linux64/chrome`).
+Gerçek FPS burada ölçülmez; gerçek cihazda ayrıca kontrol edilir.
+
+`TP_ZAMAN_KAT=2`: yavaş makinede gerçek-zaman beklemelerini ve süre sınırlarını uzatır (sonuçlar donmuş saate bağlı, değişmez).
+
+## CI (Aşama 6): `.github/workflows/testler.yml`
+- `altyapi`'ya her push'ta, her PR'da ve elle (`workflow_dispatch`, istenirse yalnız seçili testler: `sadece: sw,mp`).
+- Canlı yayın (`yayin.yml`) ve önizleme (`turbo-pist-onizleme/onizleme.yml`) yayından önce bunu çağırır: **bir test
+  kırmızıysa yayın başlamaz.** Tek istisna canlıdaki acil service worker kapatma (acil çıkış her zaman çalışmalı).
+- İlk adım bütün test dosyalarının sözdizimi denetimi; sonra tek test derlemesi; sonra 14 test ayrı makinelerde paralel.
+- perf yalnız uyarı verir (süreler makineye göre oynar).
+- Kırmızı bir testin görüntüleri iş günlüğüne base64 JPEG olarak da yazılır ("Kırmızı görüntüler günlüğe" adımı) ve
+  artifact olarak yüklenir.
+- Secret yok. Tarayıcı ve bütün eylemler sabit sürüm/commit ile.
 
 ## Aşama 1'den sonra: derlenmiş oyuna karşı
 Oyun artık Vite ile derleniyor; testler derlenmiş klasöre karşı çalışır:
