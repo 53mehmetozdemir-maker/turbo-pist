@@ -4,7 +4,7 @@
 // usage: node baseline/mp.mjs
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path'; import { execFileSync } from 'node:child_process';
 import { PeerServer } from 'peer';
-import { launch, MIME, HERE_DIR, NM } from './lib.mjs';
+import { launch, MIME, HERE_DIR, NM, KAT } from './lib.mjs';
 const REPO = path.resolve(HERE_DIR, '../..'), OUT = '/tmp/tp-mp-test', ESKI = '/tmp/tp-mp-eski';
 const A = '/turbo-pist/', B = '/turbo-pist-onizleme/', E = '/eski/';
 const derle = (ad, base, env = {}) => { const dir = path.join(OUT, ad); execFileSync('npx', ['vite', 'build', '--base=' + base, '--outDir', dir, '--logLevel', 'error'], { cwd: REPO, env: { ...process.env, ...env }, stdio: 'inherit' }); return dir; };
@@ -37,6 +37,9 @@ const KANCA = `(() => { window.__tpPeerSunucu = ${JSON.stringify(PS)}; window.__
   new MutationObserver(() => { const t = document.getElementById('toast'); if (t && t.textContent) window.__toasts.push(t.textContent); }).observe(document, { subtree: true, childList: true, characterData: true }); })();`;
 async function oyuncu(yol, ad, kod) {
   const ctx = await browser.newContext({ viewport: { width: 640, height: 360 }, serviceWorkers: 'block' }); izle(ctx);
+  // yük altındaki makinede (CI'da 3 sayfa aynı anda yazılımsal GPU ile çizerken) açılış ve tıklamalar uzun sürebilir
+  // (kare hızını kısmak bu testte menüyü bozuyor; yerine süreler TP_ZAMAN_KAT ile uzar)
+  ctx.setDefaultTimeout(30000 * KAT); ctx.setDefaultNavigationTimeout(120000 * KAT);
   await ctx.addInitScript(KANCA);
   await ctx.addInitScript(`try{ localStorage.setItem('tp_name', ${JSON.stringify(ad)}); localStorage.setItem('tp_code', ${JSON.stringify(kod)}); localStorage.setItem('tp4_map','city'); localStorage.setItem('tp3_quality','low'); }catch(e){}`);
   await ctx.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
@@ -44,11 +47,11 @@ async function oyuncu(yol, ad, kod) {
   await ctx.route('https://unpkg.com/peerjs@1.5.4/**', r => r.fulfill({ path: path.join(NM, 'peerjs/dist/peerjs.min.js'), contentType: 'text/javascript' }));
   const page = await ctx.newPage(); const hatalar = [];
   page.on('pageerror', e => hatalar.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !/ERR_|Failed to load resource|WebGL|GL Driver/.test(m.text())) hatalar.push(m.text()); });
-  await page.goto(URL0 + yol); await page.waitForFunction(() => window.__game && !document.getElementById('loading') && !document.getElementById('joinBtn').disabled, null, { timeout: 180000, polling: 300 });
+  await page.goto(URL0 + yol); await page.waitForFunction(() => window.__game && !document.getElementById('loading') && !document.getElementById('joinBtn').disabled, null, { timeout: 180000 * KAT, polling: 300 });
   return { ctx, page, hatalar, ad };
 }
-const gir = async o => { await o.page.click('#joinBtn'); await o.page.waitForFunction(() => window.__game.mode === 'free', null, { timeout: 60000, polling: 300 }); };
-const gorur = (o, n = 1, t = 45000) => o.page.waitForFunction(n => window.__game.remotes.size === n, n, { timeout: t, polling: 300 }).then(() => true, () => false);
+const gir = async o => { await o.page.click('#joinBtn'); await o.page.waitForFunction(() => window.__game.mode === 'free', null, { timeout: 60000 * KAT, polling: 300 }); };
+const gorur = (o, n = 1, t = 45000) => o.page.waitForFunction(n => window.__game.remotes.size === n, n, { timeout: t * KAT, polling: 300 }).then(() => true, () => false);
 const toastVar = (o, re) => o.page.evaluate(src => window.__toasts.some(t => new RegExp(src).test(t)), re.source);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const sonuc = []; let bad = 0; const ok = (ad, k, d = '') => { sonuc.push((k ? '✅ ' : '❌ ') + ad + (d ? ' — ' + d : '')); if (!k) bad++; console.log(sonuc.at(-1)); };
@@ -58,8 +61,8 @@ async function carp(o) {
     let n = -1, best = 1e9; cars.forEach((c, i) => { const d = Math.hypot(c.x - P.x, c.y - P.y); if (d < best && !c.crash && c.v > 2 && c.v < 12) { best = d; n = i; } });   // 18 m/s ile yetişilebilir hızda olsun (otoyol araçları daha hızlı)
     if (n < 0) n = 0; const c = cars[n]; P.reset(c.x - Math.cos(c.a) * 7, c.y - Math.sin(c.a) * 7, c.a); P.vx = Math.cos(c.a) * 18; P.vy = Math.sin(c.a) * 18; return n; });
 }
-const kazaHost = (o, n) => o.page.waitForFunction(n => (window.__game.world.traffic.all()[n].crash || 0) > 0, n, { timeout: 15000, polling: 100 }).then(() => true, () => false);
-const kazaMisafir = (o, n) => o.page.waitForFunction(n => { const c = window.__game.world.traffic.all()[n]; return c.sig === 2 && c.fxSeen > 0; }, n, { timeout: 15000, polling: 100 }).then(() => true, () => false);
+const kazaHost = (o, n) => o.page.waitForFunction(n => (window.__game.world.traffic.all()[n].crash || 0) > 0, n, { timeout: 15000 * KAT, polling: 100 }).then(() => true, () => false);
+const kazaMisafir = (o, n) => o.page.waitForFunction(n => { const c = window.__game.world.traffic.all()[n]; return c.sig === 2 && c.fxSeen > 0; }, n, { timeout: 15000 * KAT, polling: 100 }).then(() => true, () => false);
 
 try {
   // 1) yeni host + yeni misafir
@@ -83,7 +86,7 @@ try {
   if (hk) ok('host\'un çarptığı araç misafirde dörtlülü + efektli', mk, 'araç #' + n2);
   // 4) host ayrılıyor
   await h.page.keyboard.press('Escape'); await sleep(500); await h.page.click('#pauseMenuBtn');
-  const ayrildi = await m.page.waitForFunction(() => window.__game.mode === 'menu', null, { timeout: 30000, polling: 300 }).then(() => true, () => false);
+  const ayrildi = await m.page.waitForFunction(() => window.__game.mode === 'menu', null, { timeout: 30000 * KAT, polling: 300 }).then(() => true, () => false);
   ok('host ayrılınca misafir ana menüye dönüyor ve uyarılıyor', ayrildi && await toastVar(m, /Oda kurucusu ayrıldı/));
   ok('yeni sürüm sayfalarında konsol hatası yok', !h.hatalar.length && !m.hatalar.length, [...h.hatalar, ...m.hatalar].slice(0, 2).join(' | '));
   await h.ctx.close(); await m.ctx.close();
@@ -104,8 +107,10 @@ try {
   ok('yeni host ↔ eski misafir: bağlanıyor', await gorur(yh) && await gorur(em));
   await sleep(1500);
   ok('yeni host\'a "EskiMisafir eski sürümde" uyarısı', await toastVar(yh, /EskiMisafir eski sürümde/));
-  const n6 = await carp(yh); await kazaHost(yh, n6); await sleep(1500);
-  ok('eski misafir yeni paketleri (ek alanlarla) hatasız okuyor ve kazayı dörtlülerle görüyor', !em.hatalar.length && await em.page.evaluate(n => window.__game.world.traffic.all()[n].sig === 2, n6), em.hatalar.slice(0, 2).join(' | '));
+  const n6 = await carp(yh); await kazaHost(yh, n6);
+  // paket yük altındaki makinede geç gelebilir: sabit bekleyip bir kez bakmak yerine yoklanır
+  const dortlu6 = await em.page.waitForFunction(n => window.__game.world.traffic.all()[n].sig === 2, n6, { timeout: 20000 * KAT, polling: 200 }).then(() => true, () => false);
+  ok('eski misafir yeni paketleri (ek alanlarla) hatasız okuyor ve kazayı dörtlülerle görüyor', !em.hatalar.length && dortlu6, em.hatalar.slice(0, 2).join(' | ') || (dortlu6 ? '' : 'dörtlüler görünmedi'));
   await yh.ctx.close(); await em.ctx.close();
   // 7) önizleme ↔ canlı aynı kodla aynı odaya düşmüyor
   const lc = await oyuncu(A, 'Canli', 'TP4D'); await gir(lc);
