@@ -12,11 +12,14 @@ export function serve(root = ROOT, port = 0) {
       r.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); fs.createReadStream(f).pipe(r); });
     srv.listen(port, '127.0.0.1', () => res({ srv, url: `http://127.0.0.1:${srv.address().port}` })); }); }
 export async function launch() {
+  if (!fs.existsSync(path.resolve(HERE, '../fonts/ttf')) || !fs.readdirSync(path.resolve(HERE, '../fonts/ttf')).length) throw new Error('Test yazı tipleri hazır değil: sh tests/fonts/hazirla.sh');
   // Dış ağ kapalı: yalnız 127.0.0.1 çözümlenir. Oyun her makinede (internetsiz geliştirme ortamı, internetli CI) aynı
   // davranır (ör. gerçek PeerJS sunucusuna bağlanıp menüde farklı durum göstermez). *.local: WebRTC yerel adresleri
   // mDNS adıyla gizler; bunlar çözümlenmezse iki oyuncu birbirini bulamaz (mp). Playwright yönlendirmeleri
   // (ctx.route ile verilen yerel dosyalar) DNS'e gitmediği için etkilenmez.
-  return chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost, EXCLUDE *.local'] });
+  // FONTCONFIG_FILE: testlerin kendi yazı tipi yapılandırması (tests/fonts/fonts.conf) → yedek yazı tipleri ve yazı çizimi
+  // sistemden bağımsız (geliştirme ortamı ile GitHub makinesi aynı piksel)
+  return chromium.launch({ env: { ...process.env, FONTCONFIG_FILE: path.resolve(HERE, '../fonts/fonts.conf') }, executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost, EXCLUDE *.local'] });
 }
 // deterministic page: virtual clock advanced one 60 Hz tick per animation frame, seeded Math.random, frame hold/step control
 export const FREEZE = `(()=>{ let seed=12345; Math.random=()=>{ seed=(seed*16807)%2147483647; return (seed-1)/2147483646; };

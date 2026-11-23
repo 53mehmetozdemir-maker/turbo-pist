@@ -1,7 +1,8 @@
 # Altın testler (Aşama 6). Her test ayrı makinede, paralel koşar; biri kırmızıysa iş akışı kırmızıdır.
 # - Canlı yayın (yayin.yml) ve önizleme (turbo-pist-onizleme/onizleme.yml) yayından ÖNCE bunu çağırır:
 #   testler kırılırsa yayın durur.
-# - Tarayıcı sabit: Chrome for Testing 153.0.8010.12 (referans görüntüler bu sürümle çekildi).
+# - Tarayıcı sabit: Chrome for Testing 153.0.8010.12 + SwiftShader; yazı tipleri ve yazı çizimi sistemden bağımsız
+#   (tests/fonts/fonts.conf). Referans görüntüler bu düzenle çekildi.
 # - Dış ağ kapalı (tests/baseline/lib.mjs): çok oyunculu test kendi yerel PeerJS sunucusuyla koşar, dış servise bağlı değil.
 # - perf: süreler makineye göre oynadığı için yalnız uyarı verir (çizim/üçgen sayıları yine raporlanır).
 # Secret kullanılmaz.
@@ -93,6 +94,10 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm ci --no-audit --no-fund --prefix tests
+      - name: Test yazı tipleri (npm'deki sabit sürümler → TTF)
+        run: |
+          pip install --user --no-deps fonttools==4.60.1 brotli==1.1.0
+          sh tests/fonts/hazirla.sh
       - name: Chrome for Testing ${{ env.CHROME_SURUM }}
         run: |
           set -euo pipefail

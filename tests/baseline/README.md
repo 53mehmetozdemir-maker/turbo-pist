@@ -41,6 +41,11 @@ sarmalayıcı betik arkasındaysa ve WebGL'i başka sürücüye yönlendiriyorsa
 (ör. bu geliştirme ortamında `CHROME=/opt/pw-browsers/chromium-1243/real/chrome-linux64/chrome`).
 Gerçek FPS burada ölçülmez; gerçek cihazda ayrıca kontrol edilir.
 
+Yazı tipleri de sistemden bağımsızdır: Chrome Linux'ta yedek yazı tiplerini (emoji) ve yazı çizim ayarlarını sistemin
+fontconfig'inden alır; testler bunun yerine `tests/fonts/fonts.conf` kullanır (npm'den sabit sürümlü Inter + Noto Color
+Emoji, ipucusuz gri tonlu çizim). İlk kurulumda bir kez: `pip install fonttools==4.60.1 brotli==1.1.0 && sh tests/fonts/hazirla.sh`
+(woff2 → TTF; Chrome sistem yazı tipi olarak woff2 okuyamıyor).
+
 `TP_ZAMAN_KAT=2`: yavaş makinede gerçek-zaman beklemelerini ve süre sınırlarını uzatır (sonuçlar donmuş saate bağlı, değişmez).
 
 ## CI (Aşama 6): `.github/workflows/testler.yml`

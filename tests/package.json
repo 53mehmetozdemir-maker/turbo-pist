@@ -10,6 +10,8 @@
     "baseline:perf": "node baseline/perf.mjs"
   },
   "devDependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/noto-color-emoji": "5.3.2",
     "peer": "1.0.2",
     "peerjs": "1.5.4",
     "pixelmatch": "5.3.0",
