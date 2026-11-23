@@ -40,3 +40,13 @@
 ## Bilinen sınırlar
 - Önizleme iş akışı test iş akışını `@altyapi` dalından çağırır (GitHub `uses:` içinde değişken kabul etmiyor). Altyapı main'e birleşince `@main` yapılmalı.
 - Tarayıcı zip'inin SHA-256 özeti her koşuda günlüğe yazılıyor; sürüm numarası ayrıca doğrulanıyor.
+
+## Referans doğrulaması (main ↔ altyapı, aynı sürücü ve yazı tipleriyle)
+Referanslar altyapı derlemesinden çekildi; main'in (e771e2a) kodu aynı düzenle bunlara karşı koşturuldu.
+
+| Kontrol | Sonuç |
+|---|---|
+| Görsel testteki 35 görüntünün 29'u: 14 araç (7 araç × takip + kokpit), kaput, şehir akşam/gece/yağmur/gece+yağmur, otoyol, dağ yolu, zirve, drift parkı, sahil, benzinlik, benzinlik gece, tamirci, duraklatma, telefon | **29'u da %0,00** |
+| Bilerek değişen 6: pist gündüz/gece/yağmur (%0,15–0,16, yarışta yakıt satırı gizli — H7), büyük harita (%47, H6), menü (%15) ve 1366 menü (%7, Ultra düğmesi + H8) | onaylı değişiklikler |
+| Fizik, 7 araç | main ✅ birebir, altyapı ✅ birebir |
+| klasik.html (main) | ✅ %0,00 |

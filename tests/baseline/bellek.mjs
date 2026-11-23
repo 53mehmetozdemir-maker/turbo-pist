@@ -9,6 +9,9 @@ const mem = () => page.evaluate(() => { const m = window.__game.renderer.info.me
 const sec = async id => { await page.evaluate(i => document.querySelectorAll('#vSel .vcard')[i].click(), IDS.indexOf(id));
   await page.waitForFunction(id => { const c = document.querySelector('#vSel .vcard.on'); return c && c.querySelector('b').textContent && window.__game.model && !document.getElementById('toast').textContent.includes('yükleniyor'); }, id, { timeout: 90000, polling: 200 }).catch(() => {}); await sleep(600); };
 const turlar = [];
+// 0. tur ısınma (sayılmaz): hızlı makinede 1. turun sonunda bazı gecikmeli içerik henüz kurulmamış olabiliyor (CI'da
+// 1→2. tur +49, 2→3. tur +1 ölçüldü: sızıntı değil, gecikmeli kurulum). Sızıntı her turda büyür; 1→3 farkı onu yakalar.
+for (const id of [...IDS.slice(1), IDS[0]]) await sec(id); console.log('tur 0 (ısınma)');
 for (let t = 1; t <= 3; t++) { for (const id of [...IDS.slice(1), IDS[0]]) await sec(id); turlar.push(await mem()); console.log('tur', t, 'geometri', turlar.at(-1)[0], 'doku', turlar.at(-1)[1]); }
 const gl = await page.evaluate(() => { const g = window.__game.renderer.getContext(); return g.getError(); });
 await page.screenshot({ path: '/tmp/bellek_son.png' });
