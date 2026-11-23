@@ -35,3 +35,27 @@ Referans: main @ e771e2a (canlı) + onaylı menü referansları (H8).
 - Bu ortam çok yavaş (dışarıdan tek tıklama >10 sn sürebiliyor): zaman sınırlı kontroller sayfa içinde ms'ler içinde
   yapılıyor; yeniden yükleme beklemeleri 120 sn.
 - Harita kontrolü ilk sürümde kaydırma alanının dışındaki (görünmeyen) öğeleri de sayıyordu → kırpılıyor.
+
+## Ek: Ultra düzeltmesi (H22) — önizlemede gerçek cihazda bulunan hata
+- **Belirti (1920×1080, Chrome, Ferrari 458, şehir, gündüz):** Ultra'da stop lambası çevresinde büyük kırmızı hale, aracın
+  altında yola yayılan kırmızı parlama, bozuk egzoz alevi. Yüksek'te yok.
+- **Sebep:** (1) GTAO bitmiş görüntüyü çarpıyordu; ışık efektleri de o görüntünün içindeydi ve bloom kararmış görüntüden
+  üretiliyordu. (2) Sprite'lar (lamba parıltıları) GTAO'nun normal/derinlik ön çizimine katı cisim gibi giriyordu.
+- **Düzeltme:** katı sahne → GTAO (yerinde çarpma, 0..1 kıstırılmış) → saydam/ışık efektleri (Yüksek'teki sırayla) →
+  bloom + çıkış. Yüksek kalitenin kodu ve görüntüsü değişmedi.
+- **Testler neden kaçırdı:** eski kontrol yalnız "Ultra'da daha parlak piksel" sayıyordu; kararan alev/küçülen parıltı
+  ölçülmüyordu. Ayrıca three her yeni nesneye `Math.random` ile kimlik verdiğinden, GTAO nesneleri oyunun tohumlanmış
+  rastgele dizisini kaydırıyor ve iki kalitenin sahnesini ayrıştırıyordu (yalıtılmış üreteçle düzeltildi).
+- **Yeni `ultra.mjs`:** gündüz ve gece; fren + nitro alevi anında; her kalitede aynı kare bir kez ışık efektleri gizli, bir
+  kez tam çizilir → efektlerin katkısı Yüksek ile Ultra'da karşılaştırılır.
+
+| Derleme | Gündüz | Gece | Sonuç |
+|---|---|---|---|
+| Aşama 5 (226bca9) | katkı %9,9 değişmiş, parlayan piksel %0,78 | katkı %29,1 değişmiş, parlayan %0,42 | ❌ |
+| Düzeltilmiş | %0,3, parlayan %0 | %1,1, parlayan %0 (sınır %2) | ✅ |
+
+- **Ayrıca:** `mp.mjs` 5. aşama commit'inde sözdizimi hatalıydı (son küçük düzenlemeden sonra yeniden çalıştırılmamıştı;
+  bir yorum satırı `forEach` kapanışını yutmuştu). Düzeltildi, 21/21. CI'da ilk adım tüm test dosyalarının sözdizimi
+  denetimi olacak.
+- **perf `sehir_kose` JS süresi:** aynı derlemede koşudan koşuya 9,3–15,9 ms arasında oynuyor (Aşama 5 derlemesinde de
+  13,3 ölçüldü; ölçüm sırasındaki çöp toplama). CI'da bu süre uyarı olacak, kırmızı yakmayacak; çizim/üçgen sayıları kesin.

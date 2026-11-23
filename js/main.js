@@ -86,8 +86,45 @@ let composer=null, bloom=null;
 // efekt zincirini kapat ve GPU kaynaklarını (render target'lar, geçişler) bırak (H2)
 function composerBirak(){ const c=composer; composer=null; bloom=null; if(!c) return; for(const p of c.passes) if(p.dispose) p.dispose(); c.dispose(); }
 if(settings.quality==='high'){
-  composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,camera));
-  if(ULTRA) try{ const ao=new GTAOPass(scene,camera,innerWidth,innerHeight); ao.updateGtaoMaterial({radius:0.6,distanceExponent:1.4,thickness:1,scale:1.1,samples:12}); ao.blendIntensity=0.85; composer.addPass(ao); }catch(e){ console.warn('AO yok',e); }
+  composer=new EffectComposer(renderer); const sahneGecis=new RenderPass(scene,camera); composer.addPass(sahneGecis);
+  // ULTRA = Yüksek + ortam gölgelendirmesi (GTAO). Gölgelendirme yalnız katı yüzeylere uygulanır; ışık/efekt/saydamlar
+  // (stop lambası parıltısı, egzoz alevi, kıvılcım, haleler, cam) onun ÜSTÜNE, Yüksek'teki sırayla çizilir:
+  //   1) sahne: katı (+transmission) malzemeler   2) GTAO: görüntüyü yerinde çarpar, değer 0..1'e kıstırılır (asla aydınlatmaz,
+  //   ekran kartı NaN üretse bile yayılmaz)   3) saydam malzemeler, aynı derinlik tamponuyla   4) bloom + çıkış (Yüksek'le aynı).
+  // three her yeni nesneye Math.random ile kimlik verir: oyunun rastgele dizisini kaydırıp dünyayı (başlangıç noktası,
+  // trafik, parçacıklar) Yüksek'ten farklı kurmasın diye GTAO'ya ait her şey kendi sabit üreteciyle kurulur.
+  if(ULTRA) try{ const _rnd=Math.random; let _s=20251122; Math.random=()=>(_s=(_s*16807)%2147483647)/2147483647;
+    let ao, carp, efektGecis; try{ ao=new GTAOPass(scene,camera,innerWidth,innerHeight); efektGecis=new RenderPass(scene,camera);
+      carp=new THREE.ShaderMaterial({ uniforms:{ tAO:{value:null}, intensity:{value:1} },
+        vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+        fragmentShader:'uniform sampler2D tAO; uniform float intensity; varying vec2 vUv;\n'+
+          'void main(){ float a=texture2D(tAO,vUv).r; a=(a>=0.0)?clamp(a,0.0,1.0):1.0; gl_FragColor=vec4(vec3(mix(1.0,a,intensity)),1.0); }',
+        // hedef = hedef × kaynak (alfa korunur); karışım birimi yalnız çarpar
+        blending:THREE.CustomBlending, blendEquation:THREE.AddEquation, blendSrc:THREE.ZeroFactor, blendDst:THREE.SrcColorFactor,
+        blendSrcAlpha:THREE.ZeroFactor, blendDstAlpha:THREE.OneFactor, depthTest:false, depthWrite:false });
+    } finally{ Math.random=_rnd; }
+    // three'nin çizim listesiyle aynı ayrım: transmission>0 → katılarla, değilse transparent → saydam
+    const saydamMi=m=>m.transparent&&!(m.transmission>0); const gizli=[];
+    const ayir=saydamGizle=>scene.traverse(o=>{ const ms=o.material; if(!ms) return;
+      for(const m of (Array.isArray(ms)?ms:[ms])) if(m.visible&&saydamMi(m)===saydamGizle){ m.visible=false; gizli.push(m); } });
+    const geriAl=()=>{ for(const m of gizli) m.visible=true; gizli.length=0; };
+    { const r=sahneGecis.render.bind(sahneGecis); sahneGecis.render=(...a)=>{ ayir(true); try{ return r(...a); } finally{ geriAl(); } }; }
+    // GTAO normal/derinlik tamponunda yalnız katı yüzeyler olsun (three sadece nokta/çizgiyi gizliyor; sprite ve saydam
+    // efektler orada katı cisim gibi görünüp etraflarına gölge düşürüyordu)
+    const efektMi=m=>!!m&&(m.transparent||m.blending===THREE.AdditiveBlending||m.depthWrite===false);
+    ao._overrideVisibility=function(){ const c=this._visibilityCache; this.scene.traverse(o=>{ if(!o.visible) return;
+      if(o.isPoints||o.isLine||o.isLine2||o.isSprite||[].concat(o.material||[]).some(efektMi)){ o.visible=false; c.push(o); } }); };
+    ao.output=GTAOPass.OUTPUT.Off; ao.needsSwap=false;   // GTAO yalnız hesaplar; sonucu aşağıda yerinde çarpıyoruz
+    { const r0=ao.render.bind(ao); ao.render=(renderer,writeBuffer,readBuffer,...a)=>{ r0(renderer,writeBuffer,readBuffer,...a);
+        carp.uniforms.tAO.value=ao.pdRenderTarget.texture; carp.uniforms.intensity.value=ao.blendIntensity;
+        ao._renderPass(renderer,carp,ao.renderToScreen?null:readBuffer); }; }
+    const aoBirak=ao.dispose.bind(ao); ao.dispose=()=>{ aoBirak(); carp.dispose(); };
+    efektGecis.clear=false;
+    { const r=efektGecis.render.bind(efektGecis); efektGecis.render=(renderer,...a)=>{ ayir(false); const bg=scene.background, sg=renderer.shadowMap.autoUpdate;
+        scene.background=null; renderer.shadowMap.autoUpdate=false;   // gökyüzü ve gölge haritaları ilk geçişte çizildi
+        try{ return r(renderer,...a); } finally{ geriAl(); scene.background=bg; renderer.shadowMap.autoUpdate=sg; } }; }
+    ao.updateGtaoMaterial({radius:0.6,distanceExponent:1.4,thickness:1,scale:1.1,samples:12}); ao.blendIntensity=0.85;
+    composer.addPass(ao); composer.addPass(efektGecis); }catch(e){ console.warn('AO yok',e); }
   bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth/2,innerHeight/2),0.35,0.5,0.88); composer.addPass(bloom); composer.addPass(new OutputPass());
 }
 

@@ -51,7 +51,7 @@ const sonuc = []; let bad = 0; const ok = (ad, k, d = '') => { sonuc.push((k ? '
 // Oyuncuyu bir trafik aracının 7 m arkasına koyup 18 m/s ile çarptır; aracın sırası döner
 async function carp(o) {
   return o.page.evaluate(() => { const g = window.__game, P = g.phys, cars = g.world.traffic.all();
-    let n = -1, best = 1e9; cars.forEach((c, i) => { const d = Math.hypot(c.x - P.x, c.y - P.y); if (d < best && !c.crash && c.v > 2 && c.v < 12) { best = d; n = i; }   // 18 m/s ile yetişilebilir hızda olsun (otoyol araçları daha hızlı) });
+    let n = -1, best = 1e9; cars.forEach((c, i) => { const d = Math.hypot(c.x - P.x, c.y - P.y); if (d < best && !c.crash && c.v > 2 && c.v < 12) { best = d; n = i; } });   // 18 m/s ile yetişilebilir hızda olsun (otoyol araçları daha hızlı)
     if (n < 0) n = 0; const c = cars[n]; P.reset(c.x - Math.cos(c.a) * 7, c.y - Math.sin(c.a) * 7, c.a); P.vx = Math.cos(c.a) * 18; P.vy = Math.sin(c.a) * 18; return n; });
 }
 const kazaHost = (o, n) => o.page.waitForFunction(n => (window.__game.world.traffic.all()[n].crash || 0) > 0, n, { timeout: 15000, polling: 100 }).then(() => true, () => false);
