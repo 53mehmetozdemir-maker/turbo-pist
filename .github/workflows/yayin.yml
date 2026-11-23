@@ -1,5 +1,6 @@
 # Canlı yayın: main'e her push'ta oyunu derler ve GitHub Pages'e yayınlar.
 # Çalışması için repo ayarında Pages → Source = "GitHub Actions" olmalı (geçiş günü bir kez).
+# Önce altın testler (testler.yml) koşar; biri kırmızıysa derleme ve yayın hiç başlamaz.
 # Repoya secret eklenmez; etiket için GitHub'ın her çalışmaya otomatik verdiği geçici GITHUB_TOKEN kullanılır.
 # Her başarılı yayın yayin-YYYYMMDD-HHMM etiketi alır → geri dönüş: o etiketi main'e geri almak.
 name: yayin
@@ -24,7 +25,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  testler:
+    # Acil service worker kapatma (oyuncular takılı kaldıysa) testleri beklemez: acil çıkış her zaman çalışmalı
+    if: ${{ !inputs.acil_sw_kapat }}
+    uses: ./.github/workflows/testler.yml
+
   build:
+    needs: testler
+    # normal yayın: testler yeşil olmalı. Acil kapatma: testler atlanmış olabilir
+    if: ${{ !cancelled() && (needs.testler.result == 'success' || (inputs.acil_sw_kapat && needs.testler.result == 'skipped')) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

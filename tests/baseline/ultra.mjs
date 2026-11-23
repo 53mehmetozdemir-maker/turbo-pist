@@ -9,7 +9,7 @@
 // Gündüz ve gece ayrı ayrı denenir (gece fren ışığı parıltısı baskındır).
 // usage: node baseline/ultra.mjs [ZAMAN=day|night]      (görüntüler: out/screens/ultra/)
 import fs from 'node:fs'; import path from 'node:path'; import { PNG } from 'pngjs';
-import { serve, launch, gamePage, HERE_DIR } from './lib.mjs';
+import { serve, launch, gamePage, HERE_DIR, KAT } from './lib.mjs';
 const OUTD = path.join(HERE_DIR, '../out/screens/ultra'); fs.mkdirSync(OUTD, { recursive: true });
 const ESIK = 45, SINIR = 0.2, EFEKT_SINIR = 2, IZ = 30;   // RGB toplamında 45'ten fazla fark; parlama görüntünün en fazla %0,2'si; efekt katkısı piksellerinin en fazla %2'si değişebilir; katkı >30 olan piksel efekt izidir
 // %2 payı: ton eşleme ve bloom eşiği doğrusal değil; aynı ışık GTAO ile koyulaşan zeminde ekranda bir tık belirgin görünür
@@ -24,7 +24,7 @@ for (const q of ['high', 'ultra']) {
   const kare = async n => { for (let i = 0; i < n; i++) await page.evaluate(() => window.__run(1)); };
   // oyunun gerçek zamanlı zamanlayıcıları (setTimeout) donmuş test saatine bağlı değil: kareler yavaş ilerleyen kalitede
   // farklı karelere denk gelip sahneyi ayrıştırmasın diye, araç yerleştirilmeden önce gerçek zamanda beklenir
-  await page.evaluate(() => window.__game.startFree()); await kare(3); await page.waitForTimeout(8000);
+  await page.evaluate(() => window.__game.startFree()); await kare(3); await page.waitForTimeout(8000 * KAT);
   await page.evaluate(() => { const P = window.__game.phys; P.reset(150, 3.5, 0); P.vx = P.vy = 0; P.nitro = 1; }); await kare(30);   // kamera aracın arkasına yumuşak geçişle oturur
   // tuşlar sayfaya ULAŞMADAN kare ilerletilmez (sayfa gölgelendirici derlerken meşgulse tuş olayı gecikir → kareler tuşsuz geçer)
   await page.evaluate(() => { window.__tus = new Set(); addEventListener('keydown', e => window.__tus.add(e.code), true); });

@@ -1,0 +1,109 @@
+# Altın testler (Aşama 6). Her test ayrı makinede, paralel koşar; biri kırmızıysa iş akışı kırmızıdır.
+# - Canlı yayın (yayin.yml) ve önizleme (turbo-pist-onizleme/onizleme.yml) yayından ÖNCE bunu çağırır:
+#   testler kırılırsa yayın durur.
+# - Tarayıcı sabit: Chrome for Testing 153.0.8010.12 (referans görüntüler bu sürümle çekildi).
+# - Dış ağ kapalı (tests/baseline/lib.mjs): çok oyunculu test kendi yerel PeerJS sunucusuyla koşar, dış servise bağlı değil.
+# - perf: süreler makineye göre oynadığı için yalnız uyarı verir (çizim/üçgen sayıları yine raporlanır).
+# Secret kullanılmaz.
+name: testler
+
+on:
+  push:
+    branches: [altyapi]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Sınanacak turbo-pist commit'i (boşsa çağıran commit)"
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  # GitHub makinesi yavaş kalabilir: gerçek-zaman beklemeleri 2 kat (sonuçlar donmuş test saatine bağlı, değişmez)
+  TP_ZAMAN_KAT: '2'
+  CHROME_SURUM: '153.0.8010.12'
+
+jobs:
+  hazirlik:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: 53mehmetozdemir-maker/turbo-pist
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.12.0'
+      - name: Test dosyalarının sözdizimi
+        run: for f in tests/baseline/*.mjs; do node --check "$f"; done
+      - run: npm ci --no-audit --no-fund
+      - name: Test derlemesi
+        run: npx vite build --base=/ --outDir /tmp/derleme
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: derleme
+          path: /tmp/derleme
+          retention-days: 3
+
+  test:
+    needs: hazirlik
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [physics, keys, saves, klasik, visual, sw, worker, mp, menu, harita, saglamlik, bellek, ultra, perf]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: 53mehmetozdemir-maker/turbo-pist
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0          # mp: eski sürüm olarak canlının kodu (e771e2a) git worktree ile açılır
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.12.0'
+      - name: Bağımlılıklar
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --no-audit --no-fund --prefix tests
+      - name: Chrome for Testing ${{ env.CHROME_SURUM }}
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/chrome.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_SURUM}/linux64/chrome-linux64.zip"
+          sha256sum /tmp/chrome.zip
+          unzip -q /tmp/chrome.zip -d /opt
+          v=$(/opt/chrome-linux64/chrome --headless=new --no-sandbox --version || true)
+          echo "$v"; case "$v" in *"$CHROME_SURUM"*) ;; *) echo "::error::Beklenen Chrome $CHROME_SURUM, bulunan: $v"; exit 1;; esac
+          echo "CHROME=/opt/chrome-linux64/chrome" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: derleme
+          path: /tmp/derleme
+      - name: ${{ matrix.test }}
+        working-directory: tests
+        env:
+          GAME_ROOT: /tmp/derleme
+        run: |
+          set -o pipefail
+          if [ "${{ matrix.test }}" = perf ]; then
+            node baseline/perf.mjs | tee /tmp/perf.txt || echo "::warning title=perf::Performans ölçümü referanstan kötü çıktı (yalnız uyarı; süreler makineye göre oynar). Ayrıntı: bu adımın çıktısı."
+          else
+            node baseline/${{ matrix.test }}.mjs
+          fi
+      - name: Görüntüler (kırmızıysa)
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: goruntuler-${{ matrix.test }}
+          path: |
+            tests/out
+            /tmp/karsilastir
+          if-no-files-found: ignore
+          retention-days: 7

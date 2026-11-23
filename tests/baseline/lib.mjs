@@ -12,7 +12,10 @@ export function serve(root = ROOT, port = 0) {
       r.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); fs.createReadStream(f).pipe(r); });
     srv.listen(port, '127.0.0.1', () => res({ srv, url: `http://127.0.0.1:${srv.address().port}` })); }); }
 export async function launch() {
-  return chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  // Dış ağ kapalı: yalnız 127.0.0.1 çözümlenir. Oyun her makinede (internetsiz geliştirme ortamı, internetli CI) aynı
+  // davranır (ör. gerçek PeerJS sunucusuna bağlanıp menüde farklı durum göstermez). Playwright yönlendirmeleri
+  // (ctx.route ile verilen yerel dosyalar) DNS'e gitmediği için etkilenmez.
+  return chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] });
 }
 // deterministic page: virtual clock advanced one 60 Hz tick per animation frame, seeded Math.random, frame hold/step control
 export const FREEZE = `(()=>{ let seed=12345; Math.random=()=>{ seed=(seed*16807)%2147483647; return (seed-1)/2147483646; };
@@ -46,5 +49,8 @@ export async function gamePage(browser, base, { viewport = { width: 960, height:
   await page.goto(base + '/' + query, { waitUntil: 'load', timeout: 120000 }); await page.waitForFunction(() => !!window.__game, null, { timeout: 120000, polling: 200 });
   return { ctx, page, log };
 }
-export const sleep = ms => new Promise(r => setTimeout(r, ms));
+// TP_ZAMAN_KAT: yavaş makinede (CI) gerçek-zaman beklemelerini uzatır (varsayılan 1). Sonuçlar donmuş test saatine bağlı
+// olduğundan bekleme uzaması sonucu değiştirmez, yalnız "henüz olmadı" kırmızılarını önler.
+export const KAT = Math.max(1, +process.env.TP_ZAMAN_KAT || 1);
+export const sleep = ms => new Promise(r => setTimeout(r, ms * KAT));
 export const HERE_DIR = HERE;
