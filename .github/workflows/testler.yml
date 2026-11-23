@@ -123,6 +123,7 @@ jobs:
           # her dosya: ===GORUNTU <ad>=== satırı + base64 JPEG (yarı boyut). En fazla 30 dosya.
           find tests/out -name '*.png' \( -name '*_yeni.png' -o -name '*fark*.png' -o -path '*menu*' -o -path '*ultra*' \) 2>/dev/null | sort | head -30 | while read -r f; do
             echo "===GORUNTU ${f#tests/out/}==="; if command -v convert >/dev/null; then convert "$f" -resize 50% -quality 80 jpg:- | base64 -w0; else base64 -w0 "$f"; fi; echo; done
+      - name: Görüntüler (kırmızıysa)
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
