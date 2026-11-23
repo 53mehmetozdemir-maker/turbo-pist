@@ -3,7 +3,7 @@
 // sunucu GitHub Pages gibi her dosyaya "max-age=600" gönderir.
 // usage: node baseline/sw.mjs
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path'; import { execFileSync } from 'node:child_process';
-import { launch, MIME, HERE_DIR } from './lib.mjs';
+import { launch, MIME, HERE_DIR, KAT } from './lib.mjs';
 const REPO = path.resolve(HERE_DIR, '../..'), OUT = '/tmp/tp-sw-test';
 const A = '/turbo-pist/', B = '/turbo-pist-onizleme/';
 function derle(ad, base, env = {}) {
@@ -31,9 +31,11 @@ const browser = await launch(); const ctx = await browser.newContext({ viewport:
 await ctx.route(/fonts\.googleapis|unpkg|peerjs\.com/, r => r.abort());
 const sonuc = []; let bad = 0;
 const ok = (ad, kosul, ayrinti = '') => { sonuc.push((kosul ? '✅ ' : '❌ ') + ad + (ayrinti ? ' — ' + ayrinti : '')); if (!kosul) bad++; console.log(sonuc.at(-1)); };
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const oyun = (p, t = 120000) => p.waitForFunction(() => !!window.__game && !document.getElementById('loading'), null, { timeout: t, polling: 300 });
-const swHazir = (p, t = 90000) => p.waitForFunction(async () => { const r = await navigator.serviceWorker.getRegistration('./'); return !!(r && r.active && !r.installing && navigator.serviceWorker.controller); }, null, { timeout: t, polling: 500 });
+const sleep = ms => new Promise(r => setTimeout(r, ms * KAT));   // TP_ZAMAN_KAT (CI'da 2)
+// oyunun açılmasını bekle ve süresini yaz (bu test donmuş saat kullanmaz; yavaş makinede açılış uzun sürebilir)
+const oyun = async (p, t = 120000) => { const t0 = Date.now(); await p.waitForFunction(() => !!window.__game && !document.getElementById('loading'), null, { timeout: t * KAT, polling: 300 });
+  console.log(`   (açılış ${((Date.now() - t0) / 1000).toFixed(1)} sn)`); };
+const swHazir = (p, t = 90000) => p.waitForFunction(async () => { const r = await navigator.serviceWorker.getRegistration('./'); return !!(r && r.active && !r.installing && navigator.serviceWorker.controller); }, null, { timeout: t * KAT, polling: 500 });
 const onbellekler = p => p.evaluate(async () => (await caches.keys()).sort());
 const kayitlar = p => p.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).map(r => new URL(r.scope).pathname).sort());
 const gorunur = (p, id) => p.evaluate(id => { const e = document.getElementById(id); return !!e && !e.classList.contains('hidden') && e.offsetParent !== null; }, id);
@@ -60,11 +62,11 @@ try {
   // 4) yeni sürüm: serbest sürüşte ve yarışta zorla yenileme yok; uyarı sadece menü/serbest duraklatmada
   mount[A] = D.A2; await pA.evaluate(() => { window.__isaret = 1; window.__game.startFree(); });
   await swHazir(pA); await pA.evaluate(() => window.__tpSW.update());
-  await pA.waitForFunction(() => !!(window.__tpSW && window.__tpSW.waiting), null, { timeout: 90000, polling: 500 });
+  await pA.waitForFunction(() => !!(window.__tpSW && window.__tpSW.waiting), null, { timeout: 90000 * KAT, polling: 500 });
   await sleep(3000);
   ok('yeni sürüm indi, serbest sürüşte sayfa yenilenmedi, uyarı ekranda yok', await pA.evaluate(() => window.__isaret === 1 && window.__game.mode === 'free') && !(await gorunur(pA, 'updPause')) && !(await gorunur(pA, 'updMenu')));
   await pA.keyboard.press('Escape');
-  await pA.waitForFunction(() => !document.getElementById('pause').classList.contains('hidden'), null, { timeout: 10000, polling: 100 }).catch(() => {});
+  await pA.waitForFunction(() => !document.getElementById('pause').classList.contains('hidden'), null, { timeout: 10000 * KAT, polling: 100 }).catch(() => {});
   await sleep(300);
   const d4 = await pA.evaluate(() => ({ mod: window.__game.mode, duraklat: !document.getElementById('pause').classList.contains('hidden'), dugme: document.getElementById('updPause').className, bekleyen: !!window.__tpSW.waiting }));
   ok('serbest sürüş duraklatmasında "Kaydet ve yenile" görünüyor', await gorunur(pA, 'updPause'), JSON.stringify(d4));
@@ -76,9 +78,9 @@ try {
   ok('geri sayımda uyarı yok', gs === 'countdown' && !(await gorunur(pA, 'updPause')) && !(await gorunur(pA, 'updMenu')), 'mod=' + gs);
   await pA.evaluate(() => { document.getElementById('updPause').click(); document.getElementById('updMenu').click(); });
   await sleep(2000); ok('geri sayımda "Yenile"ye zorla basılsa da yenilenmedi', await pA.evaluate(() => window.__isaret === 1));
-  await pA.waitForFunction(() => window.__game.mode === 'race', null, { timeout: 60000, polling: 300 });
+  await pA.waitForFunction(() => window.__game.mode === 'race', null, { timeout: 60000 * KAT, polling: 300 });
   await pA.keyboard.press('Escape');
-  await pA.waitForFunction(() => !document.getElementById('pause').classList.contains('hidden'), null, { timeout: 10000, polling: 100 }).catch(() => {});
+  await pA.waitForFunction(() => !document.getElementById('pause').classList.contains('hidden'), null, { timeout: 10000 * KAT, polling: 100 }).catch(() => {});
   await sleep(300);
   const d5 = await pA.evaluate(() => ({ mod: window.__game.mode, duraklat: !document.getElementById('pause').classList.contains('hidden'), dugme: document.getElementById('updPause').className }));
   ok('yarış duraklatmasında uyarı yok', d5.mod === 'race' && d5.duraklat && !(await gorunur(pA, 'updPause')), JSON.stringify(d5));
@@ -100,7 +102,7 @@ try {
   // 6) acil çıkış 2: ?sifirla
   await swHazir(pA); const para = await pA.evaluate(() => localStorage.getItem('tp8_save'));
   await pA.goto(URL0 + A + '?sifirla'); await pA.waitForURL(/sifirla\.html/, { timeout: 30000 });
-  await pA.waitForFunction(() => /Tamam/.test(document.getElementById('durum').textContent), null, { timeout: 30000, polling: 50 });
+  await pA.waitForFunction(() => /Tamam/.test(document.getElementById('durum').textContent), null, { timeout: 30000 * KAT, polling: 50 });
   const s6 = { kayit: await kayitlar(pA), onb: await onbellekler(pA) };   // oyun açılıp SW'yi yeniden kurmadan önce
   await pA.waitForURL(URL0 + A, { timeout: 30000 }); await oyun(pA);
   ok('?sifirla: canlının SW\'si ve önbelleği kalktı, oyun açıldı', !s6.kayit.includes(A) && !s6.onb.some(a => a.startsWith('tp|' + A)), JSON.stringify(s6));
