@@ -12,8 +12,9 @@ bozmadığını **kanıtla** göstermek. Önce kökteki `CLAUDE.md`'yi ve `tests
    (`tests/baseline/` altında, mevcut testlerin yapısıyla: `lib.mjs`, donmuş saat, sabit rastgelelik).
 2. **Testin gerçekten işe yaradığını göster:** Yeni testi önce main'in derlemesinde koştur. Düzeltilen bir hataysa
    orada **kırmızı** yanmalı; yeni dalda yeşil. Eski kodda da yeşil yanan test hiçbir şey kanıtlamaz.
-3. **Bozulmadığını göster:** İlgili altın testleri koştur. Rapor öncesi tam seti **mutlaka** bir kez koştur;
-   küçük iş diye atlama. Yöneticinin **etki listesindeki** her maddeyi tek tek kontrol et ve tabloda işaretle.
+3. **Bozulmadığını göster:** Hızlı seti ve etki listesine karşılık gelen testleri koştur. **Tam seti yerelde
+   koşturma** (`CLAUDE.md` → "Hız kuralı"); dal push edilince GitHub koşar, sen sonucunu kontrol edip tabloya
+   eklersin. Yöneticinin **etki listesindeki** her maddeyi tek tek kontrol et ve tabloda işaretle.
    Değişiklik bir aracı ilgilendiriyorsa diğer 6 aracın fizik ve görüntüsünün birebir aynı kaldığını ayrıca göster.
 4. **Fizik testi** birebir aynı olmalı. İş bilerek sürüşü değiştiriyorsa: yalnız hedef aracın izi değişmeli, diğer
    araçlarınki birebir aynı kalmalı. Bunu ayrıca kontrol et ve yaz.

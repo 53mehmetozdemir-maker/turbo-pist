@@ -84,8 +84,9 @@ dağıtırsın; kendin büyük kod yazmazsın. Küçük işler (bir yazıyı de�
    - `denetci`: kodu okur; mantık, çok oyunculu senkron, performans, bellek, güvenlik.
 5. **Düzeltme turu.** Bulgular geliştiriciye döner. En fazla 3 tur; 3 turda temizlenmezse dur, kullanıcıya durumu
    ve seçenekleri yaz.
-6. **Rapor + önizleme.** Dalı push et (CI koşar; yaklaşık 45 dk). Önizlemeye almak için önizleme reposundaki
-   `KAYNAK` dosyasına dalın commit'ini yaz. Kullanıcıya kısa rapor ver (format aşağıda).
+6. **Push + CI + rapor.** Dalı push et; GitHub tam test setini koşar (~45 dk). Beklerken raporu hazırla.
+   CI yeşilse önizlemeye al (önizleme reposundaki `KAYNAK` dosyasına dalın commit'ini yaz) ve kullanıcıya kısa rapor
+   ver. CI kırmızıysa sebebini bul, düzelt, tekrar push et.
 7. **Onay gelince** main'e birleştir. Yayın iş akışı testleri tekrar koşar, yeşilse canlıya çıkar ve etiketler.
 
 **Paralel çalışma:** Birbirinden bağımsız ve farklı dosyalara dokunan işleri aynı anda yaptırabilirsin (ör. yeni araç
@@ -98,9 +99,16 @@ Ayrıntı: `tests/baseline/README.md`. Testler derlenmiş oyuna karşı koşar:
 npx vite build --base=/ --outDir /tmp/dist-test
 cd tests && npm ci && export GAME_ROOT=/tmp/dist-test
 ```
-- **Hızlı set (her değişiklikte):** `physics.mjs check`, `saves.mjs check`, `keys.mjs check` + işle ilgili test.
-- **Tam set (rapor öncesi bir kez):** yukarıdakiler + `visual.mjs check`, `menu.mjs check`, `klasik.mjs check`,
-  `mp.mjs`, `sw.mjs`, `saglamlik.mjs`, `bellek.mjs`, `harita.mjs`, `ultra.mjs`, `worker.mjs`, `perf.mjs check`.
+**Hız kuralı:** Bu ortamda ekran kartı yok; tam set yerelde 1,5–2 saat sürer. Tam seti GitHub zaten her push'ta ve
+her yayından önce koşuyor, bu yüzden **tam seti yerelde koşturma.** Yerelde sadece:
+- **Hızlı set (her değişiklikte, ~10 dk):** `physics.mjs check`, `saves.mjs check`, `keys.mjs check`.
+- **İşle ilgili testler:** yeni yazılan test + etki listesindeki maddelere karşılık gelen testler. Ekranda görünen bir
+  değişiklikse `visual.mjs`/`menu.mjs`'yi yalnız ilgili ekranlarla sınırlı koştur.
+- **Tam set (yalnız CI'da):** yukarıdakiler + `visual.mjs check`, `menu.mjs check`, `klasik.mjs check`, `mp.mjs`,
+  `sw.mjs`, `saglamlik.mjs`, `bellek.mjs`, `harita.mjs`, `ultra.mjs`, `worker.mjs`, `perf.mjs check`. Rapor, CI
+  sonucu yeşil olmadan verilmez.
+- Çok oyunculu (`mp.mjs`) bu ortamda dış PeerJS'e ulaşamaz; çok oyunculu bir değişiklikte yerel sunucuyla koştur.
+- Aynı testi iki ajan koşturmasın: testleri test uzmanı koşturur; geliştirici yalnız hızlı seti koşturur.
 - **"Bu hata canlıda da var mı?":** `karsilastir.mjs <main> <derleme>`.
 - Tarayıcı: Chrome for Testing 153.0.8010.12 + SwiftShader; yavaş makinede `TP_ZAMAN_KAT=2`.
 - Uzun komutlara zaman aşımı koy. Arka plana atılan iş, tur biterse kapatılabilir: sonucu beklemeden turu bitirme.
