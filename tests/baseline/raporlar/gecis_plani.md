@@ -44,3 +44,18 @@ Birleştirme düz ileri sarma olacak (main, altyapı'nın doğrudan atası; çak
 | Yeni sürüm yayında ama hatalı (oyuncular açabiliyor) | Düzeltme ya da README'deki geri dönüş (önceki `yayin-…` etiketinin içeriği yeni commit olarak). Not: geçişin ilk yayınından önce `yayin-…` etiketi yoktur; o durumda bir alttaki satır uygulanır. |
 | Oyuncular takılı kaldı (açılmıyor) | Actions → yayin → Run workflow → `acil_sw_kapat` (testleri beklemez) |
 | Tamamen eski sürüme dönülmeli | 1) ⏸ Panel: Pages Source → **Deploy from a branch**, `main` / root. 2) main'e e771e2a'nın içeriği + kök `sw.js` olarak service worker kapatma dosyası tek commit (3b'de denenen hâl). Oyuncuların service worker'ı kendini kaldırır, eski oyun açılır, kayıtlar korunur. |
+
+## Geçiş günü kayıtları (24.11.2026)
+- **B1 geri dönüş noktası:** `yedek/canli-e771e2a` dalı uzak depoda (e771e2a). Etiket bu ortamdan gönderilemiyor
+  (sunucu bağlantıyı kesiyor); istenirse GitHub → Releases'tan e771e2a'ya eklenebilir.
+- **B3b tam geri dönüş** (`tests/baseline/geri_donus.mjs`, yerel, Chrome 153 + SwiftShader):
+
+| Kontrol | Kapatma dosyasıyla (plan) | Kapatma dosyası olmadan (karşı deneme) |
+|---|---|---|
+| Eski oyun açılıyor | ✅ | ✅ |
+| Kayıt eski kodda: para 43210, araç yakıt/hasar | ✅ aynen | ✅ aynen |
+| Service worker kalkıyor | ✅ | ❌ kalıyor |
+| Önbellek siliniyor | ✅ (1 → 0) | ❌ kalıyor (çevrimdışıyken önbellekteki yeni sürüm açılabilir) |
+| Sayfa hatası | yok | yok |
+
+  Sonuç: tam geri dönüşte kök `sw.js` olarak kapatma dosyası şart; plandaki yol doğrulandı.
