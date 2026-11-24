@@ -68,9 +68,10 @@ const DARBE_KANCA = () => { const T = window.__game.world.traffic; window.__gon 
 const kazalar = o => o.page.evaluate(() => window.__game.world.traffic.all().map(c => c.crash > 0 ? 1 : 0));
 // misafiri bir araca çarptır; araca hiç değmezse (senaryo ıskası, darbe gönderilmez) başka araçla en fazla 3 kez dener
 async function carpMisafir(m) {
-  for (let i = 0; i < 3; i++) { await m.page.evaluate(() => { window.__gon.length = 0; }); const n = await carp(m);
-    const gitti = await m.page.waitForFunction(() => window.__gon.length > 0, null, { timeout: 5000 * KAT, polling: 100 }).then(() => true, () => false);
-    if (gitti) return { n, tid: await m.page.evaluate(() => window.__gon[0][7]), deneme: i + 1 }; await sleep(3000); }
+  // (gönderim kaydı silinmez: bir ıskadan sonra misafirin aracı yoluna devam edip başka araca da değebilir; o darbe de meşrudur)
+  for (let i = 0; i < 3; i++) { const bas = await m.page.evaluate(() => window.__gon.length); const n = await carp(m);
+    const gitti = await m.page.waitForFunction(b => window.__gon.length > b, bas, { timeout: 5000 * KAT, polling: 100 }).then(() => true, () => false);
+    if (gitti) return { n, tid: await m.page.evaluate(b => window.__gon[b][7], bas), deneme: i + 1 }; await sleep(3000); }
   return { n: -1, tid: null, deneme: 3 };
 }
 const kazaHost = (o, n) => o.page.waitForFunction(n => (window.__game.world.traffic.all()[n].crash || 0) > 0, n, { timeout: 15000 * KAT, polling: 100 }).then(() => true, () => false);
@@ -92,10 +93,16 @@ try {
   const once1 = await kazalar(h);
   const { n: n1, tid: t1, deneme } = await carpMisafir(m);
   const k1 = n1 >= 0 && await kazaHost(h, n1);
-  const sonra1 = await kazalar(h), yeni1 = sonra1.map((v, i) => v && !once1[i] ? i : -1).filter(i => i >= 0);
   const tesh1 = k1 ? '' : ' · host aldı: ' + JSON.stringify(await h.page.evaluate(() => window.__al.slice(-4)));
   ok('H1: misafirin çarptığı araç host\'ta kaza yapıyor', k1, `araç #${n1} kimlik ${t1}${deneme > 1 ? ' (' + deneme + '. denemede değdi)' : ''}${tesh1}`);
-  ok('H25: yanlış araç kaza yapmıyor (host\'ta yalnız çarpılan araç kaza yaptı)', yeni1.every(i => i === n1), 'yeni kaza yapanlar: [' + yeni1 + ']');
+  // yanlış araç = host'ta kaza yapan ama misafirin hiç darbe göndermediği ve host'un kendi aracına da değmeyen araç
+  await sleep(1500);
+  const gonTid = await m.page.evaluate(() => [...new Set(window.__gon.map(e => e[7]))]);
+  const yeniler = await h.page.evaluate(([ids, gon]) => { const g = window.__game, all = g.world.traffic.all(), P = g.phys;
+    return ids.map(i => ({ i, tid: all[i].tid, misafirDegdi: gon.includes(all[i].tid), hostaUzaklik: Math.round(Math.hypot(all[i].x - P.x, all[i].y - P.y)) })); },
+    [(await kazalar(h)).map((v, i) => v && !once1[i] ? i : -1).filter(i => i >= 0), gonTid]);
+  const yanlis = yeniler.filter(e => !e.misafirDegdi && e.hostaUzaklik > 8);
+  ok('H25: yanlış araç kaza yapmıyor (host\'ta kaza yapan her araca misafir gerçekten değdi)', !yanlis.length, JSON.stringify({ yeniler, misafirinDarbeGonderdigi: gonTid }));
   ok('H1: misafir o aracı dörtlülerle ve kaza efektiyle görüyor', await kazaMisafir(m, n1));
   // H25: host darbeyi yalnız kalıcı kimlikle uygular; kimliksiz / bilinmeyen kimlikli darbe yok sayılır; sıra numarası yanlış
   // ama kimlik doğruysa darbe KİMLİĞİN aracına gider (sıra numarasının gösterdiği araca asla)
