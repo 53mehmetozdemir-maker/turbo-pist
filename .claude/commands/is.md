@@ -14,7 +14,8 @@ Kullanıcının isteği: $ARGUMENTS
 3. `gelistirici` ajanına işi kabul kriterleri, etki listesi ve taslakla birlikte ver.
 4. Ardından `test-uzmani`, `denetci` ve görünen bir değişiklikse `tasarimci` ajanlarını aynı anda çalıştır.
 5. Bulguları geliştiriciye geri ver; temiz çıkana kadar en fazla 3 tur.
-6. Tam test setini koştur, dalı push et, önizlemeye al.
+6. Hızlı set + işle ilgili testleri koştur (tam seti yerelde koşturma), dalı push et, önizlemeye al.
+   GitHub testlerini bekleme; hedef: istekten rapora en fazla 15 dakika.
 7. Kullanıcıya kısa rapor ver ve main'e birleştirme için onayını bekle (`⏸ ONAY BEKLİYORUM`).
 
 Fizik/sürüş değişecekse geliştiriciyi çağırmadan önce kullanıcıya ne değişeceğini sade dille anlat ve onay al.
