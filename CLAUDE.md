@@ -104,6 +104,8 @@ her yayından önce koşuyor, bu yüzden **tam seti yerelde koşturma.** Yerelde
 - **Hızlı set (her değişiklikte, ~10 dk):** `physics.mjs check`, `saves.mjs check`, `keys.mjs check`.
 - **İşle ilgili testler:** yeni yazılan test + etki listesindeki maddelere karşılık gelen testler. Ekranda görünen bir
   değişiklikse `visual.mjs`/`menu.mjs`'yi yalnız ilgili ekranlarla sınırlı koştur.
+- CI'da uzun testler parçalı koşar (görsel 5+1, menü 6, bellek 3 parça; `testler.yml`). Yeni görsel görüntü eklersen
+  uygun parçanın düzenli ifadesine ekle; eklemezsen "visual-kalan" parçasında yine test edilir.
 - **Tam set (yalnız CI'da):** yukarıdakiler + `visual.mjs check`, `menu.mjs check`, `klasik.mjs check`, `mp.mjs`,
   `sw.mjs`, `saglamlik.mjs`, `bellek.mjs`, `harita.mjs`, `ultra.mjs`, `worker.mjs`, `perf.mjs check`. Rapor, CI
   sonucu yeşil olmadan verilmez.

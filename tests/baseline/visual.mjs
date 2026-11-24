@@ -16,7 +16,10 @@ const SHOTS = [
   ['sahil', S('f458', { at: [-144.3, 600, -Math.PI / 2] })], ['benzinlik', S('f458', { at: 'fuel' })], ['tamirci', S('f458', { at: 'repair' })], ['benzinlik_gece', S('f458', { at: 'fuel', time: 'night' })],
   ['buyuk_harita', S('f458', { ui: 'map' })], ['duraklat', S('f458', { ui: 'pause' })],
   ['telefon', S('f458', { touch: true })], ['laptop_1366_menu', S('f458', { start: 'none', vp: [1366, 768] })],
-].filter(([n]) => n.includes(FILTER));
+].filter(([n]) => !FILTER || new RegExp(FILTER).test(n));
+// CI parçalara böler (testler.yml): her parça bir düzenli ifade. Eşleşen görüntü yoksa kırmızı, ki yanlış yazılmış bir
+// parça sessizce "geçti" demesin. "Kalan" parçası (yeni eklenen ama hiçbir parçaya girmeyen görüntüler) boş olabilir.
+if (FILTER && !SHOTS.length && !process.env.TP_BOS_IZIN) { console.log('❌ filtreyle eşleşen görüntü yok: ' + FILTER); process.exit(1); }
 const { srv, url } = await serve(); const browser = await launch(); let bad = 0; const report = [];
 for (const [name, s] of SHOTS) {
   const vp = s.vp ? { width: s.vp[0], height: s.vp[1] } : s.touch ? { width: 844, height: 390 } : { width: 640, height: 360 };
