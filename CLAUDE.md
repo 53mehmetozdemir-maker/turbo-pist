@@ -84,10 +84,20 @@ dağıtırsın; kendin büyük kod yazmazsın. Küçük işler (bir yazıyı de�
    - `denetci`: kodu okur; mantık, çok oyunculu senkron, performans, bellek, güvenlik.
 5. **Düzeltme turu.** Bulgular geliştiriciye döner. En fazla 3 tur; 3 turda temizlenmezse dur, kullanıcıya durumu
    ve seçenekleri yaz.
-6. **Push + CI + rapor.** Dalı push et; GitHub tam test setini koşar (~45 dk). Beklerken raporu hazırla.
-   CI yeşilse önizlemeye al (önizleme reposundaki `KAYNAK` dosyasına dalın commit'ini yaz) ve kullanıcıya kısa rapor
-   ver. CI kırmızıysa sebebini bul, düzelt, tekrar push et.
-7. **Onay gelince** main'e birleştir. Yayın iş akışı testleri tekrar koşar, yeşilse canlıya çıkar ve etiketler.
+6. **Push + önizleme + rapor (CI'ı bekleme).** Yerel testler yeşilse dalı push et, önizlemeye al (önizleme
+   reposundaki `KAYNAK` dosyasına dalın commit'ini yaz) ve kullanıcıya **hemen** kısa rapor ver. GitHub tam seti
+   arkada koşar; raporda "GitHub testleri sürüyor" de. CI sonucu gelince tek satırla bildir; kırmızıysa sebebini
+   bul, düzelt, tekrar push et.
+7. **Onay gelince** main'e birleştir. CI o dal için henüz bitmediyse ya da kırmızıysa birleştirme; kullanıcıya
+   "testler bitince canlıya alıyorum" de ve bitince birleştir. Yayın iş akışı testleri tekrar koşar, yeşilse canlıya
+   çıkar ve etiketler.
+
+**Süre hedefi:** İstekten rapora **en fazla 15 dakika.** Bunu aşacak bir iş ise (büyük özellik, çok dosya) başta
+kullanıcıya tahmini süreyi söyle ve işi 15 dakikalık parçalara böl; her parça bitince rapor ver.
+
+**Birden fazla istek:** Kullanıcı bir iş sürerken yeni bir şey isterse onu bekletme. Yeni iş başka dosyalara
+dokunuyorsa ayrı dalda paralel başlat (ayrı geliştirici, ayrı worktree). Aynı dosyalara (özellikle `js/main.js`)
+dokunuyorsa sıraya al ve kullanıcıya "şu iş bitince başlıyorum (~X dk)" de.
 
 **Paralel çalışma:** Birbirinden bağımsız ve farklı dosyalara dokunan işleri aynı anda yaptırabilirsin (ör. yeni araç
 + ses düzeltmesi). Her geliştiriciyi ayrı worktree'de çalıştır. `js/main.js`, `js/physics.js` ya da `js/net.js`'e
@@ -105,8 +115,8 @@ her yayından önce koşuyor, bu yüzden **tam seti yerelde koşturma.** Yerelde
 - **İşle ilgili testler:** yeni yazılan test + etki listesindeki maddelere karşılık gelen testler. Ekranda görünen bir
   değişiklikse `visual.mjs`/`menu.mjs`'yi yalnız ilgili ekranlarla sınırlı koştur.
 - **Tam set (yalnız CI'da):** yukarıdakiler + `visual.mjs check`, `menu.mjs check`, `klasik.mjs check`, `mp.mjs`,
-  `sw.mjs`, `saglamlik.mjs`, `bellek.mjs`, `harita.mjs`, `ultra.mjs`, `worker.mjs`, `perf.mjs check`. Rapor, CI
-  sonucu yeşil olmadan verilmez.
+  `sw.mjs`, `saglamlik.mjs`, `bellek.mjs`, `harita.mjs`, `ultra.mjs`, `worker.mjs`, `perf.mjs check`. Rapor CI'ı
+  beklemez; ama CI yeşil olmadan main'e birleştirme yapılmaz.
 - Çok oyunculu (`mp.mjs`) bu ortamda dış PeerJS'e ulaşamaz; çok oyunculu bir değişiklikte yerel sunucuyla koştur.
 - Aynı testi iki ajan koşturmasın: testleri test uzmanı koşturur; geliştirici yalnız hızlı seti koşturur.
 - **"Bu hata canlıda da var mı?":** `karsilastir.mjs <main> <derleme>`.
