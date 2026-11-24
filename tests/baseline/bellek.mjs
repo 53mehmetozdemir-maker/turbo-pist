@@ -22,7 +22,11 @@ const gl = await page.evaluate(() => { const g = window.__game.renderer.getConte
 await page.screenshot({ path: '/tmp/bellek_son.png' });
 const hatalar = log.filter(l => !/ERR_|Failed to load resource/.test(l));
 await b.close(); srv.close();
-const art = [turlar[2][0] - turlar[0][0], turlar[2][1] - turlar[0][1]];
+// Parçalı koşuda (BELLEK_ARACLAR) ısınma turu kısa kalır; gecikmeli kurulan içerik (+49 geometri, sızıntı değil:
+// bir kez artar, sonra durur) 1→2. tura denk gelebilir. Sızıntı her turda büyüdüğü için orada 2→3. tur farkı ölçülür;
+// tam koşuda (7 araç) ölçüm eskisi gibi 1→3.
+const ilk = process.env.BELLEK_ARACLAR ? 1 : 0;
+const art = [turlar[2][0] - turlar[ilk][0], turlar[2][1] - turlar[ilk][1]];
 const ok = art[0] <= 2 && art[1] <= 1 && gl === 0 && !hatalar.length;
-console.log((ok ? '✅' : '❌') + ` 1. turdan 3. tura artış: geometri ${art[0]}, doku ${art[1]} · WebGL hata kodu ${gl} · konsol hatası ${hatalar.length}` + (hatalar.length ? ' — ' + hatalar[0] : ''));
+console.log((ok ? '✅' : '❌') + ` ${ilk + 1}. turdan 3. tura artış: geometri ${art[0]}, doku ${art[1]} · WebGL hata kodu ${gl} · konsol hatası ${hatalar.length}` + (hatalar.length ? ' — ' + hatalar[0] : ''));
 process.exit(ok ? 0 : 1);

@@ -11,7 +11,7 @@ name: testler
 on:
   push:
     branches: [altyapi, 'is/**']
-  pull_request:
+  # pull_request kaldırıldı: is/** dalı push'ta zaten test ediliyor; PR açınca aynı testler ikinci kez koşuyordu.
   workflow_dispatch:
     inputs:
       sadece:
@@ -27,6 +27,12 @@ on:
 
 permissions:
   contents: read
+
+# Aynı dala yeni commit gelince o dalın eski (artık geçersiz) test turu iptal edilir; makine sırası boşa dolmaz.
+# Yayın (yayin.yml) bunu çağırdığında grup çağıranın dalıdır (main); orada da yeni commit eskisini geçersiz kılar.
+concurrency:
+  group: testler-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' }}
 
 env:
   # GitHub makinesi yavaş kalabilir: gerçek-zaman beklemeleri 2 kat (sonuçlar donmuş test saatine bağlı, değişmez)
@@ -48,10 +54,11 @@ jobs:
           set -euo pipefail
           # Uzun testler parçalara bölünür (aynı anda ayrı makinelerde koşar). Parça adı: <test>-<parça>.
           # Parçaların birleşimi tüm testi kapsar; ayrıntı aşağıdaki "Test" adımında.
-          hepsi="physics keys saves klasik sw worker mp harita saglamlik ultra perf
-                 visual-takip visual-kokpit visual-sehir visual-yerler visual-servis visual-kalan
-                 menu-1920x1080 menu-1904x986 menu-1366x768 menu-1280x720 menu-telefon_yatay menu-telefon_dikey
-                 bellek-1 bellek-2 bellek-3"
+          # Sıra önemli: GitHub aynı anda en fazla 20 makine verir; en uzun sürenler başta ki sırada beklemesinler.
+          hepsi="bellek-1 bellek-2 bellek-3 mp physics menu-1920x1080 ultra
+                 visual-takip visual-kokpit visual-sehir visual-yerler visual-servis menu-1904x986
+                 saves saglamlik sw keys perf menu-1366x768 menu-1280x720 harita
+                 menu-telefon_dikey menu-telefon_yatay klasik worker visual-kalan"
           secili=""
           for t in $hepsi; do
             taban="${t%%-*}"
