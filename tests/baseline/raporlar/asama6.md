@@ -26,6 +26,7 @@
 | — | saglamlik: efekt zinciri ölçümü ilk kareden önceye denk gelebiliyordu | Hayır (test) | 10 kare çizilmesi bekleniyor |
 | — | bellek: CI'da 1→2. tur +49 geometri, 2→3. tur +1 (gecikmeli kurulum, sızıntı değil) | Hayır (test) | Sayılmayan ısınma turu |
 | — | mp kararsızdı: aynı commit altyapıda geçti, önizlemede kırmızı (sabit 1,5 sn bekleyip tek bakış; 3 sayfa yükte açılış >180 sn) | Hayır (test) | Yoklamalı kontrol, süreler `TP_ZAMAN_KAT`'a bağlı |
+| — | saves: ilk döngü `startFree`'den sonra 3 sn gerçek zamanlı bekliyordu; trafik araca çarpabiliyordu (7. aşama CI koşusunda bir kez) | Hayır (test) | Donmuş saat, oyun 3 kare ilerler; main'de ve altyapıda aynı beklentiler ✅ |
 | — | `mp.mjs` Aşama 5 commit'inde sözdizimi hatalıydı | Hayır (test) | Düzeltildi; CI'ın ilk adımı sözdizimi denetimi |
 
 ## H23 düzeltmesi

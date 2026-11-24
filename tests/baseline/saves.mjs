@@ -5,8 +5,11 @@ const MODE = process.argv[2] || 'check', DIR = path.join(HERE_DIR, 'saves'), OUT
 const { srv, url } = await serve(); const browser = await launch(); const res = {};
 for (const f of fs.readdirSync(DIR).filter(f => f.endsWith('.json')).sort()) {
   const s = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); const storage = { tp7_veh: s.veh }; if (s.save) storage.tp8_save = JSON.stringify(s.save);
-  const { ctx, page } = await gamePage(browser, url, { storage, freeze: false });
-  await sleep(2500); await page.evaluate(() => window.__game.startFree()); await sleep(3000);
+  // donmuş saat: yükleme için gerçek zamanlı beklenir ama oyun yalnız 3 kare ilerler. Eskiden startFree'den sonra 3 sn gerçek
+  // zamanlı bekleniyordu; o arada trafik araca çarpabiliyordu (CI'da bir kez: hasar 80 → 85,4, km 5 → 5,001).
+  const { ctx, page } = await gamePage(browser, url, { storage });
+  await sleep(2500); await page.evaluate(() => window.__run(2)); await sleep(1500);
+  await page.evaluate(() => window.__game.startFree()); await page.evaluate(() => window.__run(3)); await sleep(500);
   const st = await page.evaluate(() => { const g = window.__game, m = g.model; return { money: Math.round(g.SAVE.money), km: +g.SAVE.km.toFixed(3), best: g.SAVE.best, econ2: g.SAVE.econ2 || 0,
     fuel: +(g.phys.fuel ?? 1).toFixed(4), damage: +g.phys.damage.toFixed(1), dents: !!(m.dmg && m.dmg.orig.size), crack: !!(m.dmg && m.dmg.crack) }; });
   // persists across a reload
