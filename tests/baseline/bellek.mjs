@@ -17,16 +17,18 @@ const turlar = [];
 // 0. tur ısınma (sayılmaz): hızlı makinede 1. turun sonunda bazı gecikmeli içerik henüz kurulmamış olabiliyor (CI'da
 // 1→2. tur +49, 2→3. tur +1 ölçüldü: sızıntı değil, gecikmeli kurulum). Sızıntı her turda büyür; 1→3 farkı onu yakalar.
 for (const id of [...IDS.slice(1), IDS[0]]) await sec(id); console.log('tur 0 (ısınma)');
+// Oyun dünyası bir süre daha arka planda kuruluyor (gecikmeli içerik; meşgul makinede daha geç biter). Ölçüme başlamadan
+// önce, araç değiştirmeden, geometri/doku sayısı 15 sn boyunca sabit kalana kadar bekle (en fazla 3 dk). Böylece sonuç
+// makinenin hızına bağlı olmaz; parçalı koşuda (kısa ısınma turu) da aynı kalır.
+{ let son = await mem(), sabit = 0; const bas = Date.now();
+  while (sabit < 5 && Date.now() - bas < 180000) { await sleep(3000); const m = await mem(); if (m[0] === son[0] && m[1] === son[1]) sabit++; else { sabit = 0; son = m; } }
+  console.log('dünya kurulumu bitti:', son, ((Date.now() - bas) / 1000 | 0) + ' sn' + (sabit < 5 ? ' (zaman aşımı)' : '')); }
 for (let t = 1; t <= 3; t++) { for (const id of [...IDS.slice(1), IDS[0]]) await sec(id); turlar.push(await mem()); console.log('tur', t, 'geometri', turlar.at(-1)[0], 'doku', turlar.at(-1)[1]); }
 const gl = await page.evaluate(() => { const g = window.__game.renderer.getContext(); return g.getError(); });
 await page.screenshot({ path: '/tmp/bellek_son.png' });
 const hatalar = log.filter(l => !/ERR_|Failed to load resource/.test(l));
 await b.close(); srv.close();
-// Parçalı koşuda (BELLEK_ARACLAR) ısınma turu kısa kalır; gecikmeli kurulan içerik (+49 geometri, sızıntı değil:
-// bir kez artar, sonra durur) 1→2. tura denk gelebilir. Sızıntı her turda büyüdüğü için orada 2→3. tur farkı ölçülür;
-// tam koşuda (7 araç) ölçüm eskisi gibi 1→3.
-const ilk = process.env.BELLEK_ARACLAR ? 1 : 0;
-const art = [turlar[2][0] - turlar[ilk][0], turlar[2][1] - turlar[ilk][1]];
+const art = [turlar[2][0] - turlar[0][0], turlar[2][1] - turlar[0][1]];
 const ok = art[0] <= 2 && art[1] <= 1 && gl === 0 && !hatalar.length;
-console.log((ok ? '✅' : '❌') + ` ${ilk + 1}. turdan 3. tura artış: geometri ${art[0]}, doku ${art[1]} · WebGL hata kodu ${gl} · konsol hatası ${hatalar.length}` + (hatalar.length ? ' — ' + hatalar[0] : ''));
+console.log((ok ? '✅' : '❌') + ` 1. turdan 3. tura artış: geometri ${art[0]}, doku ${art[1]} · WebGL hata kodu ${gl} · konsol hatası ${hatalar.length}` + (hatalar.length ? ' — ' + hatalar[0] : ''));
 process.exit(ok ? 0 : 1);
