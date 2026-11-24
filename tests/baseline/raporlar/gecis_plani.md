@@ -59,3 +59,16 @@ Birleştirme düz ileri sarma olacak (main, altyapı'nın doğrudan atası; çak
 | Sayfa hatası | yok | yok |
 
   Sonuç: tam geri dönüşte kök `sw.js` olarak kapatma dosyası şart; plandaki yol doğrulandı.
+- **B2 sürüm uyuşmazlığı:** son commit'te mp, eski canlı kod (e771e2a) ↔ yeni kod, iki yönde ✅ (bağlanma, uyarılar,
+  eski misafirin yeni paketleri okuması).
+- **B3a yeni sürümler arası geri dönüş:** önizleme c4222e9 → dff9796 (geri) → 27d2375 (ileri); her adımda testler → yayın ✅.
+- **B4 panel:** Pages Source → GitHub Actions (kullanıcının isteğiyle Claude yaptı); site eski yayınla açık kaldı ✅.
+- **B5 ilk birleştirme (27d2375):** yayın, mp'deki bir kontrol kırmızı yandığı için **durdu**; canlı eski sürümde kaldı.
+  Kullanıcı kararı: önce düzelt (H25, `HATALAR.md`), sonra yayınla. Düzeltme + mp testi GitHub'da 10 bağımsız koşuda
+  10/10 yeşil (24/24); tam test koşusu 15/15.
+- **B5 birleştirme (a04bd21):** yayın 18/18 ✅, etiket `yayin-20261124-1321`.
+- **B6 yayın sonrası (canlı, Chrome):** `surum.txt` = a04bd21 ✅ · yeni derleme ve Ultra menüde ✅ · service worker kuruldu,
+  canlı önbelleği önizlemeden ayrı ✅ · tarayıcıdaki mevcut kayıt aynen geldi ✅ · ikinci açılışta 21 oyun dosyasının
+  21'i önbellekten, ağdan 0 ✅ · `klasik.html` açılıyor ✅. Eski sekmeyle çok oyunculu: mp testindeki eski ↔ yeni
+  senaryoları (gerçek eski kodla) ✅; iki gerçek cihazla deneme kullanıcıda.
+- **B7:** önizleme iş akışı testleri artık `@main`'den çağırıyor; önizleme KAYNAK = a04bd21.
