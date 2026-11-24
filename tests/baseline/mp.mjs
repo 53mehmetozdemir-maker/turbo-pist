@@ -61,6 +61,18 @@ async function carp(o) {
     let n = -1, best = 1e9; cars.forEach((c, i) => { const d = Math.hypot(c.x - P.x, c.y - P.y); if (d < best && !c.crash && c.v > 2 && c.v < 12) { best = d; n = i; } });   // 18 m/s ile yetişilebilir hızda olsun (otoyol araçları daha hızlı)
     if (n < 0) n = 0; const c = cars[n]; P.reset(c.x - Math.cos(c.a) * 7, c.y - Math.sin(c.a) * 7, c.a); P.vx = Math.cos(c.a) * 18; P.vy = Math.sin(c.a) * 18; return n; });
 }
+// teşhis kancası: misafirin gönderdiği / host'un aldığı darbeleri kaydeder (H25)
+const DARBE_KANCA = () => { const T = window.__game.world.traffic; window.__gon = []; window.__al = [];
+  const th = T.takeHits.bind(T); T.takeHits = () => { const h = th(); for (const e of h) window.__gon.push(e); return h; };
+  const ah = T.applyHits.bind(T); T.applyHits = h => { const r = ah(h); window.__al.push({ t: Math.round(performance.now()), h: JSON.stringify(h).slice(0, 200), uygulanan: r }); return r; }; };
+const kazalar = o => o.page.evaluate(() => window.__game.world.traffic.all().map(c => c.crash > 0 ? 1 : 0));
+// misafiri bir araca çarptır; araca hiç değmezse (senaryo ıskası, darbe gönderilmez) başka araçla en fazla 3 kez dener
+async function carpMisafir(m) {
+  for (let i = 0; i < 3; i++) { await m.page.evaluate(() => { window.__gon.length = 0; }); const n = await carp(m);
+    const gitti = await m.page.waitForFunction(() => window.__gon.length > 0, null, { timeout: 5000 * KAT, polling: 100 }).then(() => true, () => false);
+    if (gitti) return { n, tid: await m.page.evaluate(() => window.__gon[0][7]), deneme: i + 1 }; await sleep(3000); }
+  return { n: -1, tid: null, deneme: 3 };
+}
 const kazaHost = (o, n) => o.page.waitForFunction(n => (window.__game.world.traffic.all()[n].crash || 0) > 0, n, { timeout: 15000 * KAT, polling: 100 }).then(() => true, () => false);
 const kazaMisafir = (o, n) => o.page.waitForFunction(n => { const c = window.__game.world.traffic.all()[n]; return c.sig === 2 && c.fxSeen > 0; }, n, { timeout: 15000 * KAT, polling: 100 }).then(() => true, () => false);
 
@@ -75,9 +87,29 @@ try {
   ok('TURN listesi Worker adresinden alınıp WebRTC\'ye veriliyor', await m.page.evaluate(() => window.__rtc.some(c => c.includes('turn:127.0.0.1:3478'))));
   ok('misafir host\'un trafiğini alıyor', await m.page.evaluate(() => !!window.__game.world.traffic.remote && window.__game.world.traffic.remote.length > 10));
   // 2) H1: misafir bot araca çarpıyor → host'ta kaza, misafirde dörtlü + efekt
-  const n1 = await carp(m);
-  ok('H1: misafirin çarptığı araç host\'ta kaza yapıyor', await kazaHost(h, n1), 'araç #' + n1);
+  await h.page.evaluate(DARBE_KANCA); await m.page.evaluate(DARBE_KANCA);
+  await m.page.waitForFunction(() => Array.isArray(window.__game.world.traffic.remoteIds), null, { timeout: 15000 * KAT, polling: 200 });
+  const once1 = await kazalar(h);
+  const { n: n1, tid: t1, deneme } = await carpMisafir(m);
+  const k1 = n1 >= 0 && await kazaHost(h, n1);
+  const sonra1 = await kazalar(h), yeni1 = sonra1.map((v, i) => v && !once1[i] ? i : -1).filter(i => i >= 0);
+  const tesh1 = k1 ? '' : ' · host aldı: ' + JSON.stringify(await h.page.evaluate(() => window.__al.slice(-4)));
+  ok('H1: misafirin çarptığı araç host\'ta kaza yapıyor', k1, `araç #${n1} kimlik ${t1}${deneme > 1 ? ' (' + deneme + '. denemede değdi)' : ''}${tesh1}`);
+  ok('H25: yanlış araç kaza yapmıyor (host\'ta yalnız çarpılan araç kaza yaptı)', yeni1.every(i => i === n1), 'yeni kaza yapanlar: [' + yeni1 + ']');
   ok('H1: misafir o aracı dörtlülerle ve kaza efektiyle görüyor', await kazaMisafir(m, n1));
+  // H25: host darbeyi yalnız kalıcı kimlikle uygular; kimliksiz / bilinmeyen kimlikli darbe yok sayılır; sıra numarası yanlış
+  // ama kimlik doğruysa darbe KİMLİĞİN aracına gider (sıra numarasının gösterdiği araca asla)
+  const h25 = await h.page.evaluate(() => { const T = window.__game.world.traffic, all = T.all();
+    const bos = all.map((c, i) => i).filter(i => !(all[i].crash > 0) && all[i].v > 2); const a = bos[0], b = bos[1];
+    const d = c => [0, 20, 0, 0, 15, Math.round(c.x * 10) / 10, Math.round(c.y * 10) / 10];
+    const r1 = T.applyHits([d(all[a]).map((v, k) => k === 0 ? a : v)]);                       // kimliksiz
+    const r2 = T.applyHits([[...d(all[a]).map((v, k) => k === 0 ? a : v), 99999]]);         // olmayan kimlik
+    const r3 = T.applyHits([[...d(all[b]).map((v, k) => k === 0 ? a : v), all[b].tid]]);   // sıra a (yanlış), kimlik b
+    return { a, b, r1, r2, r3 }; });
+  await sleep(1500);
+  const k25 = await h.page.evaluate(([a, b]) => { const all = window.__game.world.traffic.all(); return { a: all[a].crash > 0, b: all[b].crash > 0 }; }, [h25.a, h25.b]);
+  ok('H25: kimliksiz ve bilinmeyen kimlikli darbe yok sayılıyor', h25.r1 === 0 && h25.r2 === 0, JSON.stringify(h25));
+  ok('H25: darbe sıra numarasına değil kimliğin aracına uygulanıyor', h25.r3 === 1 && k25.b && !k25.a, JSON.stringify(k25));
   // 3) host çarpıyor → misafir görüyor
   const n2 = await carp(h);
   const hk = await kazaHost(h, n2), mk = hk && await kazaMisafir(m, n2);

@@ -17,6 +17,7 @@ export class Traffic {
   constructor(fleet, count) {
     this.fleet = fleet; this.cars = []; this.remote = null;
     for (let k = 0; k < count; k++) this.spawn();
+    this.cars.forEach((c, k) => { c.tid = k; });   // kalıcı kimlik (H25): çarpmalar sıra numarasıyla değil bununla bildirilir
   }
   spawn() {
     for (let tries = 0; tries < 50; tries++) {
@@ -100,28 +101,34 @@ export class Traffic {
     if (this.hw) this.hw.step(dt, players);
   }
   all() { return this.hw ? this.cars.concat(this.hw.cars) : this.cars; }
+  // kalıcı kimlikler (H25): host saniyede bir pakete ekler (ti); misafir çarpmayı bu kimlikle bildirir
+  ids() { return this.all().map(c => c.tid); }
+  byTid(t) { if (!this._tid || this._tidN !== this.all().length) { this._tid = new Map(this.all().map(c => [c.tid, c])); this._tidN = this.all().length; } return this._tid.get(t); }
   // compact state for the network
   // [x, y, a, fren, hız, sinyal, korna] — Aşama 4 (PROTO 2) sona ekler: [duman, kaza sayacı, kaza x, y, şiddet].
   // Eski sürüm fazla elemanları okumaz; yeni sürüm eksikleri yok sayar. Kaza efekti tek seferlik bir olay ama
   // paketler kayıplı (reliable:false): sayaç sayesinde kaybolan paket efekti yutmaz, iki kez de oynatmaz.
   pack() { return this.all().map(c => { const r = [Math.round(c.x * 10) / 10, Math.round(c.y * 10) / 10, Math.round(c.a * 100) / 100, c.brake ? 1 : 0, Math.round(c.v * 10) / 10, c.sig || 0, c.honk > 0 ? 1 : 0, Math.round((c.smoke || 0) * 10) / 10];
     if (c.fxN) r.push(c.fxN, Math.round(c.fxL.x * 10) / 10, Math.round(c.fxL.y * 10) / 10, Math.round(c.fxL.v * 10) / 10); return r; }); }
-  unpack(arr) { this.remote = arr; this.remoteT = performance.now(); }
-  // host: misafirin çarptığı araçlara darbeyi uygula (H1). h: [[sıra, kvx, kvy, kw, hitV, hitX, hitY], …]
+  unpack(arr, ti) { this.remote = arr; this.remoteT = performance.now(); if (Array.isArray(ti)) this.remoteIds = ti; }
+  // host: misafirin çarptığı araçlara darbeyi uygula (H1). h: [[sıra, kvx, kvy, kw, hitV, hitX, hitY, kimlik], …]
+  // Araç KALICI KİMLİKLE bulunur (H25); kimlik yoksa ya da host'ta böyle bir araç yoksa çarpma yok sayılır: yanlış araca asla
+  // uygulanmaz. (Sıra numarası yalnız geriye uyumluluk için mesajda durur, kullanılmaz.)
   // Değerler doğrulanır ve sınırlanır (bozuk/kötü niyetli mesaj trafiği uçuramasın).
   applyHits(h) {
-    if (!Array.isArray(h)) return 0; const all = this.all(); let n = 0;
+    if (!Array.isArray(h)) return 0; let n = 0;
     const lim = (x, m) => typeof x === 'number' && Number.isFinite(x) ? Math.max(-m, Math.min(m, x)) : 0;
-    for (const e of h.slice(0, 16)) { if (!Array.isArray(e)) continue; const c = all[e[0]]; if (!Number.isInteger(e[0]) || !c) continue;
+    for (const e of h.slice(0, 16)) { if (!Array.isArray(e) || !Number.isInteger(e[7])) continue; const c = this.byTid(e[7]); if (!c) continue;
       const hx = lim(e[5], 1e5), hy = lim(e[6], 1e5); const yakin = Math.hypot(hx - c.x, hy - c.y) < 12;
       c.kvx = (c.kvx || 0) + lim(e[1], 30); c.kvy = (c.kvy || 0) + lim(e[2], 30); c.kw = (c.kw || 0) + lim(e[3], 12);
       c.hitV = Math.max(c.hitV || 0, Math.max(0, lim(e[4], 40))); if (yakin) { c.hitX = hx; c.hitY = hy; } n++; }
     return n;
   }
   // misafir: fiziğin bu karede araçlara yazdığı darbeleri topla ve sıfırla (host'a gönderilecek)
+  // Aracın host'taki kimliği bilinmiyorsa (henüz ti gelmedi ya da eski host) darbe gönderilmez.
   takeHits() {
-    const out = []; this.all().forEach((c, n) => { if (c.kvx || c.kvy || c.kw || c.hitV) {
-      out.push([n, Math.round((c.kvx || 0) * 100) / 100, Math.round((c.kvy || 0) * 100) / 100, Math.round((c.kw || 0) * 100) / 100, Math.round((c.hitV || 0) * 100) / 100, Math.round((c.hitX ?? c.x) * 10) / 10, Math.round((c.hitY ?? c.y) * 10) / 10]);
+    const out = [], ids = this.remoteIds; this.all().forEach((c, n) => { if (c.kvx || c.kvy || c.kw || c.hitV) {
+      const tid = ids && ids[n]; if (Number.isInteger(tid)) out.push([n, Math.round((c.kvx || 0) * 100) / 100, Math.round((c.kvy || 0) * 100) / 100, Math.round((c.kw || 0) * 100) / 100, Math.round((c.hitV || 0) * 100) / 100, Math.round((c.hitX ?? c.x) * 10) / 10, Math.round((c.hitY ?? c.y) * 10) / 10, tid]);
       c.kvx = c.kvy = c.kw = c.hitV = 0; } }); return out;
   }
   render(dt) {

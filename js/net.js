@@ -6,7 +6,7 @@ import { Peer } from 'peerjs';
 // eski ve yeni sürüm aynı odada oynayabilir, farkı oyuncuya "sayfayı yenile" diye söyleriz (main.js).
 // Uyumsuz (eski sürümün anlayamayacağı) bir değişiklik gerekirse PROTO_ANA artırılır: oda ön eki değişir,
 // eski ve yeni sürüm birbirinin odasına hiç düşmez.
-export const PROTO=2;          // 1: Aşama 4 öncesi (pv alanı yok) · 2: pv, misafir→host trafik darbesi, paket efektleri
+export const PROTO=3;          // 1: Aşama 4 öncesi (pv alanı yok) · 2: pv, misafir→host trafik darbesi, paket efektleri · 3: araç kimlikleri (ti), darbe kimlikle (H25)
 const PROTO_ANA=1;
 // Oda kimliği ön eki. Canlı: 'turbopist-v3-' (değişmedi: önbellekte eski sürümü olan oyuncular da aynı odaya
 // düşsün). Önizleme derlemesi VITE_ODA_ONEK=onizleme- verir: canlı ve önizleme oyuncuları asla aynı odaya düşmez.

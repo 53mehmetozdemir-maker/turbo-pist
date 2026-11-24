@@ -181,7 +181,7 @@ export class HighwayTraffic {
     for (let dir = 0; dir < 2; dir++) for (let lane = 0; lane < 3; lane++) for (let k = 0; k < perLane; k++) {
       const kind = ['sedan', 'sedan', 'suv', 'hatch', 'van', 'sedan'][(k + lane * 2 + dir) % 6], color = CAR_COLORS[(k * 5 + lane * 3 + dir * 7) % CAR_COLORS.length];
       const v0 = [23, 28, 34][lane] + (k % 3) * 1.2;
-      this.cars.push({ dir, lane, s: (k + lane * 0.33 + dir * 0.17) / perLane * this.L, v: v0, v0, kind, len: fleet.shape(kind).L, id: fleet.add(kind, color), x: 0, y: 0, a: 0, vx: 0, vy: 0, brake: false, sig: 0, hw: true }); }
+      this.cars.push({ dir, lane, s: (k + lane * 0.33 + dir * 0.17) / perLane * this.L, v: v0, v0, kind, len: fleet.shape(kind).L, id: fleet.add(kind, color), x: 0, y: 0, a: 0, vx: 0, vy: 0, brake: false, sig: 0, hw: true, tid: 1000 + this.cars.length }); }
     for (const c of this.cars) this.place(c);
   }
   frameAt(s) { const L = this.L; s = ((s % L) + L) % L; let lo = 0, hi = ringF.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ringF[m].s <= s) lo = m; else hi = m - 1; }

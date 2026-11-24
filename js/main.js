@@ -506,7 +506,7 @@ function saveName(){ settings.name=cleanName(); store.set('tp_name',settings.nam
 let peers=[];
 const net=new Net(ps=>{ peers=ps; onPeersChanged(); }, ()=>{ goMenu(); }, toast);
 net.onExtra=(d,from)=>{ if(d.k==='hit' && net.isHost && from){ if(W && W.traffic) W.traffic.applyHits(d.h); return; }
-  if(d.k==='tr' && !net.isHost){ if(typeof d.ht==='number'){ const off=d.ht-Date.now(); CLOCK.off=Math.abs(off-CLOCK.off)>2000?off:CLOCK.off+(off-CLOCK.off)*0.1; } if(W && W.traffic) W.traffic.unpack(d.d); } };
+  if(d.k==='tr' && !net.isHost){ if(typeof d.ht==='number'){ const off=d.ht-Date.now(); CLOCK.off=Math.abs(off-CLOCK.off)>2000?off:CLOCK.off+(off-CLOCK.off)*0.1; } if(W && W.traffic) W.traffic.unpack(d.d,d.ti); } };
 const netNote=$('netNote');
 if(net.available){ $('joinBtn').disabled=false; netNote.innerHTML='Aynı oda kodunu giren herkes aynı haritaya katılır: <b>Şehir</b> seçip odayı açarsan arkadaşınla şehirde gezersin, <b>Pist</b> seçersen yarışırsınız (haritayı odayı açan seçer). <b>🔗 Davet</b> ile arkadaşına link gönder.'; }
 else netNote.innerHTML='<span class="warn">Bağlantı kütüphanesi yüklenemedi.</span> İnterneti kontrol edip sayfayı yenile.';
@@ -1124,7 +1124,7 @@ function trafficHorns(){ const seen=new Set(); if(W&&W.traffic&&!paused&&!audio.
     const on=!(c.honk>0.4&&c.honk<0.55); const id='t'+c.id; if(on){ seen.add(id); audio.horn(id,true,Math.min(1,(1-d/140)*1.1),0.82+((c.id*37)%9)/24); } }
   for(const id of hornsOn) if(!seen.has(id)) audio.horn(id,false); hornsOn.clear(); for(const id of seen) hornsOn.add(id); }
 // ---------------- main loop ----------------
-const STEP=1/120; let interp=null; const pPrev={x:0,y:0,a:0}; let acc=0, last=performance.now(), trafAcc=0, trafSend=0, lampT=0;
+const STEP=1/120; let interp=null; const pPrev={x:0,y:0,a:0}; let acc=0, last=performance.now(), trafAcc=0, trafSend=0, trafN=9, lampT=0;
 addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); if(composer){ composer.setSize(innerWidth,innerHeight); } });
 useWorld(settings.map); applyWeather(settings.weather); parkShowcase(); updateMenuLabels();
 
@@ -1154,7 +1154,7 @@ function frame(t){
     const players=[{x:phys.x,y:phys.y,vx:phys.vx,vy:phys.vy,speed:phys.speed}]; for(const r of remotes.values()) players.push({x:r.x,y:r.y,vx:r.vx,vy:r.vy,speed:Math.abs(r.v)});
     const sim=!online||net.isHost;
     if(sim){ trafAcc+=fdt; let n=0; while(trafAcc>=1/30 && n<4){ W.traffic.step(1/30,players); trafAcc-=1/30; n++; } if(n>=4) trafAcc=0; W.traffic.remote=null; W.traffic.ahead=trafAcc; } else W.traffic.ahead=0;
-    if(online && net.isHost){ trafSend+=fdt; if(trafSend>0.1){ trafSend=0; net.sendAll({t:'x',k:'tr',d:W.traffic.pack(),ht:Date.now()}); } }
+    if(online && net.isHost){ trafSend+=fdt; if(trafSend>0.1){ trafSend=0; trafN=(trafN+1)%10; const m={t:'x',k:'tr',d:W.traffic.pack(),ht:Date.now()}; if(!trafN) m.ti=W.traffic.ids(); net.sendAll(m); } /* ti: araç kimlikleri saniyede bir (H25) */ }
     fleet.cam.copy(camera.position); if(camMode===1&&mode!=='menu'&&mode!=='lobby') fleet.camDir.set(0,0,0); else camera.getWorldDirection(fleet.camDir); W.traffic.render(fdt); fleet.commit(); trafficHorns(); trafficFx(fdt);
     W.peds.update(fdt,players);
     if(frameNo%15===0) W.city.updateLights();
