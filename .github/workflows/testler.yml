@@ -10,7 +10,7 @@ name: testler
 
 on:
   push:
-    branches: [altyapi]
+    branches: [altyapi, 'is/**']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -46,10 +46,16 @@ jobs:
           SADECE: ${{ inputs.sadece }}
         run: |
           set -euo pipefail
-          hepsi="physics keys saves klasik visual sw worker mp menu harita saglamlik bellek ultra perf"
+          # Uzun testler parçalara bölünür (aynı anda ayrı makinelerde koşar). Parça adı: <test>-<parça>.
+          # Parçaların birleşimi tüm testi kapsar; ayrıntı aşağıdaki "Test" adımında.
+          hepsi="physics keys saves klasik sw worker mp harita saglamlik ultra perf
+                 visual-takip visual-kokpit visual-sehir visual-yerler visual-servis visual-kalan
+                 menu-1920x1080 menu-1904x986 menu-1366x768 menu-1280x720 menu-telefon_yatay menu-telefon_dikey
+                 bellek-1 bellek-2 bellek-3"
           secili=""
           for t in $hepsi; do
-            if [ -z "${SADECE:-}" ] || [[ ",${SADECE// /}," == *",$t,"* ]]; then secili="$secili \"$t\","; fi
+            taban="${t%%-*}"
+            if [ -z "${SADECE:-}" ] || [[ ",${SADECE// /}," == *",$taban,"* ]] || [[ ",${SADECE// /}," == *",$t,"* ]]; then secili="$secili \"$t\","; fi
           done
           [ -n "$secili" ] || { echo "::error::Seçilen test yok: $SADECE"; exit 1; }
           echo "liste=[${secili%,}]" >> "$GITHUB_OUTPUT"; echo "testler: [${secili%,}]"
@@ -117,11 +123,25 @@ jobs:
           GAME_ROOT: /tmp/derleme
         run: |
           set -o pipefail
-          if [ "${{ matrix.test }}" = perf ]; then
-            node baseline/perf.mjs | tee /tmp/perf.txt || echo "::warning title=perf::Performans ölçümü referanstan kötü çıktı (yalnız uyarı; süreler makineye göre oynar). Ayrıntı: bu adımın çıktısı."
-          else
-            node baseline/${{ matrix.test }}.mjs
-          fi
+          T="${{ matrix.test }}"
+          case "$T" in
+            perf)
+              node baseline/perf.mjs | tee /tmp/perf.txt || echo "::warning title=perf::Performans ölçümü referanstan kötü çıktı (yalnız uyarı; süreler makineye göre oynar). Ayrıntı: bu adımın çıktısı." ;;
+            # görsel: 35 görüntü 5 parçaya (7'şer). "kalan": hiçbir parçaya girmeyen (sonradan eklenen) görüntüler; boş olabilir.
+            visual-takip)  node baseline/visual.mjs check '_takip$' ;;
+            visual-kokpit) node baseline/visual.mjs check '_kokpit$' ;;
+            visual-sehir)  node baseline/visual.mjs check '^(menu|kaput_|sehir_|laptop_)' ;;
+            visual-yerler) node baseline/visual.mjs check '^(pist_|otoyol|dag_|zirve|drift_)' ;;
+            visual-servis) node baseline/visual.mjs check '^(sahil|benzinlik|tamirci|buyuk_|duraklat|telefon)' ;;
+            visual-kalan)  TP_BOS_IZIN=1 node baseline/visual.mjs check '^(?!.*_(takip|kokpit)$)(?!(menu|kaput_|sehir_|laptop_|pist_|otoyol|dag_|zirve|drift_|sahil|benzinlik|tamirci|buyuk_|duraklat|telefon))' ;;
+            # menü: 6 ekran boyutu ayrı makinelerde
+            menu-*) node baseline/menu.mjs check "^${T#menu-}$" ;;
+            # bellek: f458 + iki/üç araç arasında döner; üç parçanın birleşimi 7 aracı kapsar
+            bellek-1) BELLEK_ARACLAR=f40,model3 node baseline/bellek.mjs ;;
+            bellek-2) BELLEK_ARACLAR=e2008,gsxr node baseline/bellek.mjs ;;
+            bellek-3) BELLEK_ARACLAR=gt3,civic node baseline/bellek.mjs ;;
+            *) node baseline/$T.mjs ;;
+          esac
       - name: Kırmızı görüntüler günlüğe (indirmeden bakmak için)
         if: failure()
         run: |

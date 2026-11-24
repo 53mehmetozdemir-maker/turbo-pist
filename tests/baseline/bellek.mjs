@@ -4,9 +4,14 @@
 import { serve, launch, gamePage, sleep } from './lib.mjs';
 const { srv, url } = await serve(); const b = await launch();
 const { ctx, page, log } = await gamePage(b, url, { freeze: false, viewport: { width: 640, height: 360 } }); await sleep(2500);
-const IDS = ['f458', 'f40', 'model3', 'e2008', 'gsxr', 'gt3', 'civic'];
+const TUM = ['f458', 'f40', 'model3', 'e2008', 'gsxr', 'gt3', 'civic'];
+// CI parçalara böler: BELLEK_ARACLAR="f40,model3" → f458 (başlangıç aracı) + bu araçlar arasında döner.
+// Parçaların birleşimi 7 aracın hepsini kapsar (testler.yml). Boşsa 7 aracın hepsi (yerel/tam koşu).
+const IDS = process.env.BELLEK_ARACLAR ? ['f458', ...process.env.BELLEK_ARACLAR.split(',').filter(x => x && x !== 'f458')] : TUM;
+if (IDS.some(i => !TUM.includes(i))) { console.log('❌ bilinmeyen araç: ' + IDS); process.exit(1); }
+console.log('araçlar:', IDS.join(' '));
 const mem = () => page.evaluate(() => { const m = window.__game.renderer.info.memory; return [m.geometries, m.textures]; });
-const sec = async id => { await page.evaluate(i => document.querySelectorAll('#vSel .vcard')[i].click(), IDS.indexOf(id));
+const sec = async id => { await page.evaluate(i => document.querySelectorAll('#vSel .vcard')[i].click(), TUM.indexOf(id));
   await page.waitForFunction(id => { const c = document.querySelector('#vSel .vcard.on'); return c && c.querySelector('b').textContent && window.__game.model && !document.getElementById('toast').textContent.includes('yükleniyor'); }, id, { timeout: 90000, polling: 200 }).catch(() => {}); await sleep(600); };
 const turlar = [];
 // 0. tur ısınma (sayılmaz): hızlı makinede 1. turun sonunda bazı gecikmeli içerik henüz kurulmamış olabiliyor (CI'da
