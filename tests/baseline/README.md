@@ -28,6 +28,7 @@ node baseline/mp.mjs                # çok oyunculu: yerel PeerJS sunucusu, yeni
 node baseline/worker.mjs            # TURN aracısı (Worker) birim testi
 node baseline/sw.mjs                # service worker: kapsam ayrımı, çevrimdışı, yavaş açılış, güncelleme, acil çıkış (kendi derler, ~10 dk)
 node baseline/ultra.mjs             # Ultra ↔ Yüksek: ışık/efekt katkısı aynı, tek fark ortam gölgelendirmesi (gündüz+gece)
+node baseline/motor.mjs             # motosiklet ön takımı direksiyonla aynı yöne dönüyor (M1)
 node baseline/perf.mjs check        # hiçbir sahne daha yavaş olmamalı
 ```
 Testler zamanı (60 Hz sanal saat) ve rastgeleliği oyunun koduna dokunmadan sabitler; three.js/PeerJS'i yerel npm kopyasından verir.

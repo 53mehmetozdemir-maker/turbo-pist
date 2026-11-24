@@ -237,5 +237,5 @@ export function buildBike(color, opts = {}) {
       const f = Math.min(1, rpm / 15000); const n = 30; for (let i = 0; i < n; i++) { const on = i / n < f; g.fillStyle = on ? (i > n * 0.8 ? '#ff3030' : i > n * 0.6 ? '#ffb020' : '#30e070') : '#1a2020'; g.fillRect(10 + i * 7.9, 12 + (1 - Math.sin(i / n * Math.PI * 0.5)) * 18, 6, 22); }
       g.fillStyle = '#fff'; g.font = 'bold 56px Inter,sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText(String(kmh), 14, 118); g.font = '600 16px Inter,sans-serif'; g.fillStyle = '#9ab'; g.fillText('km/h', 16, 138);
       g.fillStyle = '#ffd400'; g.font = 'bold 72px Inter,sans-serif'; g.textAlign = 'right'; g.fillText(gear, 242, 124); dtex.needsUpdate = true; },
-    setPose(steer, ang) { q.setFromAxisAngle(steerAxis, -steer * 0.7); front.quaternion.copy(q); fspin.rotation.z = -ang[0] * (RR / RF); rspin.rotation.z = -ang[2]; } };
+    setPose(steer, ang) { q.setFromAxisAngle(steerAxis, steer * 0.7);   /* eksen kafa borusundan ön tekere (aşağı) bakar: + işaret = sağa (M1) */ front.quaternion.copy(q); fspin.rotation.z = -ang[0] * (RR / RF); rspin.rotation.z = -ang[2]; } };
 }

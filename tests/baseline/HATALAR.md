@@ -39,7 +39,7 @@ Her madde ayrı commit ile düzeltilir; düzeltme sürüşü değiştiriyorsa ö
 
 | # | Araç | Sorun | Koddan/ölçümden ilk bulgu |
 |---|---|---|---|
-| M1 | GSX-R 750 | Sağa çevirince ön teker görsel olarak sola dönüyor | Ön çatal dönüş yönü (`bikeglb.js`/`bike.js`), fizik direksiyonu doğru (+) |
+| M1 | GSX-R 750 | Sağa çevirince ön teker görsel olarak sola dönüyor | ✅ Düzeltildi (`is/m1-on-teker`): ön takım, kafa borusundan ön tekere (aşağı) bakan eksen etrafında `-steer` ile dönüyordu; aşağı bakan eksende bu ters yön demek. İşaret çevrildi, miktar (0,7) aynı. Prosedürel motosiklet de aynı iskeleti kullanıyor. Test `motor.mjs`: önce sağ direksiyonda ön takım yanı −0,39 (❌), sonra +0,39 (✅). Fizik değişmedi. |
 | M2 | GSX-R 750 | Yüksek hızda frende denge kaybı | Düz frende fizik kararlı (50 m/s → yön 0); sorun yatış/direksiyonla birlikte ya da görselde aranmalı |
 | M3 | GSX-R 750 | Hasarda sürekli sağa çekme, motorda fazla | Ölçüldü: hasar 60, 4 sn düz gazda motor 0,46 rad sapıyor (F40: 0,10). Motora ayrı/az katsayı gerekli |
 | M4 | GSX-R 750 | Aynalar bembeyaz | Motorun ayna tanımı yok (`mirrors`), model malzemesi düz beyaz |

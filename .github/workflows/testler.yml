@@ -58,7 +58,7 @@ jobs:
           hepsi="bellek-1 bellek-2 bellek-3 mp physics menu-1920x1080 ultra
                  visual-takip visual-kokpit visual-sehir visual-yerler visual-servis menu-1904x986
                  saves saglamlik sw keys perf menu-1366x768 menu-1280x720 harita
-                 menu-telefon_dikey menu-telefon_yatay klasik worker visual-kalan"
+                 menu-telefon_dikey menu-telefon_yatay klasik worker visual-kalan motor"
           secili=""
           for t in $hepsi; do
             taban="${t%%-*}"
